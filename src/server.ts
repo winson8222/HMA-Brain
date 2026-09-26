@@ -11,15 +11,18 @@ import { auditLog, search } from "./search.js";
 import { cachedChannels, displayName, getWorkspace, isHuman, listChannels, listUsers } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
 
-// ---- Slack (Socket Mode: no public URL needed) ----
-const slackApp = new App({
-  token: requireEnv("SLACK_BOT_TOKEN"),
-  appToken: requireEnv("SLACK_APP_TOKEN"),
-  socketMode: true,
-  ignoreSelf: false, // seeded messages are posted by our own bot and must still be indexed
-  logLevel: LogLevel.WARN,
-});
-registerEvents(slackApp);
+// ---- Slack live sync (Socket Mode: no public URL needed) ----
+// With SLACK_SYNC=off the server only serves queries; another server does the ingesting.
+const slackApp = config.slackSync
+  ? new App({
+      token: requireEnv("SLACK_BOT_TOKEN"),
+      appToken: requireEnv("SLACK_APP_TOKEN"),
+      socketMode: true,
+      ignoreSelf: false, // seeded messages are posted by our own bot and must still be indexed
+      logLevel: LogLevel.WARN,
+    })
+  : null;
+if (slackApp) registerEvents(slackApp);
 
 // ---- HTTP API + UI ----
 const web = express();
@@ -98,8 +101,11 @@ web.get(
 // ---- start ----
 await ensureIndex();
 await listChannels();
-await slackApp.start();
-setInterval(() => reconcileChannels().catch(console.error), 5 * 60_000);
+if (slackApp) {
+  await slackApp.start();
+  setInterval(() => reconcileChannels().catch(console.error), 5 * 60_000);
+}
 web.listen(config.port, () => {
-  console.log(`Internal Brain demo on http://localhost:${config.port} (Slack Socket Mode connected)`);
+  const sync = slackApp ? "live Slack sync on" : "live Slack sync OFF (SLACK_SYNC=off): run `npm run backfill` for new messages";
+  console.log(`Internal Brain demo on http://localhost:${config.port} (${sync})`);
 });
