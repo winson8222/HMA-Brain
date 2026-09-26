@@ -1,0 +1,29 @@
+{
+  "name": "internal-brain-slack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "seed:slack": "tsx src/seedSlack.ts",
+    "backfill": "tsx src/backfill.ts",
+    "verify": "tsx src/verify.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elastic/elasticsearch": "^8.19.2",
+    "@slack/bolt": "^5.1.0",
+    "@slack/web-api": "^8.1.1",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

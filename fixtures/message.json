@@ -1,0 +1,1 @@
+{ "type": "message", "channel": "C0PAYINC", "user": "U0ALICE", "text": "Root cause of payment outage: connection pool exhausted", "ts": "1790000000.000100", "channel_type": "group" }

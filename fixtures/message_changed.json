@@ -1,0 +1,3 @@
+{ "type": "message", "subtype": "message_changed", "channel": "C0PAYMENTS", "hidden": true, "ts": "1790000010.000400",
+  "message": { "type": "message", "user": "U0ALICE", "text": "Payment API p99 latency spiking since 09:40 (edited)", "ts": "1790000000.000100", "edited": { "user": "U0ALICE", "ts": "1790000010.000000" } },
+  "previous_message": { "type": "message", "user": "U0ALICE", "text": "Payment API p99 latency spiking since 09:40", "ts": "1790000000.000100" } }

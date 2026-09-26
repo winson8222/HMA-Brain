@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Internal Brain Demo</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3de;
+    --accent: #2f5bd3; --priv: #a33b1f; --priv-bg: #fbeae4; --chip: #eef1f8; --mark: #fff2a8; --ok: #217a3c; --deny: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --text: #ececea; --muted: #9b9b95; --border: #33332f;
+      --accent: #8aa8ff; --priv: #f0a58c; --priv-bg: #3a2019; --chip: #262b38; --mark: #5c4f00; --ok: #7fd49a; --deny: #f2a19b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 20px 24px 8px; }
+  h1 { font-size: 20px; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  #status { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  form { display: flex; gap: 8px; padding: 12px 24px; }
+  input[type=search] { flex: 1; padding: 10px 12px; font: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); }
+  .modes { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .modes label { display: flex; align-items: center; gap: 4px; padding: 0 12px; cursor: pointer; font-size: 14px; }
+  .modes input { accent-color: var(--accent); }
+  .answer { border-top: 1px solid var(--border); padding: 12px 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer a.cite { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 12px; vertical-align: super; }
+  .kw { font-size: 12px; color: var(--muted); padding-bottom: 8px; }
+  .srclbl { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 8px; }
+  .logans { margin: 4px 0 8px; padding: 6px 10px; border-radius: 6px; background: var(--chip); white-space: pre-wrap; overflow-wrap: anywhere; }
+  button { padding: 10px 16px; font: inherit; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  label.cmp { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 0 24px 16px; }
+  .pane { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-width: 0; }
+  .pane.hidden { display: none; }
+  select { width: 100%; padding: 8px; font: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
+  .chip.priv, .badge.priv { background: var(--priv-bg); color: var(--priv); }
+  .result { border-top: 1px solid var(--border); padding: 10px 0; }
+  .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge { font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--chip); color: var(--text); }
+  .result a { color: var(--accent); font-size: 12px; }
+  .text { margin-top: 4px; overflow-wrap: anywhere; }
+  mark { background: var(--mark); color: inherit; }
+  .empty { color: var(--muted); padding: 10px 0; border-top: 1px solid var(--border); }
+  section.log { margin: 0 24px 32px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  section.log h2 { font-size: 15px; margin: 0 0 4px; }
+  section.log p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .logrow { border-top: 1px solid var(--border); padding: 10px 0; font-size: 13px; }
+  .loghead { margin-bottom: 6px; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .lbl { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .docs { list-style: none; margin: 0; padding: 0 0 0 8px; border-left: 3px solid var(--border); }
+  .docs.allow { border-color: var(--ok); } .docs.deny { border-color: var(--deny); }
+  .docs li { padding: 3px 0; overflow-wrap: anywhere; }
+  .none { color: var(--muted); font-size: 12px; padding-left: 11px; }
+  .allow { color: var(--ok); } .deny { color: var(--deny); }
+  @media (max-width: 600px) { header, form { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } section.log { margin: 0 16px 24px; } form { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Internal Brain: permission-aware Slack Q&amp;A</h1>
+  <p>Each person only gets answers from channels they can see in Slack.</p>
+  <div id="status">Connecting…</div>
+</header>
+
+<form id="f">
+  <div class="modes" role="radiogroup" aria-label="Mode">
+    <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
+    <label><input type="radio" name="mode" value="search" /> Search</label>
+  </div>
+  <input type="search" id="q" placeholder="Ask a question, e.g. What caused the payment outage?" autocomplete="off" />
+  <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two users</label>
+  <button>Search</button>
+</form>
+
+<main>
+  <div class="pane" id="p0"></div>
+  <div class="pane" id="p1"></div>
+</main>
+
+<section class="log">
+  <h2>Audit log (admin view)</h2>
+  <p>Server-side record of each search. The withheld column is for admins only and is never sent to the person searching. Hover a message to see its ID.</p>
+  <div id="log"></div>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let users = [];
+const panes = [$("#p0"), $("#p1")];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  return r.json();
+}
+
+const chipsHtml = (u) => u.access.map((a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`).join("");
+
+function renderPane(pane, selectedId) {
+  const u = users.find((x) => x.id === selectedId) || users[0];
+  pane.dataset.user = u?.id || "";
+  pane.innerHTML = `
+    <select>${users.map((x) => `<option value="${x.id}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}${x.isGuest ? " (guest)" : ""}</option>`).join("")}</select>
+    <div class="chips">${u ? chipsHtml(u) : ""}</div>
+    <div class="results"></div>`;
+  pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
+}
+
+function renderResults(pane, data) {
+  const box = pane.querySelector(".results");
+  if (!data.results.length) { box.innerHTML = `<div class="empty">${esc(data.message)}</div>`; return; }
+  box.innerHTML = data.results.map((r) => resultHtml(r)).join("");
+}
+
+const mode = () => document.querySelector('input[name="mode"]:checked').value;
+
+const resultHtml = (r, n) => `
+    <div class="result" ${n ? `id="${n}"` : ""}>
+      <div class="meta">
+        <span class="badge ${r.is_private ? "priv" : ""}">${r.is_private ? "🔒 " : ""}#${esc(r.channel)}</span>
+        <span>${esc(r.author)}</span>
+        <span>${new Date(r.time).toLocaleString()}</span>
+        <a href="${esc(r.permalink)}" target="_blank" rel="noopener">open in Slack</a>
+      </div>
+      <div class="text">${n ? `<b>[${n.split("-").pop()}]</b> ` : ""}${r.snippet}</div>
+    </div>`;
+
+function renderAnswer(pane, data) {
+  const box = pane.querySelector(".results");
+  const byN = new Map(data.sources.map((s) => [s.n, s]));
+  const id = (n) => `${pane.id}-src-${n}`;
+  // Escape the model's text, then turn [n] into links to the cited message.
+  const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) =>
+    byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m);
+  box.innerHTML = `
+    <div class="answer">${answer}</div>
+    <div class="kw">Searched for: ${esc(data.keywords)}</div>
+    ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => resultHtml(s, id(s.n))).join("")}` : ""}`;
+}
+
+async function runSearch() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  const m = mode();
+  const active = panes.filter((p) => !p.classList.contains("hidden"));
+  await Promise.all(active.map(async (p) => {
+    const box = p.querySelector(".results");
+    if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
+    try {
+      if (m === "ask") renderAnswer(p, await api("/api/ask", { userId: p.dataset.user, q }));
+      else renderResults(p, await api("/api/search", { userId: p.dataset.user, q }));
+    } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+  }));
+  loadLog();
+}
+
+const docList = (docs, cls) => docs.length
+  ? `<ul class="docs ${cls}">${docs.map((d) => `
+      <li title="${esc(d.id)}"><span class="badge ${d.is_private ? "priv" : ""}">${d.is_private ? "🔒 " : ""}#${esc(d.channel)}</span>
+        <b>${esc(d.author)}:</b> ${esc(d.text)}</li>`).join("")}</ul>`
+  : `<div class="none">none</div>`;
+
+async function loadLog() {
+  const log = await api("/api/log");
+  const name = (id) => users.find((u) => u.id === id)?.name || id;
+  $("#log").innerHTML = log.slice(0, 20).map((e) => `
+    <div class="logrow">
+      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.userId))}</b> ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
+        ${e.keywords ? `<span class="kw">(keywords: ${esc(e.keywords)})</span>` : ""}</div>
+      ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
+      <div class="cols">
+        <div><div class="lbl allow">✓ Shown to ${esc(name(e.userId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
+        <div><div class="lbl deny">✕ Withheld (${e.denied.length})</div>${docList(e.denied, "deny")}</div>
+      </div>
+      ${e.droppedByRecheck.length ? `<div class="lbl deny">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
+    </div>`).join("") || `<div class="logrow">No searches yet.</div>`;
+}
+
+async function loadStatus() {
+  try {
+    const s = await api("/api/status");
+    $("#status").textContent = `${s.indexedMessages} messages indexed · ${s.eventsReceived} Slack events received` +
+      (s.lastEvent ? ` · last: ${s.lastEvent.type} at ${new Date(s.lastEvent.at).toLocaleTimeString()}` : "");
+    if (!s.llm) $("#status").textContent += " · Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env";
+    else $("#status").textContent += ` · LLM: ${s.llm}`;
+  } catch { $("#status").textContent = "Server not reachable"; }
+}
+
+async function loadUsers() {
+  users = await api("/api/users");
+  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
+}
+
+document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = () => {
+  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What caused the payment outage?" : "Search Slack, e.g. outage, breach, migration";
+});
+$("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
+$("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); runSearch(); };
+// Refresh access chips when the page regains focus (e.g. after changing membership in Slack).
+window.addEventListener("focus", async () => {
+  users = await api("/api/users");
+  panes.forEach((p) => {
+    const u = users.find((x) => x.id === p.dataset.user);
+    if (u) p.querySelector(".chips").innerHTML = chipsHtml(u);
+  });
+});
+
+loadUsers().then(loadLog);
+loadStatus();
+setInterval(loadStatus, 3000);
+</script>
+</body>
+</html>

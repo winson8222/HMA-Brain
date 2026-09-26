@@ -1,0 +1,2 @@
+{ "type": "message", "subtype": "file_share", "channel": "C0SECURITY", "user": "U0CAROL", "text": "Full report attached", "ts": "1790000040.000700",
+  "files": [{ "id": "F0REPORT", "name": "q3-breach-report.pdf", "title": "Q3 breach report" }] }

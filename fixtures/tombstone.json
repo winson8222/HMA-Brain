@@ -1,0 +1,2 @@
+{ "type": "message", "subtype": "message_changed", "channel": "C0PAYMENTS", "hidden": true, "ts": "1790000030.000600",
+  "message": { "type": "message", "subtype": "tombstone", "text": "This message was deleted.", "ts": "1790000000.000100", "reply_count": 1, "thread_ts": "1790000000.000100" } }

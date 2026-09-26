@@ -1,0 +1,2 @@
+{ "type": "message", "subtype": "message_deleted", "channel": "C0PAYMENTS", "hidden": true, "ts": "1790000020.000500", "deleted_ts": "1790000000.000100",
+  "previous_message": { "type": "message", "user": "U0ALICE", "text": "Payment API p99 latency spiking since 09:40", "ts": "1790000000.000100" } }

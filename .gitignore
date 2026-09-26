@@ -1,0 +1,4 @@
+node_modules
+.env
+fixtures/captured
+.DS_Store

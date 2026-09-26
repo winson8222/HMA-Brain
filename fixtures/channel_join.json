@@ -1,0 +1,1 @@
+{ "type": "message", "subtype": "channel_join", "channel": "C0PAYMENTS", "user": "U0BOB", "text": "<@U0BOB> has joined the channel", "ts": "1790000050.000800" }
