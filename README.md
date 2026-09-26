@@ -168,18 +168,41 @@ Choose access according to the role you want them to play. For example, add some
 
 ### Filling in `.env`
 
-Run `cp .env.example .env`, then fill it in according to your role:
+Run `cp .env.example .env`, then fill in each variable. Never commit `.env`: it holds your tokens and keys.
 
-| Variable | Connector owner (one person) | Teammates |
+**Slack**
+
+| Variable | What it is | How to fill it in |
 |---|---|---|
-| `SLACK_BOT_TOKEN` | From the Slack app (section 1.3) | **Same token as the owner**, sent privately |
-| `SLACK_APP_TOKEN` | From the Slack app (section 1.3) | Leave as is (only used for live sync) |
-| `SLACK_SYNC` | `on` | `off` (the default) |
-| `*_EMAIL` | Persona emails (only for `seed:slack`) | Leave as is |
-| `LLM_*` | See [section 3](#3-configure-the-llm-env) | See [section 3](#3-configure-the-llm-env) |
-| `ES_URL`, `ES_INDEX`, `PORT` | Keep the defaults | Keep the defaults |
+| `SLACK_BOT_TOKEN` | The `brain` bot's token (`xoxb-…`). Used to read channels, messages and members (backfill, permission checks, seeding). | **Owner:** api.slack.com/apps → Internal Brain → **OAuth & Permissions** → Bot User OAuth Token. **Teammates:** use the **same token as the owner**, sent to you privately. That bot is already in the private channels, so your backfill gets them too. |
+| `SLACK_APP_TOKEN` | App-level token (`xapp-…`). Opens the Socket Mode connection that receives live events. | **Owner:** Basic Information → **App-Level Tokens** (scope `connections:write`). **Teammates:** leave the placeholder; it's only used when `SLACK_SYNC=on`. |
+| `SLACK_SYNC` | Whether this server listens for live Slack events. | **Owner:** `on`. **Teammates:** `off` (the default). Slack delivers each live event to only one connected server, so only one person may have it on. With `off`, run `npm run backfill` to get the latest messages. |
 
-Only one person should have `SLACK_SYNC=on`, because Slack delivers each live event to just one connected server. Teammates run `npm run backfill` for the latest messages. Never commit `.env`.
+**Demo personas** (only used by `npm run seed:slack`)
+
+| Variable | What it is | How to fill it in |
+|---|---|---|
+| `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL`, `DAVE_EMAIL` | The email each persona used to join the Slack workspace. The seed script uses them to find each person and add them to channels. | **Owner:** the four emails from section 1.2. **Teammates:** leave the placeholders; you don't run the seed script. |
+
+**Elasticsearch and server**
+
+| Variable | What it is | How to fill it in |
+|---|---|---|
+| `ES_URL` | Where Elasticsearch runs. | Keep `http://localhost:9200` (started by `docker compose up -d`). |
+| `ES_INDEX` | Name of the index holding the messages. | Keep `brain`. |
+| `PORT` | Port for the web UI and API. | Keep `3000`, or change it if 3000 is taken. |
+| `CAPTURE_EVENTS` | `1` saves every raw Slack event to `fixtures/captured/`, for writing tests. | Keep `0` unless you're writing tests. |
+
+**LLM** (for Ask mode; see [section 3](#3-configure-the-llm-env) for each provider's values)
+
+| Variable | What it is | How to fill it in |
+|---|---|---|
+| `LLM_BASE_URL` | The provider's OpenAI-compatible API address, ending in `/v1`. | e.g. `https://tokenhub-intl.tencentcloudmaas.com/v1` for Tencent TokenHub. |
+| `LLM_MODEL` | Model ID at that provider. | e.g. `hy4-preview`. The model must be activated in the provider's console. |
+| `LLM_API_KEY` | Your API key for that provider. | Create it in the provider's console (TokenHub: console.tencentcloud.com/tokenhub → API Key). Each person can use their own key. Leave empty for a local model. |
+| `LLM_EXTRA_BODY` | Optional JSON added to every LLM request, for provider-specific options. | For TokenHub `hy4-preview`, use `{"thinking":{"type":"disabled"}}` for about 5s answers instead of about 60s. Otherwise leave empty. |
+
+After changing `.env`, restart the server. It only reads `.env` at start-up.
 
 ```bash
 docker compose up -d     # Elasticsearch 8 on http://localhost:9200 (security off, local only)
