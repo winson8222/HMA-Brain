@@ -5,9 +5,9 @@ export const config = {
   esIndex: process.env.ES_INDEX ?? "brain",
   port: Number(process.env.PORT ?? 3000),
   captureEvents: process.env.CAPTURE_EVENTS === "1",
-  // Live Slack sync. Only ONE server per Slack app should have this on: Slack sends each
-  // event to just one open connection, so extra listeners would split the events.
-  slackSync: process.env.SLACK_SYNC !== "off",
+  // Live Slack sync, off unless SLACK_SYNC=on. Only ONE server per Slack app should have it on:
+  // Slack sends each event to just one open connection, so extra listeners would split the events.
+  slackSync: process.env.SLACK_SYNC === "on",
 };
 
 export function requireEnv(name: string): string {
