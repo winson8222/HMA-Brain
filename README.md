@@ -17,7 +17,7 @@ This repo contains the first connector, **Slack**, plus the shared search, Q&A a
 ## Contents
 
 1. [Quick start](#quick-start)
-2. [Slack setup](#1-slack-setup-skip-if-already-done) (skip if already done)
+2. [Slack setup](#1-slack-setup-skip-if-already-done) (skip if already done), including [giving teammates access](#15-giving-teammates-access-to-the-existing-workspace)
 3. [Install and run](#2-install-and-run)
 4. [Configure the LLM](#3-configure-the-llm-env)
 5. [Demo script](#demo-script)
@@ -137,6 +137,30 @@ This writes **only to Slack**, never to Elasticsearch, and is safe to re-run. It
 | `#security` | **private** | Carol |
 
 To read a private channel created by hand, the bot must be a member: type `/invite @brain` in it.
+
+### 1.5 Giving teammates access to the existing workspace
+
+Use this when the workspace is already set up and someone new (a teammate, a judge) needs access.
+
+**Step 1: the workspace owner invites them.** Pick one:
+
+- **Invite link:** click the workspace name (top left) → **Invite people to …** → **Copy invite link**. Send the link privately, e.g. by DM. On the Free plan it expires after 30 days, and you can turn it off from the same menu.
+- **By email:** same menu → enter their email → **Send**.
+
+They accept, sign in, and set a display name (profile picture → **Profile** → **Edit**).
+
+**Step 2: give them channel access.**
+
+| Channel type | How they get in |
+|---|---|
+| Public (`#payments`, `#db-migration`, `#vendor-support`) | They can already read them. To join: **Channels → Browse channels → Join**. |
+| Private (`#payments-incident`, `#security`) | An existing member opens the channel → channel name → **Members** → **Add people**. |
+
+Choose access according to the role you want them to play. For example, add someone only to `#payments-incident` to make them "another Alice". They appear in the app's person dropdown on the next page load, with access matching their real Slack memberships. **No code or `.env` change is needed.**
+
+**Step 3 (developers only): access to the Slack app and its tokens.** Don't paste tokens into chat or commit them. Instead, the app owner adds them as a collaborator at https://api.slack.com/apps → **Internal Brain** → **Collaborators** → add their Slack account. They can then copy `SLACK_BOT_TOKEN` (OAuth & Permissions) and `SLACK_APP_TOKEN` (Basic Information → App-Level Tokens) into their own `.env`.
+
+**Only run one server per Slack app at a time.** With Socket Mode, Slack sends each event to **one** of the open connections, not all of them. If two teammates run `npm run dev` with the same app token, each copy misses some messages. Take turns, run `npm run backfill` after switching, or have each developer create their own Slack app from the manifest in 1.3.
 
 ---
 
