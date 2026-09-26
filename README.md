@@ -2,7 +2,7 @@
 
 HMA Brain answers questions over company data while respecting each source's own access rules. A person only ever gets answers built from content they can see in the source system, and every search is recorded for audit.
 
-This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](#developer-guide) explains how they fit in.
+This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
 
 **What works today**
 
@@ -17,11 +17,11 @@ This repo contains the first connector, **Slack**, plus the shared search, Q&A a
 ## Contents
 
 1. [Quick start](#quick-start)
-2. [Slack setup](#1-slack-setup-skip-if-already-done) (skip if already done), including [giving teammates access](#15-giving-teammates-access-to-the-existing-workspace)
+2. [Slack setup](docs/slack-setup.md) (skip if already done), including [giving teammates access](docs/slack-setup.md#5-giving-teammates-access-to-the-existing-workspace)
 3. [Install and run](#2-install-and-run)
 4. [Configure the LLM](#3-configure-the-llm-env)
 5. [Demo script](#demo-script)
-6. [Developer guide](#developer-guide): architecture, permission model, adding a connector
+6. [Developer guide](docs/developer-guide.md): architecture, permission model, adding a connector
 7. [Troubleshooting](#troubleshooting)
 
 ---
@@ -43,124 +43,10 @@ npm run dev                  # http://localhost:3000
 
 ## 1. Slack setup (skip if already done)
 
-Skip this section if your workspace already has the **Internal Brain** app installed and `.env` has `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN`.
+The full walkthrough is in **[docs/slack-setup.md](docs/slack-setup.md)**: create the workspace, the demo people, the Slack app and its tokens, then seed the demo channels.
 
-### 1.1 Create a workspace
-
-1. Go to https://slack.com/get-started#/createnew and sign up. You become the owner.
-2. Stay on the **Free** plan.
-
-### 1.2 Create the demo people
-
-The demo uses four personas. Each needs its own email address (separate Gmail accounts work best). Invite them from **workspace name → Invite people**, accept each invite in its own browser profile, and set each **display name**: profile picture → Profile → Edit.
-
-| Persona | Role in the story |
-|---|---|
-| **Carol** (you, the owner) | Security team, sees everything |
-| **Alice** | Backend engineer on the payments incident |
-| **Bob** | Junior engineer, public channels only |
-| **Dave** | "Contractor", only in `#vendor-support` and no private channels |
-
-On the Free plan Dave is a full member, so like everyone he can read all *public* channels. His restriction shows on the private channels. Real guest accounts (paid plans) are limited to their own channels, and the code already handles them.
-
-### 1.3 Create the Slack app
-
-1. Go to https://api.slack.com/apps → **Create New App → From a manifest** → choose your workspace.
-2. Paste this manifest and click **Create**:
-
-```yaml
-display_information:
-  name: Internal Brain
-features:
-  bot_user:
-    display_name: brain
-    always_online: true
-oauth_config:
-  scopes:
-    bot:
-      - channels:read
-      - groups:read
-      - channels:history
-      - groups:history
-      - channels:join
-      - users:read
-      - users:read.email
-      - channels:manage
-      - groups:write
-      - chat:write
-      - chat:write.customize
-settings:
-  event_subscriptions:
-    bot_events:
-      - message.channels
-      - message.groups
-      - member_joined_channel
-      - member_left_channel
-      - channel_created
-      - channel_rename
-      - channel_archive
-      - channel_unarchive
-      - group_archive
-      - group_unarchive
-      - group_rename
-  socket_mode_enabled: true
-  org_deploy_enabled: false
-  token_rotation_enabled: false
-```
-
-3. **Basic Information → App-Level Tokens → Generate Token and Scopes**: name it `socket`, add scope `connections:write`. Copy the `xapp-…` token into `.env` as `SLACK_APP_TOKEN`.
-4. **Install App → Install to Workspace → Allow**. Copy the **Bot User OAuth Token** (`xoxb-…`) into `.env` as `SLACK_BOT_TOKEN`.
-5. Put the four persona emails in `.env` (`CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL`, `DAVE_EMAIL`).
-
-Socket Mode means Slack sends events over a websocket that the server opens, so **no public URL is needed**.
-
-### 1.4 Seed the workspace
-
-```bash
-npm run seed:slack
-```
-
-This writes **only to Slack**, never to Elasticsearch, and is safe to re-run. It:
-
-1. Finds each persona by email.
-2. Creates any missing channels. The bot creates them, so it's automatically inside the private ones.
-3. Adds members.
-4. Posts the storyline messages (shown in Slack as e.g. "Alice APP", because the bot posts them).
-
-| Channel | Visibility | Members |
-|---|---|---|
-| `#general` (may be called `#all-<workspace>`) | public | everyone |
-| `#payments` | public | Carol, Alice, Bob |
-| `#db-migration` | public | Carol, Alice, Bob |
-| `#vendor-support` | public | Carol, Dave |
-| `#payments-incident` | **private** | Carol, Alice |
-| `#security` | **private** | Carol |
-
-To read a private channel created by hand, the bot must be a member: type `/invite @brain` in it.
-
-### 1.5 Giving teammates access to the existing workspace
-
-Use this when the workspace is already set up and someone new (a teammate, a judge) needs access.
-
-**Step 1: the workspace owner invites them.** Pick one:
-
-- **Invite link:** click the workspace name (top left) → **Invite people to …** → **Copy invite link**. Send the link privately, e.g. by DM. On the Free plan it expires after 30 days, and you can turn it off from the same menu.
-- **By email:** same menu → enter their email → **Send**.
-
-They accept, sign in, and set a display name (profile picture → **Profile** → **Edit**).
-
-**Step 2: give them channel access.**
-
-| Channel type | How they get in |
-|---|---|
-| Public (`#payments`, `#db-migration`, `#vendor-support`) | They can already read them. To join: **Channels → Browse channels → Join**. |
-| Private (`#payments-incident`, `#security`) | An existing member opens the channel → channel name → **Members** → **Add people**. |
-
-Choose access according to the role you want them to play. For example, add someone only to `#payments-incident` to make them "another Alice". They appear in the app's person dropdown on the next page load, with access matching their real Slack memberships. **No code or `.env` change is needed.**
-
-**Step 3 (developers only): access to the Slack app and its tokens.** Don't paste tokens into chat or commit them. Instead, the app owner adds them as a collaborator at https://api.slack.com/apps → **Internal Brain** → **Collaborators** → add their Slack account. They can then copy `SLACK_BOT_TOKEN` (OAuth & Permissions) and `SLACK_APP_TOKEN` (Basic Information → App-Level Tokens) into their own `.env`.
-
-**Only run one server per Slack app at a time.** With Socket Mode, Slack sends each event to **one** of the open connections, not all of them. If two teammates run `npm run dev` with the same app token, each copy misses some messages. Take turns, run `npm run backfill` after switching, or have each developer create their own Slack app from the manifest in 1.3.
+- **Connector owner, first time:** follow all of it.
+- **Teammates joining the existing workspace:** you only need [step 5, giving teammates access](docs/slack-setup.md#5-giving-teammates-access-to-the-existing-workspace).
 
 ---
 
@@ -182,7 +68,7 @@ Run `cp .env.example .env`, then fill in each variable. Never commit `.env`: it 
 
 | Variable | What it is | How to fill it in |
 |---|---|---|
-| `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL`, `DAVE_EMAIL` | The email each persona used to join the Slack workspace. The seed script uses them to find each person and add them to channels. | **Owner:** the four emails from section 1.2. **Teammates:** leave the placeholders; you don't run the seed script. |
+| `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL`, `DAVE_EMAIL` | The email each persona used to join the Slack workspace. The seed script uses them to find each person and add them to channels. | **Owner:** the four emails from [Slack setup step 2](docs/slack-setup.md#2-create-the-demo-people). **Teammates:** leave as is; you don't run the seed script. |
 
 **Elasticsearch and server**
 
@@ -314,124 +200,7 @@ The UI's status line shows the connected model, or a reminder if none is set.
 
 ## Developer guide
 
-### Architecture
-
-```
-                 ┌──────────────── CONNECTOR (per source) ─────────────────┐
-Slack ──events──▶│ events.ts   live changes (Socket Mode)                   │
-      ──history─▶│ sync.ts     backfill + 5-min reconcile                   │
-                 │ slackDocs.ts  source item → BrainDoc + permission label  │──write──▶ Elasticsearch
-                 │ principals.ts user → principals (live from Slack)        │           index "brain"
-                 └──────────────────────────────────────────────────────────┘                ▲
-                                                                                              │ filtered query
-Browser (public/index.html) ──▶ server.ts ──▶ search.ts  retrieve(): filter → live re-check ──┘
-                                     │           └─▶ audit log (shown / withheld)
-                                     └──▶ ask.ts ──▶ llm.ts (OpenAI-compatible)
-                                            keywords → retrieve() → answer with [n] citations
-```
-
-**Core principle: permissions are enforced before the LLM, never by it.**
-
-1. Every indexed document carries a **permission label** (`acl_container`): the principals allowed to see it.
-2. At query time the asker's **principals** are looked up from the source system.
-3. Elasticsearch filters by them **inside the query** (`bool.filter`). Restricted documents are never scored, returned, or put in a prompt.
-4. Each hit is **re-checked live** against the source, which catches permission changes that haven't reached the index yet.
-5. Users get only content fields. There are no hit counts, and "nothing found" and "all restricted" look the same, so restricted content's existence isn't revealed.
-6. The LLM is told to answer only from the given messages and cite them. Even if it ignored that, it only ever received permitted content.
-
-### Files
-
-| File | Layer | Role |
-|---|---|---|
-| `src/acl.ts` | shared | Principal strings, `aclFilter()`, `canSee()` |
-| `src/es.ts` | shared | Elasticsearch client and index mapping |
-| `src/indexer.ts` | shared | Upsert, bulk upsert, delete (with thread replies), relabel |
-| `src/search.ts` | shared | `retrieve()`: filtered search, live re-check, audit entry |
-| `src/ask.ts` | shared | Question → keywords → `retrieve()` → cited answer |
-| `src/llm.ts` | shared | OpenAI-compatible chat client |
-| `src/server.ts` | shared | Express API, static UI, starts Slack Socket Mode |
-| `public/index.html` | shared | UI: Ask/Search, two-person compare, audit log |
-| `src/slack.ts` | Slack | Web API client, channel and user caches, history pagination |
-| `src/slackDocs.ts` | Slack | Pure mapping of Slack messages/events → `BrainDoc` |
-| `src/events.ts` | Slack | Live event handlers |
-| `src/sync.ts` | Slack | Backfill, channel reconcile |
-| `src/principals.ts` | Slack | Slack user → principals |
-| `src/seedSlack.ts` | Slack | Demo data (writes to Slack only) |
-| `src/verify.ts` | Slack | Slack vs index consistency check |
-
-### Document shape
-
-Every source produces the same document type (currently `BrainDoc` in `src/slackDocs.ts`):
-
-| Field | Example | Notes |
-|---|---|---|
-| `doc_id` | `slack:C09ABC:1790000000.000100` | `<source>:<container>:<item>`, stable and unique |
-| `source` | `slack` | |
-| `channel_id` / `channel_name` | `C09ABC` / `payments-incident` | Container (channel, project, space, label) |
-| `is_private` | `true` | For display |
-| `user_id` / `user_name` | `U09ALICE` / `Alice` | Author |
-| `text` | … | Searchable content |
-| `ts` | ISO date | Used for "as of" and ranking |
-| `permalink` | `https://…/archives/…` | Citation link back to the source |
-| `acl_container` | `["slack:channel:C09ABC"]` | **Permission label. Required.** |
-
-### Permission model
-
-A principal is a string for one way of getting access. A user may see a document if **any** principal in the document's label is in the user's principal list.
-
-| Slack | Label on a message | User's principals |
-|---|---|---|
-| Public channel | `slack:ws:<team>:member`, `slack:channel:<id>` | `slack:ws:<team>:member` (full members only) |
-| Private channel | `slack:channel:<id>` | `slack:channel:<id>` for each channel they're in |
-| Guest | | Only their own channels' principals |
-
-Namespace every principal by source (`slack:`, `gmail:`, `jira:`…), so labels from different sources can never collide.
-
-### Adding a connector (e.g. Gmail, Jira)
-
-A connector turns one source into labelled documents and keeps them in sync. **It must provide all of the following.** A connector that can't do one of them can't be permission-safe.
-
-| # | Requirement | Slack implementation | What to build for a new source |
-|---|---|---|---|
-| 1 | **Backfill**: fetch all existing items, paginated and rate-limit aware | `sync.ts`, `slack.ts channelMessages()` | e.g. Gmail `messages.list` + `messages.get`; Jira JQL search |
-| 2 | **Live changes**: created, updated **and deleted** | Socket Mode events, `events.ts` | Webhooks or push (Gmail `watch` + `history.list`; Jira webhooks), else polling on `updated since` |
-| 3 | **Missed-change recovery**: events can be lost | `npm run backfill`, reconcile job | Periodic reconcile or ID diff against the source |
-| 4 | **Mapping to `BrainDoc`**, as a pure, unit-tested function | `slackDocs.ts messageToDoc()` | `gmailDocs.ts`, `jiraDocs.ts` |
-| 5 | **Permission label** for every item | `aclForChannel()` | Map the source's rules to principals (table below) |
-| 6 | **User → principals**, looked up fresh at query time | `principals.ts getAccess()` | Same idea for the source's accounts, groups and roles |
-| 7 | **Identity link**: login email → the source's user ID | `users.lookupByEmail` | Atlassian account search by email; Gmail is already the email |
-| 8 | **Live check** for the re-check step | `getChannel(fresh)` + fresh `getAccess()` | "Can user X see item Y now?" against the source |
-| 9 | **Permission-change handling** | member events, relabel on privacy change | Update labels (`update_by_query`) or refresh user principals |
-| 10 | **Verify script** | `verify.ts` | Items in source vs index, labels correct |
-| 11 | **Fixtures + tests** from real payloads | `fixtures/`, `CAPTURE_EVENTS=1` | Same |
-
-**Suggested permission mappings:**
-
-| Source | Label on an item | User's principals |
-|---|---|---|
-| Gmail | `gmail:mailbox:<owner email>` (a message is visible to its mailbox owner) | `gmail:mailbox:<own email>` |
-| Jira | `jira:<project>:role:<role>`, plus the issue security level when set | Project roles, groups, allowed security levels |
-| Confluence | `conf:space:<key>:viewers`, plus page restrictions (including inherited ones) | Space permissions, groups, `user:<id>` |
-| Google Drive | Effective permissions: `user:<email>`, `group:<email>`, `domain:<domain>` | Own email, Google groups, domain |
-
-If a source needs "container **and** item" rules (e.g. a Confluence space plus a page restriction), add `item_restricted` / `acl_item` fields and require both. The filter shape is in `src/acl.ts`.
-
-**Wiring a new connector in:**
-
-1. Put source-specific code in its own files (today's Slack files, or a future `src/connectors/<source>/`).
-2. Write documents through `indexer.ts` into the same index. Don't create a second index or bypass the labels.
-3. Combine principals from all sources for the user (union), keyed by the login email.
-4. Extend the live re-check in `retrieve()` for the new `source`.
-5. Add its events or webhooks to the server start-up.
-6. Don't add anything that sends unfiltered content to the LLM or the UI. `retrieve()` is the only way in.
-
-### Towards the full product
-
-- **Real login.** Replace the persona dropdown with SSO (e.g. Google). The backend must take identity from the login session, never from the request body.
-- **Identity map.** Store login email → `{ slack, atlassian, google }` IDs once and reuse it.
-- **Semantic search.** Add a `dense_vector` field and a `knn` clause with the **same** permission `filter` inside it. Never use `post_filter` for security.
-- **Tamper-evident audit.** Persist the log in a hash chain (each entry stores the previous entry's hash) with a verify endpoint. The current log is in memory only.
-- **Agentic Ask.** Let the LLM call a `search(query)` tool several times. The server always runs it as the logged-in user.
+Architecture, the permission model, the file map, and **what a new connector (Gmail, Jira, …) must provide** are in **[docs/developer-guide.md](docs/developer-guide.md)**.
 
 ---
 
