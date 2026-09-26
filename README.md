@@ -166,6 +166,21 @@ Choose access according to the role you want them to play. For example, add some
 
 ## 2. Install and run
 
+### Filling in `.env`
+
+Run `cp .env.example .env`, then fill it in according to your role:
+
+| Variable | Connector owner (one person) | Teammates |
+|---|---|---|
+| `SLACK_BOT_TOKEN` | From the Slack app (section 1.3) | **Same token as the owner**, sent privately |
+| `SLACK_APP_TOKEN` | From the Slack app (section 1.3) | Leave as is (only used for live sync) |
+| `SLACK_SYNC` | `on` | `off` (the default) |
+| `*_EMAIL` | Persona emails (only for `seed:slack`) | Leave as is |
+| `LLM_*` | See [section 3](#3-configure-the-llm-env) | See [section 3](#3-configure-the-llm-env) |
+| `ES_URL`, `ES_INDEX`, `PORT` | Keep the defaults | Keep the defaults |
+
+Only one person should have `SLACK_SYNC=on`, because Slack delivers each live event to just one connected server. Teammates run `npm run backfill` for the latest messages. Never commit `.env`.
+
 ```bash
 docker compose up -d     # Elasticsearch 8 on http://localhost:9200 (security off, local only)
 npm install
