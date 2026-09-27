@@ -2,7 +2,7 @@
 
 HMA Brain answers questions over company data while respecting each source's own access rules. A person only ever gets answers built from content they can see in the source system, and every search is recorded for audit.
 
-This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
+This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** ingestion connector (backfill + change polling into the `brain-drive` index) is set up in [docs/drive-setup.md](docs/drive-setup.md); search and Ask don't use it yet. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
 
 **What works today**
 
@@ -109,7 +109,12 @@ After this, **new, edited and deleted Slack messages are indexed automatically**
 | `npm run seed:slack` | Create demo channels, members and messages **in Slack** |
 | `npm run backfill` | Wipe the index and reload all Slack history |
 | `npm run verify` | Per channel: messages in Slack vs Elasticsearch, plus label correctness. Exits 1 on mismatch |
-| `npm test` | Unit tests (permission labels, message handling) |
+| `npm run drive:connect` | One time: sign in as the Drive admin and save the token ([Drive setup](docs/drive-setup.md)) |
+| `npm run seed:drive` | Create the demo "Company A" folder **in Drive** (`-- --edit-runbook` for a live update) |
+| `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
+| `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
+| `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
+| `npm test` | Unit tests (permission labels, message handling, Drive mapping) |
 | `npm run typecheck` | TypeScript check |
 
 ### Sharing the demo (optional)

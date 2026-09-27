@@ -24,6 +24,10 @@ const slackApp = config.slackSync
   : null;
 if (slackApp) registerEvents(slackApp);
 
+// ---- Google Drive sync (polling the changes feed) ----
+// Loaded only when DRIVE_SYNC=on, so the server still runs without Google credentials.
+const drive = process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
+
 // ---- HTTP API + UI ----
 const web = express();
 web.use(express.json());
@@ -94,7 +98,12 @@ web.get(
   "/api/status",
   wrap(async (_req, res) => {
     const { count } = await es.count({ index: INDEX });
-    res.json({ indexedMessages: count, llm: llmConfigured() ? process.env.LLM_MODEL : null, ...status });
+    res.json({
+      indexedMessages: count,
+      llm: llmConfigured() ? process.env.LLM_MODEL : null,
+      ...status,
+      ...(drive ? { drive: drive.driveStatus } : {}),
+    });
   }),
 );
 
@@ -105,7 +114,12 @@ if (slackApp) {
   await slackApp.start();
   setInterval(() => reconcileChannels().catch(console.error), 5 * 60_000);
 }
+if (drive) {
+  await drive.loadStatus();
+  drive.startPolling();
+}
 web.listen(config.port, () => {
   const sync = slackApp ? "live Slack sync on" : "live Slack sync OFF (SLACK_SYNC=off): run `npm run backfill` for new messages";
-  console.log(`Internal Brain demo on http://localhost:${config.port} (${sync})`);
+  const driveSync = drive ? `, Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "";
+  console.log(`Internal Brain demo on http://localhost:${config.port} (${sync}${driveSync})`);
 });

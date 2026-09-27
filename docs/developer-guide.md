@@ -46,6 +46,11 @@ Browser (public/index.html) ──▶ server.ts ──▶ search.ts  retrieve():
 | `src/principals.ts` | Slack | Slack user → principals |
 | `src/seedSlack.ts` | Slack | Demo data (writes to Slack only) |
 | `src/verify.ts` | Slack | Slack vs index consistency check |
+| `src/connectors/drive/acl.ts`, `extract.ts`, `chunk.ts`, `docs.ts` | Drive | Pure: sharing → labels, text extraction rules, chunking, file → docs, change decisions |
+| `src/connectors/drive/client.ts`, `auth.ts` | Drive | Drive API client (admin's token, retries), OAuth helpers |
+| `src/connectors/drive/store.ts`, `tree.ts` | Drive | `brain-drive` / `brain-drive-state` indexes, folder map and paths |
+| `src/connectors/drive/sync.ts` | Drive | Backfill, poll the changes feed, per-file update |
+| `src/connectors/drive/cli/*` | Drive | `drive:connect`, `seed:drive`, `drive:backfill`, `drive:poll`, `drive:verify` |
 
 ## Document shape
 
@@ -103,6 +108,24 @@ A connector turns one source into labelled documents and keeps them in sync. **I
 | Google Drive | Effective permissions: `user:<email>`, `group:<email>`, `domain:<domain>` | Own email, Google groups, domain |
 
 If a source needs "container **and** item" rules (e.g. a Confluence space plus a page restriction), add `item_restricted` / `acl_item` fields and require both. The filter shape is in `src/acl.ts`.
+
+**Google Drive against the checklist** (ingestion only so far; see [drive-setup.md](drive-setup.md)):
+
+| # | Status | How |
+|---|---|---|
+| 1 Backfill | Done | Walk the root folder, `files.list` paginated with retries/backoff |
+| 2 Live changes | Done | Poll `changes.list` every `DRIVE_POLL_SECONDS`; each entry is re-read with `files.get` |
+| 3 Missed-change recovery | Done | Saved page token (replays after downtime); `drive:backfill` reconciles; `drive:verify` |
+| 4 Mapping | Done | `docs.ts fileToDocs()`: Docs → Markdown, Sheets → CSV, Slides → text, text files downloaded, others title-only; chunks of ~800 tokens |
+| 5 Permission label | Done | `acl.ts permsToAcl()`: `drive:user:`, `drive:group:`, `drive:domain:`, `drive:anyone`; undiscoverable links get none |
+| 6 User → principals | Later | Login email → `drive:user:<email>` + domain (groups need the Workspace Admin SDK) |
+| 7 Identity link | Later | Same email as the login |
+| 8 Live check | Later | Re-read the top hits' permissions at query time |
+| 9 Permission changes | Done | Sharing-only change → `update_by_query` on the labels, no re-download |
+| 10 Verify | Done | `drive:verify` |
+| 11 Fixtures + tests | Done | `fixtures/drive/` (real API payloads), `src/__tests__/drive.test.ts` |
+
+Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id`, `title`, `path`, `chunk_index`, ...) with the same `acl_container` label field. To search both sources, query both indexes with the same `terms` filter on `acl_container`, and extend `retrieve()`'s live re-check and `toResult()` for `source: "drive"`.
 
 **Wiring a new connector in:**
 
