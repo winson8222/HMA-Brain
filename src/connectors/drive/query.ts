@@ -155,17 +155,32 @@ export async function driveSearch(email: string, q: string, via = "web"): Promis
   return { results: allowed.map(toResult), record };
 }
 
+// TokenHub sometimes rejects a call that works a second later (402 while an account balance hold settles,
+// 429 rate limits, 5xx). Retry those a couple of times so a demo question doesn't fail on a blip.
+async function chatRetry(...args: Parameters<typeof chat>): Promise<string> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await chat(...args);
+    } catch (e: any) {
+      const transient = /^LLM error (402|429|5\d\d)\b/.test(String(e?.message));
+      if (!transient || attempt >= 3) throw e;
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
+}
+
 // Questions are full of words like "what" and "the"; turn them into search keywords first.
 async function toKeywords(question: string): Promise<string> {
   try {
-    const k = await chat(
+    const k = await chatRetry(
       [
         { role: "system", content: KEYWORD_RULES },
         { role: "user", content: question },
       ],
       { maxTokens: 1500 },
     );
-    return k.replace(/[\n"]/g, " ").trim() || question;
+    const kw = k.replace(/[\n"]/g, " ").trim();
+    return kw && kw.split(/\s+/).length <= 20 ? kw : question; // a long reply is prose (e.g. a refusal), not keywords
   } catch {
     return question;
   }
@@ -181,7 +196,7 @@ export async function driveAsk(email: string, question: string, via = "web"): Pr
   if (allowed.length) {
     try {
       // Only chunks this person may see right now are ever put in the prompt.
-      answer = await chat([
+      answer = await chatRetry([
         { role: "system", content: ANSWER_RULES },
         { role: "user", content: `Excerpts:\n\n${buildContext(allowed.map((h) => h._source!))}\n\nQuestion: ${question}` },
       ]);
