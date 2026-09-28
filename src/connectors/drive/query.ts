@@ -156,15 +156,21 @@ export async function driveSearch(email: string, q: string, via = "web"): Promis
 }
 
 // TokenHub sometimes rejects a call that works a second later (402 while an account balance hold settles,
-// 429 rate limits, 5xx). Retry those a couple of times so a demo question doesn't fail on a blip.
-async function chatRetry(...args: Parameters<typeof chat>): Promise<string> {
-  for (let attempt = 0; ; attempt++) {
+// 429 rate limits, 5xx), and sometimes stalls for minutes. Time-limit each call and retry those cases.
+async function chatRetry(messages: Parameters<typeof chat>[0], opts: { maxTokens?: number; timeoutMs: number; tries: number }): Promise<string> {
+  for (let attempt = 1; ; attempt++) {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`LLM timed out after ${opts.timeoutMs / 1000}s`)), opts.timeoutMs);
+    });
     try {
-      return await chat(...args);
+      return await Promise.race([chat(messages, { maxTokens: opts.maxTokens }), timeout]);
     } catch (e: any) {
-      const transient = /^LLM error (402|429|5\d\d)\b/.test(String(e?.message));
-      if (!transient || attempt >= 3) throw e;
-      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      const transient = /^LLM (error (402|429|5\d\d)\b|timed out)/.test(String(e?.message));
+      if (!transient || attempt >= opts.tries) throw e;
+      await new Promise((r) => setTimeout(r, 700 * attempt));
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
@@ -177,7 +183,7 @@ async function toKeywords(question: string): Promise<string> {
         { role: "system", content: KEYWORD_RULES },
         { role: "user", content: question },
       ],
-      { maxTokens: 1500 },
+      { maxTokens: 1500, timeoutMs: 10_000, tries: 2 },
     );
     const kw = k.replace(/[\n"]/g, " ").trim();
     return kw && kw.split(/\s+/).length <= 20 ? kw : question; // a long reply is prose (e.g. a refusal), not keywords
@@ -199,7 +205,7 @@ export async function driveAsk(email: string, question: string, via = "web"): Pr
       answer = await chatRetry([
         { role: "system", content: ANSWER_RULES },
         { role: "user", content: `Excerpts:\n\n${buildContext(allowed.map((h) => h._source!))}\n\nQuestion: ${question}` },
-      ]);
+      ], { timeoutMs: 25_000, tries: 3 });
     } catch (e: any) {
       failure = String(e?.message ?? e);
     }

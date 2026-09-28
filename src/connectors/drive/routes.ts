@@ -10,7 +10,7 @@ import { driveKeysFor } from "./acl.js";
 import { newOAuthClient, saveToken, SCOPES } from "./auth.js";
 import { accountEmail, explain, isConnected, loadToken } from "./client.js";
 import { driveConfig } from "./config.js";
-import { demoPeople, findPerson, setupWarnings, type Person } from "./people.js";
+import { demoPeople, findPerson, type Person } from "./people.js";
 import { driveAsk, driveSearch } from "./query.js";
 import { ensureDriveIndices, getConnector } from "./store.js";
 import { driveStatus, loadStatus, pollOnce } from "./sync.js";
@@ -89,7 +89,8 @@ driveRouter.get(
   wrap(async (_req, res) => {
     if (!driveStatus.polling) await loadStatus().catch(() => {}); // no poller keeping it current
     const admin = await adminEmail();
-    const warnings = setupWarnings(admin);
+    // Only things that are broken right now. Demo-setup advice (admin is a persona, Carol unset) is in drive:doctor.
+    const warnings: string[] = [];
     if (!isConnected()) warnings.unshift("Google Drive isn't connected. An admin can connect it at the bottom of this page.");
     else if (driveStatus.authError) warnings.unshift("The Google token expired or was revoked. An admin needs to reconnect Drive.");
     if (!driveStatus.polling) warnings.push("Polling is off (DRIVE_SYNC=off), so Drive changes show up only after `npm run drive:poll` or Sync now.");
