@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Internal Brain: Drive</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3de;
+    --accent: #2f5bd3; --priv: #a33b1f; --priv-bg: #fbeae4; --chip: #eef1f8; --mark: #fff2a8; --ok: #217a3c; --deny: #b3261e;
+    --warn-bg: #fff6dc; --warn: #7a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --text: #ececea; --muted: #9b9b95; --border: #33332f;
+      --accent: #8aa8ff; --priv: #f0a58c; --priv-bg: #3a2019; --chip: #262b38; --mark: #5c4f00; --ok: #7fd49a; --deny: #f2a19b;
+      --warn-bg: #3a3116; --warn: #f0d58c;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 20px 24px 8px; }
+  h1 { font-size: 20px; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  header a { color: var(--accent); }
+  .statusline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  #status { font-size: 13px; color: var(--muted); }
+  #warnings { margin: 8px 24px 0; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 10px; font-size: 13px; margin-top: 6px; }
+  form#f { display: flex; gap: 8px; padding: 12px 24px; }
+  input[type=search], input[type=password], input[type=text] { padding: 10px 12px; font: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); min-width: 0; }
+  input[type=search] { flex: 1; }
+  .modes { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .modes label { display: flex; align-items: center; gap: 4px; padding: 0 12px; cursor: pointer; font-size: 14px; }
+  .modes input { accent-color: var(--accent); }
+  button { padding: 10px 16px; font: inherit; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.ghost { background: var(--chip); color: var(--text); }
+  button:disabled { opacity: .6; cursor: default; }
+  label.cmp { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 0 24px 16px; }
+  .pane { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-width: 0; }
+  .pane.hidden { display: none; }
+  select { width: 100%; padding: 8px; font: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
+  .chip.admin { background: var(--priv-bg); color: var(--priv); }
+  .answer { border-top: 1px solid var(--border); padding: 12px 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer a.cite { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 12px; vertical-align: super; }
+  .kw { font-size: 12px; color: var(--muted); padding-bottom: 8px; }
+  .srclbl { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 8px; }
+  .result { border-top: 1px solid var(--border); padding: 10px 0; }
+  .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge { font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--chip); color: var(--text); font-weight: 600; }
+  .result a { color: var(--accent); font-size: 12px; }
+  .text { margin-top: 4px; overflow-wrap: anywhere; }
+  mark { background: var(--mark); color: inherit; }
+  .empty { color: var(--muted); padding: 10px 0; border-top: 1px solid var(--border); }
+  section.admin { margin: 0 24px 32px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  section.admin h2 { font-size: 15px; margin: 0 0 4px; }
+  section.admin p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .row select { width: auto; }
+  #verify { font-size: 13px; }
+  .logrow { border-top: 1px solid var(--border); padding: 10px 0; font-size: 13px; }
+  .loghead { margin-bottom: 6px; }
+  .logans { margin: 4px 0 8px; padding: 6px 10px; border-radius: 6px; background: var(--chip); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .hash { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .lbl { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .docs { list-style: none; margin: 0; padding: 0 0 0 8px; border-left: 3px solid var(--border); }
+  .docs.allow { border-color: var(--ok); } .docs.deny { border-color: var(--deny); }
+  .docs li { padding: 3px 0; overflow-wrap: anywhere; }
+  .why { color: var(--muted); font-size: 12px; }
+  .none { color: var(--muted); font-size: 12px; padding-left: 11px; }
+  .allow { color: var(--ok); } .deny { color: var(--deny); }
+  @media (max-width: 600px) {
+    header, form#f { padding-left: 16px; padding-right: 16px; } #warnings { margin: 8px 16px 0; }
+    main { padding: 0 16px 16px; } section.admin { margin: 0 16px 24px; } form#f { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Internal Brain: permission-aware Google Drive Q&amp;A</h1>
+  <p>Each person only gets answers from files shared with them in Drive, re-checked with Drive before anything is shown. <a href="/">Slack demo →</a></p>
+  <div class="statusline"><span id="status">Connecting…</span> <button class="small ghost" id="sync" type="button">Sync now</button></div>
+</header>
+<div id="warnings"></div>
+
+<form id="f">
+  <div class="modes" role="radiogroup" aria-label="Mode">
+    <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
+    <label><input type="radio" name="mode" value="search" /> Search</label>
+  </div>
+  <input type="search" id="q" placeholder="Ask a question, e.g. How do we fail over the payment database?" autocomplete="off" />
+  <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two people</label>
+  <button>Go</button>
+</form>
+
+<main>
+  <div class="pane" id="p0"></div>
+  <div class="pane" id="p1"></div>
+</main>
+
+<section class="admin">
+  <h2>Admin</h2>
+  <p>Audit log and Drive connection. Needs the <code>ADMIN_TOKEN</code> from <code>.env</code>. Nothing here is ever shown to the people asking.</p>
+  <div class="row" id="lockrow">
+    <input type="password" id="token" placeholder="Admin token" autocomplete="off" />
+    <button class="small" id="unlock" type="button">Unlock</button>
+    <span id="lockmsg" class="why"></span>
+  </div>
+  <div id="adminbody" hidden>
+    <div class="row">
+      <button class="small ghost" id="connect" type="button">Connect / reconnect Google Drive</button>
+      <button class="small ghost" id="verifybtn" type="button">Verify audit chain</button>
+      <span id="verify"></span>
+    </div>
+    <div class="row">
+      <select id="factor"><option value="">Everyone</option></select>
+      <select id="fdecision">
+        <option value="">Any outcome</option>
+        <option value="denied">Had withheld files</option>
+        <option value="dropped">Had files dropped by re-check</option>
+      </select>
+      <input type="text" id="fdoc" placeholder="Drive file ID or doc ID" />
+      <button class="small ghost" id="refresh" type="button">Refresh</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const panes = [$("#p0"), $("#p1")];
+let people = [];
+
+const store = {
+  get: (k) => { try { return sessionStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch {} },
+};
+
+async function api(path, body, admin) {
+  const headers = { "Content-Type": "application/json" };
+  if (admin) headers["x-admin-token"] = store.get("adminToken");
+  const r = await fetch(path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status });
+  return data;
+}
+
+const ICONS = { document: "📄", spreadsheet: "📊", presentation: "📽️", "application/pdf": "📕" };
+const icon = (mime) => Object.entries(ICONS).find(([k]) => mime?.includes(k))?.[1] || "📎";
+const ago = (iso) => {
+  if (!iso) return "never";
+  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
+  return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : new Date(iso).toLocaleString();
+};
+
+// ---- people ----
+function renderPane(pane, email) {
+  const p = people.find((x) => x.email === email) || people[0];
+  pane.dataset.email = p?.email || "";
+  const files = p?.files || [];
+  pane.innerHTML = `
+    <select>${people.map((x) => `<option value="${esc(x.email)}" ${x.email === p?.email ? "selected" : ""}>${esc(x.name)} (${esc(x.email)})${x.admin ? " · admin" : ""}</option>`).join("")}</select>
+    <div class="chips">${p?.admin ? `<span class="chip admin">owns every file</span>` : ""}
+      ${files.length ? files.map((t) => `<span class="chip">${esc(t)}</span>`).join("") : `<span class="chip">no files shared</span>`}</div>
+    <div class="results"></div>`;
+  pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); run(); };
+}
+
+async function loadPeople() {
+  people = await api("/api/drive/people");
+  const defaults = [people.find((p) => !p.admin) || people[0], people.filter((p) => !p.admin)[1] || people[1]];
+  panes.forEach((pane, i) => renderPane(pane, pane.dataset.email || defaults[i]?.email));
+  $("#factor").innerHTML = `<option value="">Everyone</option>` + people.map((p) => `<option value="${esc(p.email)}">${esc(p.name)}</option>`).join("");
+}
+
+// ---- results ----
+const mode = () => document.querySelector('input[name="mode"]:checked').value;
+
+// r.snippet is HTML from the server: escaped text with <mark> highlights.
+const resultHtml = (r, id, n) => `
+  <div class="result" ${id ? `id="${id}"` : ""}>
+    <div class="meta">
+      <span class="badge">${icon(r.mime_type)} ${esc(r.title)}</span>
+      <span>${esc(r.path)}</span>
+      ${r.heading && r.heading !== r.title ? `<span>§ ${esc(r.heading)}</span>` : ""}
+      ${r.modified_at ? `<span>updated ${new Date(r.modified_at).toLocaleString()}</span>` : ""}
+      <a href="${esc(r.permalink)}" target="_blank" rel="noopener">open in Drive</a>
+    </div>
+    <div class="text">${n ? `<b>[${n}]</b> ` : ""}${r.snippet}</div>
+  </div>`;
+
+function renderResults(pane, data) {
+  const box = pane.querySelector(".results");
+  box.innerHTML = data.results.length ? data.results.map((r) => resultHtml(r)).join("") : `<div class="empty">${esc(data.message)}</div>`;
+}
+
+function renderAnswer(pane, data) {
+  const box = pane.querySelector(".results");
+  const byN = new Map(data.sources.map((s) => [s.n, s]));
+  const id = (n) => `${pane.id}-src-${n}`;
+  // Escape the model's text, then turn [n] into links to the cited excerpt.
+  const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) => (byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m));
+  box.innerHTML = `
+    <div class="answer">${answer}</div>
+    <div class="kw">Searched for: ${esc(data.keywords)}</div>
+    ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => resultHtml(s, id(s.n), s.n)).join("")}` : ""}`;
+}
+
+async function run() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  const m = mode();
+  const active = panes.filter((p) => !p.classList.contains("hidden"));
+  await Promise.all(active.map(async (p) => {
+    const box = p.querySelector(".results");
+    box.innerHTML = `<div class="empty">${m === "ask" ? "Thinking…" : "Searching…"}</div>`;
+    try {
+      if (m === "ask") renderAnswer(p, await api("/api/drive/ask", { email: p.dataset.email, q }));
+      else renderResults(p, await api("/api/drive/search", { email: p.dataset.email, q }));
+    } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+  }));
+  if (unlocked) loadLog();
+}
+
+// ---- status ----
+async function loadStatus() {
+  try {
+    const s = await api("/api/drive/status");
+    const parts = [
+      s.connected ? `${s.files} files (${s.chunks} chunks) from "${s.rootFolder ?? "?"}", read as ${s.account ?? "?"}` : "Drive not connected",
+      `last sync ${ago(s.lastPollAt || s.lastBackfillAt)}${s.polling ? ` (polling every ${s.pollSeconds}s)` : " (polling off)"}`,
+    ];
+    if (s.lastRun?.maxLagSeconds != null) parts.push(`last change indexed ${s.lastRun.maxLagSeconds}s after it was made`);
+    parts.push(s.llm ? `LLM: ${s.llm}` : "Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env");
+    $("#status").textContent = parts.join(" · ");
+    const warnings = [...s.warnings, ...(s.lastError ? [`Last sync error: ${s.lastError}`] : [])];
+    $("#warnings").innerHTML = warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join("");
+  } catch { $("#status").textContent = "Server not reachable, or Drive isn't configured (GOOGLE_CLIENT_ID in .env)"; }
+}
+
+$("#sync").onclick = async () => {
+  const b = $("#sync");
+  b.disabled = true; b.textContent = "Syncing…";
+  try {
+    const r = await api("/api/drive/sync", {});
+    b.textContent = r.counts ? "Synced" : "Already syncing";
+    await Promise.all([loadStatus(), loadPeople()]);
+  } catch (e) { b.textContent = "Sync failed"; alert(e.message); }
+  setTimeout(() => { b.disabled = false; b.textContent = "Sync now"; }, 1500);
+};
+
+// ---- admin: audit log, verify, connect ----
+let unlocked = false;
+
+const docList = (docs, cls) => docs.length
+  ? `<ul class="docs ${cls}">${docs.map((d) => `
+      <li title="${esc(d.doc_id)}">${d.cited ? "★ " : ""}<b>${esc(d.title)}</b> <span class="why">${esc(d.path || "")}${d.reason ? ` · ${esc(d.reason)}` : ""}</span></li>`).join("")}</ul>`
+  : `<div class="none">none</div>`;
+
+async function loadLog() {
+  const qs = new URLSearchParams({ limit: "30" });
+  if ($("#factor").value) qs.set("actor", $("#factor").value);
+  if ($("#fdecision").value) qs.set("decision", $("#fdecision").value);
+  if ($("#fdoc").value.trim()) qs.set("doc", $("#fdoc").value.trim());
+  const log = await api(`/api/audit?${qs}`, null, true);
+  const name = (email) => people.find((p) => p.email === email)?.name || email;
+  $("#log").innerHTML = log.map((e) => {
+    const by = (d) => e.docs.filter((x) => x.decision === d);
+    return `
+    <div class="logrow">
+      <div class="loghead">#${e.seq} · ${new Date(e.at).toLocaleString()} · <b>${esc(name(e.actor))}</b> ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
+        <span class="kw">(${esc(e.via)}${e.keywords ? `, keywords: ${esc(e.keywords)}` : ""})</span></div>
+      ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
+      <div class="cols">
+        <div><div class="lbl allow">✓ Shown (${by("allowed").length})${e.kind === "ask" ? " · ★ cited" : ""}</div>${docList(by("allowed"), "allow")}</div>
+        <div><div class="lbl deny">✕ Withheld: not shared (${by("denied").length})</div>${docList(by("denied"), "deny")}</div>
+        <div><div class="lbl deny">✕ Dropped by live re-check (${by("dropped").length})</div>${docList(by("dropped"), "deny")}</div>
+      </div>
+      <div class="hash">hash ${esc(e.hash.slice(0, 16))}… ← previous ${esc(e.prev_hash.slice(0, 16))}…</div>
+    </div>`;
+  }).join("") || `<div class="logrow">No matching records.</div>`;
+}
+
+async function unlock() {
+  try {
+    await loadLog();
+    unlocked = true;
+    $("#adminbody").hidden = false;
+    $("#lockrow").hidden = true;
+  } catch (e) {
+    unlocked = false;
+    $("#lockmsg").textContent = e.message;
+    if (e.status === 401) store.set("adminToken", "");
+  }
+}
+
+$("#unlock").onclick = () => { store.set("adminToken", $("#token").value.trim()); unlock(); };
+$("#token").onkeydown = (e) => { if (e.key === "Enter") $("#unlock").click(); };
+$("#refresh").onclick = () => loadLog().catch((e) => alert(e.message));
+["#factor", "#fdecision"].forEach((s) => ($(s).onchange = () => loadLog().catch((e) => alert(e.message))));
+
+$("#verifybtn").onclick = async () => {
+  $("#verify").textContent = "Checking…";
+  try {
+    const v = await api("/api/audit/verify", null, true);
+    $("#verify").innerHTML = v.ok
+      ? `<span class="allow">✓ All ${v.checked} records intact</span>${v.head ? ` <span class="hash">head #${v.head.seq} ${esc(v.head.hash.slice(0, 16))}…</span>` : ""}`
+      : `<span class="deny">✕ Chain broken: ${v.problems.map((p) => `#${p.seq} ${esc(p.problem)}`).join("; ")}</span>`;
+  } catch (e) { $("#verify").textContent = e.message; }
+};
+
+$("#connect").onclick = async () => {
+  try { location.href = (await api("/api/drive/connect", {}, true)).url; }
+  catch (e) { alert(e.message); }
+};
+
+// ---- wiring ----
+document.querySelectorAll('input[name="mode"]').forEach((r) => (r.onchange = () => {
+  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. How do we fail over the payment database?" : "Search Drive, e.g. failover, breach, SLA";
+}));
+$("#f").onsubmit = (e) => { e.preventDefault(); run(); };
+$("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); run(); };
+
+loadPeople().catch((e) => { panes[0].innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+loadStatus();
+setInterval(loadStatus, 5000);
+if (store.get("adminToken")) unlock();
+</script>
+</body>
+</html>

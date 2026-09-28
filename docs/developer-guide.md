@@ -50,7 +50,13 @@ Browser (public/index.html) ──▶ server.ts ──▶ search.ts  retrieve():
 | `src/connectors/drive/client.ts`, `auth.ts` | Drive | Drive API client (admin's token, retries), OAuth helpers |
 | `src/connectors/drive/store.ts`, `tree.ts` | Drive | `brain-drive` / `brain-drive-state` indexes, folder map and paths |
 | `src/connectors/drive/sync.ts` | Drive | Backfill, poll the changes feed, per-file update |
-| `src/connectors/drive/cli/*` | Drive | `drive:connect`, `seed:drive`, `drive:backfill`, `drive:poll`, `drive:verify` |
+| `src/connectors/drive/query.ts`, `prompt.ts` | Drive | Search/Ask: filtered query, live re-check with Drive, prompt and citations |
+| `src/connectors/drive/routes.ts`, `people.ts` | Drive | `/api/drive/*` and Connect Google Drive; the demo people |
+| `src/connectors/drive/pdf.ts` | Drive | PDF text extraction |
+| `src/connectors/drive/cli/*` | Drive | `drive:connect`, `seed:drive`, `drive:backfill`, `drive:poll`, `drive:verify`, `drive:ask`, `drive:doctor` |
+| `public/drive.html` | Drive | Drive Search/Ask page with the admin panel (audit log, verify, connect) |
+| `src/audit/chain.ts`, `store.ts` | shared | Tamper-evident audit log: HMAC hash chain in `brain-audit`, query and verify |
+| `src/audit/routes.ts`, `cli.ts`, `src/admin.ts` | shared | Admin-only audit API (`ADMIN_TOKEN`), `audit:log`, `audit:verify` |
 
 ## Document shape
 
@@ -109,7 +115,7 @@ A connector turns one source into labelled documents and keeps them in sync. **I
 
 If a source needs "container **and** item" rules (e.g. a Confluence space plus a page restriction), add `item_restricted` / `acl_item` fields and require both. The filter shape is in `src/acl.ts`.
 
-**Google Drive against the checklist** (ingestion only so far; see [drive-setup.md](drive-setup.md)):
+**Google Drive against the checklist** (see [drive-setup.md](drive-setup.md)):
 
 | # | Status | How |
 |---|---|---|
@@ -118,14 +124,14 @@ If a source needs "container **and** item" rules (e.g. a Confluence space plus a
 | 3 Missed-change recovery | Done | Saved page token (replays after downtime); `drive:backfill` reconciles; `drive:verify` |
 | 4 Mapping | Done | `docs.ts fileToDocs()`: Docs → Markdown, Sheets → CSV, Slides → text, text files downloaded, others title-only; chunks of ~800 tokens |
 | 5 Permission label | Done | `acl.ts permsToAcl()`: `drive:user:`, `drive:group:`, `drive:domain:`, `drive:anyone`; undiscoverable links get none |
-| 6 User → principals | Later | Login email → `drive:user:<email>` + domain (groups need the Workspace Admin SDK) |
-| 7 Identity link | Later | Same email as the login |
-| 8 Live check | Later | Re-read the top hits' permissions at query time |
+| 6 User → principals | Done | `acl.ts driveKeysFor()`: `drive:user:<email>`, `drive:anyone`, Workspace domain. Groups not expanded yet (needs the Workspace Admin SDK), so group-only files are hidden: safe, incomplete |
+| 7 Identity link | Done (demo) | The persona's email is the Google identity; the Drive page picks the person (demo shortcut, like the Slack page) |
+| 8 Live check | Done | `query.ts`: each matching file's sharing re-read with `files.get` before answering; fail closed; stale labels fixed on the spot |
 | 9 Permission changes | Done | Sharing-only change → `update_by_query` on the labels, no re-download |
 | 10 Verify | Done | `drive:verify` |
 | 11 Fixtures + tests | Done | `fixtures/drive/` (real API payloads), `src/__tests__/drive.test.ts` |
 
-Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id`, `title`, `path`, `chunk_index`, ...) with the same `acl_container` label field. To search both sources, query both indexes with the same `terms` filter on `acl_container`, and extend `retrieve()`'s live re-check and `toResult()` for `source: "drive"`.
+Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id`, `title`, `path`, `chunk_index`, ...) with the same `acl_container` label field. Drive has its own retrieval (`connectors/drive/query.ts`) and page (`/drive.html`). To search both sources in one place, query both indexes with the union of the person's Slack and Drive keys in the same `terms` filter, run each hit's own live re-check, and write one audit record through `src/audit/store.ts appendAudit()` (Slack's `logEntry()` can switch to it with a small change).
 
 **Wiring a new connector in:**
 
@@ -141,5 +147,5 @@ Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id
 - **Real login.** Replace the persona dropdown with SSO (e.g. Google). The backend must take identity from the login session, never from the request body.
 - **Identity map.** Store login email → `{ slack, atlassian, google }` IDs once and reuse it.
 - **Semantic search.** Add a `dense_vector` field and a `knn` clause with the **same** permission `filter` inside it. Never use `post_filter` for security.
-- **Tamper-evident audit.** Persist the log in a hash chain (each entry stores the previous entry's hash) with a verify endpoint. The current log is in memory only.
+- **Tamper-evident audit.** Done for Drive (`src/audit/`: HMAC hash chain in `brain-audit`, `audit:verify`). Slack's log is still in memory; point `logEntry()` at `appendAudit()`. For production, also anchor the chain head somewhere append-only.
 - **Agentic Ask.** Let the LLM call a `search(query)` tool several times. The server always runs it as the logged-in user.

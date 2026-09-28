@@ -38,9 +38,9 @@ describe("extraction", () => {
     expect(extractionFor(GOOGLE_SHEET)).toMatchObject({ kind: "export", exportMime: "text/csv" });
     expect(extractionFor(GOOGLE_SLIDES)).toMatchObject({ kind: "export", exportMime: "text/plain" });
   });
-  it("text files are downloaded; PDFs and images are title-only; folders skipped", () => {
+  it("text files and PDFs are downloaded (PDFs parsed); images are title-only; folders skipped", () => {
     expect(extractionFor("text/markdown")).toEqual({ kind: "download", format: "markdown" });
-    expect(extractionFor("application/pdf")).toEqual({ kind: "title" });
+    expect(extractionFor("application/pdf")).toEqual({ kind: "download", format: "plain", parser: "pdf" });
     expect(extractionFor("image/png")).toEqual({ kind: "title" });
     expect(extractionFor("application/vnd.google-apps.folder")).toEqual({ kind: "skip" });
   });

@@ -7,6 +7,8 @@ export const driveConfig = {
   rootFolderId: process.env.DRIVE_ROOT_FOLDER_ID || "",
   rootFolderName: process.env.DRIVE_ROOT_FOLDER_NAME || "Company A",
   pollSeconds: Number(process.env.DRIVE_POLL_SECONDS || 60),
+  // Full reconcile (re-list everything, fix anything a poll missed) while the server runs. 0 turns it off.
+  reconcileMinutes: Number(process.env.DRIVE_RECONCILE_MINUTES ?? 60),
   index: process.env.DRIVE_INDEX || "brain-drive",
   stateIndex: process.env.DRIVE_STATE_INDEX || "brain-drive-state",
   // Refresh token of the admin account that connected Drive (written by `npm run drive:connect`). Never commit it.

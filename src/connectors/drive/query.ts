@@ -1,0 +1,211 @@
+// Permission-aware Search and Ask over Drive.
+//
+// 1. The asker's keys come from their email (acl.ts driveKeysFor).
+// 2. Elasticsearch filters by those keys inside the query, so other files are never scored or returned.
+// 3. Each file that matched is re-read from Drive right now; anything no longer shared is dropped
+//    (covers the gap until the next poll relabels it, which also happens right away here).
+// 4. Only chunks that pass both checks are shown or given to the LLM.
+// 5. Every search and answer is written to the tamper-evident audit log before anything is returned.
+import type { estypes } from "@elastic/elasticsearch";
+import { canSee } from "../../acl.js";
+import { appendAudit } from "../../audit/store.js";
+import type { AuditDoc, AuditRecord, Decision } from "../../audit/chain.js";
+import { es } from "../../es.js";
+import { chat } from "../../llm.js";
+import { aclHash, driveKeysFor, permsToAcl, recheck, type LiveCheck } from "./acl.js";
+import { explain, getMeta, isAuthError } from "./client.js";
+import { driveConfig } from "./config.js";
+import type { DriveDoc } from "./docs.js";
+import { ANSWER_RULES, bodyOf, buildContext, citedNumbers, KEYWORD_RULES, NO_INFO } from "./prompt.js";
+import { relabelFile } from "./store.js";
+import { driveStatus } from "./sync.js";
+
+type Hit = estypes.SearchHit<DriveDoc>;
+
+// What a person gets back: content fields only. No labels, no counts, nothing about withheld files.
+export type DriveResult = {
+  title: string;
+  path: string;
+  heading: string | null;
+  snippet: string; // HTML: escaped text with <mark> highlights
+  modified_at: string | null;
+  permalink: string;
+  mime_type: string;
+};
+
+export type DriveAnswer = { answer: string; keywords: string; sources: (DriveResult & { n: number })[] };
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// keys = null only for the server-side audit query below.
+function driveQuery(q: string, keys: string[] | null, size: number, onePerFile: boolean) {
+  return {
+    index: driveConfig.index,
+    size,
+    query: {
+      bool: {
+        must: { multi_match: { query: q, fields: ["title^3", "text"] } },
+        filter: keys ? [{ terms: { acl_container: keys } }] : [],
+      },
+    },
+    ...(onePerFile ? { collapse: { field: "file_id" } } : {}),
+  };
+}
+
+const highlight = {
+  fields: { text: { fragment_size: 220, number_of_fragments: 2 } },
+  encoder: "html" as const,
+  pre_tags: ["<mark>"],
+  post_tags: ["</mark>"],
+};
+
+async function liveChecks(fileIds: string[]): Promise<Map<string, LiveCheck>> {
+  const out = new Map<string, LiveCheck>();
+  await Promise.all(
+    fileIds.map(async (id) => {
+      try {
+        const m = await getMeta(id);
+        out.set(id, !m ? { state: "gone" } : m.trashed ? { state: "trashed" } : { state: "ok", acl: permsToAcl(m.permissions) });
+      } catch (e) {
+        out.set(id, { state: "error", error: explain(e) }); // withheld: fail closed
+        if (isAuthError(e)) Object.assign(driveStatus, { authError: true, lastError: explain(e) }); // show "reconnect"
+      }
+    }),
+  );
+  return out;
+}
+
+const auditDoc = (d: DriveDoc, decision: Decision, reason?: string): AuditDoc => ({
+  doc_id: d.doc_id,
+  source: "drive",
+  title: d.title,
+  path: d.path,
+  decision,
+  ...(reason ? { reason } : {}),
+});
+
+export async function retrieve(email: string, q: string, opts: { size: number; onePerFile: boolean }) {
+  const keys = driveKeysFor(email);
+
+  // Filtered search: other people's files never leave Elasticsearch.
+  const r = await es.search<DriveDoc>({ ...driveQuery(q, keys, opts.size, opts.onePerFile), highlight });
+  const hits = r.hits.hits;
+
+  // Live re-check with Drive, one call per matching file.
+  const live = await liveChecks([...new Set(hits.map((h) => h._source!.file_id))]);
+  const allowed: Hit[] = [];
+  const dropped: AuditDoc[] = [];
+  for (const h of hits) {
+    const d = recheck(live.get(h._source!.file_id), keys);
+    if (d.ok) allowed.push(h);
+    else dropped.push(auditDoc(h._source!, "dropped", d.reason));
+  }
+
+  // Admin audit only: files that matched but aren't shared with this person. Never returned to them.
+  const shadow = await es.search<DriveDoc>({
+    ...driveQuery(q, null, 50, true),
+    _source: ["doc_id", "file_id", "title", "path", "acl_container"],
+  });
+  const denied = shadow.hits.hits
+    .map((h) => h._source!)
+    .filter((d) => !canSee(d.acl_container, keys))
+    .map((d) => auditDoc(d, "denied", "not shared with this person"));
+
+  // The index was behind Drive: fix the labels now instead of waiting for the next poll.
+  for (const [fileId, l] of live) {
+    const stored = hits.find((h) => h._source!.file_id === fileId)!._source!.acl_container;
+    if (l.state === "ok" && aclHash(l.acl) !== aclHash([...stored].sort())) {
+      relabelFile(fileId, l.acl).catch((e) => console.error(`Drive relabel ${fileId}: ${explain(e)}`));
+    }
+  }
+
+  return { allowed, audit: [...allowed.map((h) => auditDoc(h._source!, "allowed")), ...dropped, ...denied] };
+}
+
+// ES's HTML encoder also escapes "/" and "'"; undo that to compare with the plain header.
+const unescapeHtml = (s: string) =>
+  s.replace(/&#x2F;/g, "/").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+
+// Highlight fragments can start with the chunk's "Title (path)" line; the result already shows both.
+function dropHeader(fragment: string, d: DriveDoc): string {
+  const nl = fragment.indexOf("\n");
+  if (nl < 0) return fragment;
+  const first = unescapeHtml(fragment.slice(0, nl).replace(/<\/?mark>/g, ""));
+  return `${d.title} (${d.path})`.endsWith(first.trim()) ? fragment.slice(nl + 1).trimStart() : fragment;
+}
+
+export function toResult(h: Hit): DriveResult {
+  const d = h._source!;
+  const fragments = h.highlight?.text?.map((f) => dropHeader(f, d)).filter(Boolean);
+  return {
+    title: d.title,
+    path: d.path,
+    heading: d.heading,
+    snippet: fragments?.length ? fragments.join(" … ") : escapeHtml(bodyOf(d).slice(0, 300)),
+    modified_at: d.modified_at,
+    permalink: d.permalink,
+    mime_type: d.mime_type,
+  };
+}
+
+// Returns the audit record too, for the admin CLI; the web API sends only `results`.
+export async function driveSearch(email: string, q: string, via = "web"): Promise<{ results: DriveResult[]; record: AuditRecord }> {
+  const { allowed, audit } = await retrieve(email, q, { size: 10, onePerFile: true });
+  const record = await appendAudit({ actor: email, kind: "search", via, sources: ["drive"], query: q, docs: audit });
+  return { results: allowed.map(toResult), record };
+}
+
+// Questions are full of words like "what" and "the"; turn them into search keywords first.
+async function toKeywords(question: string): Promise<string> {
+  try {
+    const k = await chat(
+      [
+        { role: "system", content: KEYWORD_RULES },
+        { role: "user", content: question },
+      ],
+      { maxTokens: 1500 },
+    );
+    return k.replace(/[\n"]/g, " ").trim() || question;
+  } catch {
+    return question;
+  }
+}
+
+// Returns the audit record too, for the admin CLI; the web API sends only `answer`.
+export async function driveAsk(email: string, question: string, via = "web"): Promise<{ answer: DriveAnswer; record: AuditRecord }> {
+  const keywords = await toKeywords(question);
+  const { allowed, audit } = await retrieve(email, keywords, { size: 8, onePerFile: false });
+
+  let answer = NO_INFO;
+  let failure: string | null = null;
+  if (allowed.length) {
+    try {
+      // Only chunks this person may see right now are ever put in the prompt.
+      answer = await chat([
+        { role: "system", content: ANSWER_RULES },
+        { role: "user", content: `Excerpts:\n\n${buildContext(allowed.map((h) => h._source!))}\n\nQuestion: ${question}` },
+      ]);
+    } catch (e: any) {
+      failure = String(e?.message ?? e);
+    }
+  }
+
+  const cited = citedNumbers(answer);
+  let n = 0;
+  for (const d of audit) if (d.decision === "allowed" && cited.has(++n)) d.cited = true;
+  // No answer goes out without its audit record.
+  const record = await appendAudit({
+    actor: email,
+    kind: "ask",
+    via,
+    sources: ["drive"],
+    query: question,
+    keywords,
+    answer: failure ? `(no answer: ${failure})` : answer,
+    docs: audit,
+  });
+  if (failure) throw new Error(failure);
+
+  const sources = allowed.map((h, i) => ({ n: i + 1, ...toResult(h) })).filter((s) => cited.has(s.n));
+  return { answer: { answer, keywords, sources }, record };
+}

@@ -6,13 +6,14 @@ export const GOOGLE_DOC = "application/vnd.google-apps.document";
 export const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 export const GOOGLE_SLIDES = "application/vnd.google-apps.presentation";
 const SHORTCUT = "application/vnd.google-apps.shortcut";
+export const PDF = "application/pdf";
 
 export type TextFormat = "markdown" | "csv" | "plain";
 
 export type Extraction =
   | { kind: "export"; exportMime: string; format: TextFormat } // Google Docs/Sheets/Slides
-  | { kind: "download"; format: TextFormat } // plain-text files stored in Drive
-  | { kind: "title" } // anything else (PDF, images, ...): index the title only for now
+  | { kind: "download"; format: TextFormat; parser?: "pdf" } // files stored in Drive: text as is, PDFs parsed
+  | { kind: "title" } // anything else (images, Office files, ...): index the title only for now
   | { kind: "skip" }; // folders, shortcuts
 
 export type Extracted = { text: string; format: TextFormat; titleOnly: boolean; note?: string };
@@ -37,6 +38,7 @@ export function extractionFor(mimeType: string): Extraction {
     case GOOGLE_SLIDES:
       return { kind: "export", exportMime: "text/plain", format: "plain" };
   }
+  if (mimeType === PDF) return { kind: "download", format: "plain", parser: "pdf" };
   const format = DOWNLOADABLE[mimeType];
   return format ? { kind: "download", format } : { kind: "title" };
 }

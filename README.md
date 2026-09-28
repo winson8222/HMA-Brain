@@ -2,7 +2,7 @@
 
 HMA Brain answers questions over company data while respecting each source's own access rules. A person only ever gets answers built from content they can see in the source system, and every search is recorded for audit.
 
-This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** ingestion connector (backfill + change polling into the `brain-drive` index) is set up in [docs/drive-setup.md](docs/drive-setup.md); search and Ask don't use it yet. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
+This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** connector (backfill + change polling into the `brain-drive` index) has its own Search/Ask page at `/drive.html`, with a live permission re-check and a tamper-evident audit log; see [docs/drive-setup.md](docs/drive-setup.md). The Slack page doesn't search Drive yet. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
 
 **What works today**
 
@@ -114,7 +114,11 @@ After this, **new, edited and deleted Slack messages are indexed automatically**
 | `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
 | `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
 | `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
-| `npm test` | Unit tests (permission labels, message handling, Drive mapping) |
+| `npm run drive:ask` | Ask or search Drive as a persona from the terminal (`-- --as bob "question"`, add `--search`) |
+| `npm run drive:doctor` | Check the whole Drive setup and list what's left to do |
+| `npm run audit:log` | Query the audit log (`-- --user bob`, `--doc <file id>`, `--denied`, `--since <date>`) |
+| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed |
+| `npm test` | Unit tests (permission labels, message handling, Drive mapping and queries, audit chain) |
 | `npm run typecheck` | TypeScript check |
 
 ### Sharing the demo (optional)
@@ -226,5 +230,5 @@ Architecture, the permission model, the file map, and **what a new connector (Gm
 ### Demo-only shortcuts (not production)
 
 - "Who am I" is picked in the UI, with no authentication.
-- The audit log is in memory and not tamper-evident.
+- The Slack page's audit log is in memory and not tamper-evident. (Drive's is, in `brain-audit`.)
 - Elasticsearch runs without security on localhost.

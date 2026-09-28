@@ -6,6 +6,7 @@ import type { drive_v3 } from "googleapis";
 import { aclHash, permsToAcl } from "./acl.js";
 import {
   accountEmail,
+  downloadBytes,
   downloadText,
   explain,
   exportText,
@@ -13,6 +14,7 @@ import {
   getMeta,
   httpStatus,
   isAuthError,
+  isConnected,
   listChanges,
   listChildren,
   startPageToken,
@@ -39,6 +41,7 @@ import {
   writeFileDocs,
 } from "./store.js";
 import { cachedFolder, forgetFolder, loadFolders, locate, rememberFolder } from "./tree.js";
+import { MAX_PDF_BYTES, pdfText } from "./pdf.js";
 
 type Root = { id: string; name: string };
 export type Outcome = "indexed" | "relabelled" | "unchanged" | "deleted" | "skipped" | "error";
@@ -53,8 +56,13 @@ export const summary = (c: Counts) =>
     .map(([k, n]) => `${n} ${k}`)
     .join(", ") || "nothing to do";
 
-// Shown in /api/status.
+// Shown in /api/status and /api/drive/status.
 export const driveStatus = {
+  connected: false,
+  authError: false, // token expired or revoked: an admin must reconnect
+  polling: false,
+  pollSeconds: driveConfig.pollSeconds,
+  reconcileMinutes: driveConfig.reconcileMinutes,
   account: null as string | null,
   rootFolder: null as string | null,
   files: 0,
@@ -69,7 +77,12 @@ const MAX_TEXT_CHARS = 2_000_000;
 
 async function extract(meta: drive_v3.Schema$File, how: Extraction): Promise<Extracted> {
   if (how.kind === "title" || how.kind === "skip") return TITLE_ONLY;
-  const raw = how.kind === "export" ? await exportText(meta.id!, how.exportMime) : await downloadText(meta.id!);
+  let raw: string;
+  if (how.kind === "export") raw = await exportText(meta.id!, how.exportMime);
+  else if (how.parser === "pdf") {
+    if (Number(meta.size ?? 0) > MAX_PDF_BYTES) return { ...TITLE_ONLY, note: "PDF too large" };
+    raw = await pdfText(await downloadBytes(meta.id!));
+  } else raw = await downloadText(meta.id!);
   const text = normalise(raw, how.format);
   return text.length > MAX_TEXT_CHARS
     ? { text: text.slice(0, MAX_TEXT_CHARS), format: how.format, titleOnly: false, note: "truncated" }
@@ -254,6 +267,8 @@ async function refreshStatus(kind: "backfill" | "poll", run: Run) {
     chunks: await countDocs(),
     lastRun: { kind, at: new Date().toISOString(), counts: run.counts, maxLagSeconds: run.maxLagMs ? Math.round(run.maxLagMs / 1000) : null },
     lastError: null,
+    authError: false,
+    connected: true,
   });
 }
 
@@ -267,11 +282,16 @@ export async function backfill(opts: { reset?: boolean } = {}): Promise<Counts> 
   try {
     return await backfillInner(opts);
   } catch (e) {
-    driveStatus.lastError = explain(e);
+    noteError(e);
     throw e;
   } finally {
     busy = false;
   }
+}
+
+function noteError(e: unknown) {
+  driveStatus.lastError = explain(e);
+  driveStatus.authError = isAuthError(e);
 }
 
 async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
@@ -320,6 +340,12 @@ export async function pollOnce(): Promise<Counts | null> {
       console.log("Drive: no sync position yet, running a backfill first");
       return await backfillInner({});
     }
+    // The feed position belongs to the account that took it. After connecting a different admin, start over.
+    const account = await accountEmail();
+    if (conn.account_email && account && conn.account_email.toLowerCase() !== account) {
+      console.log(`Drive: connected account changed (${conn.account_email} → ${account}); running a full backfill`);
+      return await backfillInner({});
+    }
     await loadFolders();
     const root = { id: conn.root_folder_id, name: conn.root_name ?? driveConfig.rootFolderName };
     if (!cachedFolder(root.id)) await rememberFolder({ ...root, parentId: null });
@@ -361,25 +387,37 @@ export async function pollOnce(): Promise<Counts | null> {
     await refreshStatus("poll", run);
     return run.counts;
   } catch (e) {
-    driveStatus.lastError = explain(e);
+    noteError(e);
     throw e;
   } finally {
     busy = false;
   }
 }
 
-export function startPolling(): NodeJS.Timeout {
+const changed = (c: Counts | null) => !!c && !!(c.indexed || c.relabelled || c.deleted || c.error);
+
+// Poll every DRIVE_POLL_SECONDS, and reconcile every DRIVE_RECONCILE_MINUTES in case a poll missed something.
+export function startPolling() {
+  driveStatus.polling = true;
   const tick = () =>
     pollOnce()
-      .then((c) => {
-        if (c && (c.indexed || c.relabelled || c.deleted || c.error)) console.log(`Drive: ${summary(c)}`);
-      })
+      .then((c) => changed(c) && console.log(`Drive: ${summary(c!)}`))
       .catch((e) => console.error(`Drive poll failed: ${explain(e)}`));
   void tick();
-  return setInterval(tick, driveConfig.pollSeconds * 1000);
+  setInterval(tick, driveConfig.pollSeconds * 1000);
+
+  if (driveConfig.reconcileMinutes > 0) {
+    setInterval(() => {
+      if (busy || !isConnected()) return;
+      backfill()
+        .then((c) => changed(c) && console.log(`Drive reconcile: ${summary(c)}`))
+        .catch((e) => console.error(`Drive reconcile failed: ${explain(e)}`));
+    }, driveConfig.reconcileMinutes * 60_000);
+  }
 }
 
 export async function loadStatus() {
+  driveStatus.connected = isConnected();
   const conn = await getConnector();
   if (!conn) return driveStatus;
   Object.assign(driveStatus, {

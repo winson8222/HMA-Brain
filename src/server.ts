@@ -6,6 +6,7 @@ import { ensureIndex, es, INDEX } from "./es.js";
 import { registerEvents, status } from "./events.js";
 import { getAccess } from "./principals.js";
 import { ask } from "./ask.js";
+import { auditRouter } from "./audit/routes.js";
 import { llmConfigured } from "./llm.js";
 import { auditLog, search } from "./search.js";
 import { cachedChannels, displayName, getWorkspace, isHuman, listChannels, listUsers } from "./slack.js";
@@ -24,14 +25,19 @@ const slackApp = config.slackSync
   : null;
 if (slackApp) registerEvents(slackApp);
 
-// ---- Google Drive sync (polling the changes feed) ----
-// Loaded only when DRIVE_SYNC=on, so the server still runs without Google credentials.
-const drive = process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
+// ---- Google Drive: API + Connect (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
+// Loaded only when configured, so the server still runs without Google credentials.
+const driveConfigured =
+  /\.apps\.googleusercontent\.com$/.test(process.env.GOOGLE_CLIENT_ID ?? "") && !!process.env.GOOGLE_CLIENT_SECRET && !process.env.GOOGLE_CLIENT_SECRET.endsWith("...");
+const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
+const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
 
 // ---- HTTP API + UI ----
 const web = express();
 web.use(express.json());
 web.use(express.static("public"));
+web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
+if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
 
 const wrap =
   (fn: (req: express.Request, res: express.Response) => Promise<unknown>) =>
@@ -121,5 +127,6 @@ if (drive) {
 web.listen(config.port, () => {
   const sync = slackApp ? "live Slack sync on" : "live Slack sync OFF (SLACK_SYNC=off): run `npm run backfill` for new messages";
   const driveSync = drive ? `, Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "";
+  if (driveRoutes) console.log(`Drive Search/Ask: http://localhost:${config.port}/drive.html`);
   console.log(`Internal Brain demo on http://localhost:${config.port} (${sync}${driveSync})`);
 });
