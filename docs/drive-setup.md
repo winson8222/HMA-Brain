@@ -22,7 +22,7 @@ In https://console.cloud.google.com, for the project that holds the "HMA Brain" 
 ## 2. Connect Drive (once, as the Company A admin)
 
 Either:
-- **In the app:** on `/drive.html`, open **Admin** at the bottom, enter the `ADMIN_TOKEN` from `.env`, and click **Connect / reconnect Google Drive**; or
+- **In the app:** on `/drive.html`, open the **Audit log** tab, enter the `ADMIN_TOKEN` from `.env`, and click **Connect / reconnect Google Drive**; or
 - **From the terminal:** `npm run drive:connect`.
 
 Sign in as the **admin** account. Google shows "Google hasn't verified this app": click **Continue**, then **Allow**. The refresh token is saved to `.secrets/google-token.json` (gitignored), and the crawler runs on it from then on.
@@ -84,7 +84,7 @@ npm run audit:log -- --denied --since 2026-10-01   # every time something was wi
 npm run audit:verify                               # recompute the hash chain; exits 1 if tampered
 ```
 
-The same is on `/drive.html` under **Admin** (needs `ADMIN_TOKEN`), with a **Verify audit chain** button.
+The same is on the **Audit log** tab of `/drive.html` (needs `ADMIN_TOKEN`), with filters and a **Verify audit chain** button.
 
 **Tamper-evident:** each record stores the previous record's hash, and its own hash is an HMAC over its contents plus that link. The key is in `.secrets/audit-key` (or `AUDIT_KEY`), never in Elasticsearch. Editing, deleting or reordering any record breaks verification from that point on, and someone with write access to Elasticsearch can't forge a consistent chain without the key. Removing records from the *end* can only be caught by comparing the head (`audit:verify` prints it) with one noted earlier. For production, publish the head somewhere append-only (for example, object storage with retention lock).
 
@@ -96,7 +96,7 @@ Right now the Drive admin may also be a persona (e.g. Alice). The admin owns eve
 
 1. Create a Google account that isn't a persona (e.g. `hma-brain-admin@gmail.com`).
 2. Google Cloud → Google Auth Platform → **Audience → Test users**: add it.
-3. Connect as that account (Admin panel on `/drive.html`, or `npm run drive:connect`).
+3. Connect as that account (**Audit log** tab on `/drive.html`, or `npm run drive:connect`).
 4. `npm run seed:drive`: creates a fresh "Company A" in the new admin's Drive, shared with all four personas.
 5. `npm run drive:backfill`: rebuilds the index from the new folder. (A poll notices the account change and does this by itself.)
 6. `npm run drive:doctor`: should show no admin warning.
@@ -111,7 +111,7 @@ Also set `CAROL_EMAIL` to the email Carol uses in Slack, so Carol-only files hav
 | 2 | Ask, Bob: `What was in the Q3 breach report?` | No information; nothing reveals the report exists. Admin view: "withheld: Q3 breach report". | S3 |
 | 3 | `npm run seed:drive -- --edit-runbook`, click **Sync now**, ask again | The new pay-db-2 step appears within seconds (or within a minute by polling) | S2 |
 | 4 | `npm run seed:drive -- --revoke bob`, then Bob asks again **without syncing** | Runbook gone from Bob's answer. Admin view: "dropped by live re-check: access removed in Drive". Then `npm run seed:drive` to restore. | S4 |
-| 5 | Admin panel: filter by Bob, then **Verify audit chain** | Every question with shown, withheld and dropped files; "All N records intact" | S5 |
+| 5 | **Audit log** tab: filter by Bob, then **Verify audit chain** | Every question with shown, withheld and dropped files; "All N records intact" | S5 |
 
 ## How it stays current
 
@@ -133,7 +133,7 @@ Text extraction: Google Docs as Markdown, Sheets as CSV (first sheet), Slides as
 | `DRIVE_POLL_SECONDS` | `60` | How often to poll the changes feed |
 | `DRIVE_RECONCILE_MINUTES` | `60` | Full reconcile interval while the server runs (`0` = off) |
 | `DRIVE_ROOT_FOLDER_NAME` / `DRIVE_ROOT_FOLDER_ID` | `Company A` | The folder to index |
-| `ADMIN_TOKEN` | | 16+ random characters. Unlocks the Admin panel (audit log, Connect). Off when unset. |
+| `ADMIN_TOKEN` | | 16+ random characters. Unlocks the Audit log tab (audit log, Connect). Off when unset. |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:<PORT>/connect/google/callback` | For the Connect button; must be registered on the OAuth client |
 | `AUDIT_INDEX` | `brain-audit` | Audit log index |
 | `AUDIT_KEY` / `AUDIT_KEY_FILE` | `.secrets/audit-key` | HMAC key for the audit chain (generated if missing) |
@@ -148,6 +148,6 @@ Text extraction: Google Docs as Markdown, Sheets as CSV (first sheet), Slides as
 | `No folder named "Company A"` | `npm run seed:drive`, or set `DRIVE_ROOT_FOLDER_ID` |
 | `redirect_uri_mismatch` on sign-in | Add the redirect URI from section 1 to the OAuth client (the app's port must match) |
 | Ask fails with `LLM error 401` | `LLM_API_KEY` is missing or wrong for `LLM_BASE_URL`. Search still works. |
-| Admin panel says "Admin features are off" | Set `ADMIN_TOKEN` in `.env` and restart |
+| Audit log tab says "Admin features are off" | Set `ADMIN_TOKEN` in `.env` and restart |
 | `drive:verify` fails | `npm run drive:poll`; if still failing, `npm run drive:backfill` |
 | `audit:verify` fails | The log was changed outside the app, or `.secrets/audit-key` changed. The output names the first bad record. |

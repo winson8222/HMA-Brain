@@ -54,7 +54,7 @@ Browser (public/index.html) ──▶ server.ts ──▶ search.ts  retrieve():
 | `src/connectors/drive/routes.ts`, `people.ts` | Drive | `/api/drive/*` and Connect Google Drive; the demo people |
 | `src/connectors/drive/pdf.ts` | Drive | PDF text extraction |
 | `src/connectors/drive/cli/*` | Drive | `drive:connect`, `seed:drive`, `drive:backfill`, `drive:poll`, `drive:verify`, `drive:ask`, `drive:doctor` |
-| `public/drive.html` | Drive | Drive Search/Ask page with the admin panel (audit log, verify, connect) |
+| `public/drive.html` | Drive | Drive page: Ask/Search with two-person compare, and an admin-only Audit log tab (filters, verify, connect) |
 | `src/audit/chain.ts`, `store.ts` | shared | Tamper-evident audit log: HMAC hash chain in `brain-audit`, query and verify |
 | `src/audit/routes.ts`, `cli.ts`, `src/admin.ts` | shared | Admin-only audit API (`ADMIN_TOKEN`), `audit:log`, `audit:verify` |
 

@@ -66,15 +66,15 @@ describe("demo people", () => {
   it("skips placeholders and flags the admin", () => {
     env("alice@gmail.com", "Bob@gmail.com", "you@gmail.com", "dave@gmail.com");
     expect(demoPeople("alice@gmail.com")).toEqual([
-      { name: "Alice", email: "alice@gmail.com", admin: true },
-      { name: "Bob", email: "bob@gmail.com", admin: false },
-      { name: "Dave", email: "dave@gmail.com", admin: false },
+      { name: "Alice", email: "alice@gmail.com", admin: true, role: "Payments engineer" },
+      { name: "Bob", email: "bob@gmail.com", admin: false, role: "Engineer" },
+      { name: "Dave", email: "dave@gmail.com", admin: false, role: "Contractor" },
     ]);
   });
   it("adds a dedicated admin that isn't a persona", () => {
     env("alice@gmail.com", "bob@gmail.com", "carol@gmail.com", "dave@gmail.com");
     const people = demoPeople("hma-admin@gmail.com");
-    expect(people.at(-1)).toEqual({ name: "Drive admin", email: "hma-admin@gmail.com", admin: true });
+    expect(people.at(-1)).toEqual({ name: "Drive admin", email: "hma-admin@gmail.com", admin: true, role: "Owns every file" });
     expect(findPerson("admin", people)?.email).toBe("hma-admin@gmail.com");
     expect(findPerson("BOB", people)?.email).toBe("bob@gmail.com");
     expect(findPerson("mallory@evil.com", people)).toBeNull();

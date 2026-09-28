@@ -3,7 +3,10 @@
 export type Persona = "alice" | "bob" | "carol" | "dave";
 export const PERSONAS: Persona[] = ["alice", "bob", "carol", "dave"];
 
-export type Person = { name: string; email: string; admin: boolean };
+export type Person = { name: string; email: string; admin: boolean; role: string };
+
+// Their part in the demo story (mirrors the Slack seed).
+const ROLES: Record<Persona, string> = { alice: "Payments engineer", bob: "Engineer", carol: "Security lead", dave: "Contractor" };
 
 const PLACEHOLDERS = new Set(["you@gmail.com"]);
 
@@ -22,9 +25,9 @@ export function demoPeople(admin: string | null): Person[] {
   const out: Person[] = [];
   for (const p of PERSONAS) {
     const email = personaEmail(p);
-    if (email && !out.some((x) => x.email === email)) out.push({ name: title(p), email, admin: email === admin });
+    if (email && !out.some((x) => x.email === email)) out.push({ name: title(p), email, admin: email === admin, role: ROLES[p] });
   }
-  if (admin && !out.some((x) => x.email === admin)) out.push({ name: "Drive admin", email: admin, admin: true });
+  if (admin && !out.some((x) => x.email === admin)) out.push({ name: "Drive admin", email: admin, admin: true, role: "Owns every file" });
   return out;
 }
 
