@@ -8,6 +8,9 @@ const mappings = {
   properties: {
     doc_id: { type: "keyword" },
     source: { type: "keyword" },
+    team_id: { type: "keyword" },
+    team_name: { type: "keyword" },
+    kind: { type: "keyword" },
     channel_id: { type: "keyword" },
     channel_name: { type: "keyword" },
     is_private: { type: "boolean" },

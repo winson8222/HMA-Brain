@@ -1,6 +1,6 @@
 // Ask: permission-filtered retrieval + an LLM answer grounded only in what the user may see.
 import { chat } from "./llm.js";
-import { logEntry, retrieve, toResult, type Result } from "./search.js";
+import { logEntry, retrieve, toResult, type AskMode, type Result } from "./search.js";
 
 export const NO_INFO = "I don't have information on that.";
 
@@ -35,9 +35,9 @@ async function toKeywords(question: string): Promise<string> {
   }
 }
 
-export async function ask(userId: string, question: string): Promise<Answer> {
+export async function ask(personId: string, question: string, mode: AskMode): Promise<Answer> {
   const keywords = await toKeywords(question);
-  const { allowed, audit } = await retrieve(userId, keywords, 8);
+  const { allowed, audit } = await retrieve(personId, keywords, 8);
 
   let answer = NO_INFO;
   if (allowed.length) {
@@ -45,7 +45,8 @@ export async function ask(userId: string, question: string): Promise<Answer> {
     const context = allowed
       .map((h, i) => {
         const d = h._source!;
-        return `[${i + 1}] #${d.channel_name} · ${d.user_name} · ${d.ts.slice(0, 16).replace("T", " ")}\n${d.text}`;
+        const where = d.kind === "channel" ? `#${d.channel_name}` : d.channel_name;
+        return `[${i + 1}] ${d.team_name} · ${where} · ${d.user_name} · ${d.ts.slice(0, 16).replace("T", " ")}\n${d.text}`;
       })
       .join("\n\n");
     answer = await chat([
@@ -59,6 +60,6 @@ export async function ask(userId: string, question: string): Promise<Answer> {
     .map((h, i) => ({ n: i + 1, ...toResult(h) }))
     .filter((s) => cited.has(s.n));
 
-  logEntry({ kind: "ask", userId, query: question, keywords, answer, ...audit });
+  logEntry({ kind: "ask", mode, personId, query: question, keywords, answer, ...audit });
   return { answer, keywords, sources };
 }

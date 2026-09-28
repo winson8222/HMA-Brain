@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Internal Brain Demo</title>
+<title>HMA Brain</title>
 <style>
   :root {
     --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3de;
@@ -60,12 +60,20 @@
   .none { color: var(--muted); font-size: 12px; padding-left: 11px; }
   .allow { color: var(--ok); } .deny { color: var(--deny); }
   @media (max-width: 600px) { header, form { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } section.log { margin: 0 16px 24px; } form { flex-wrap: wrap; } }
+  .who { font-size: 13px; margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .who a, .linkbtn { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+  .wsgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .wslabel { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .badge.ws { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .melabel { padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; }
+  .tag { font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Internal Brain: permission-aware Slack Q&amp;A</h1>
-  <p>Each person only gets answers from channels they can see in Slack.</p>
+  <h1>HMA Brain: permission-aware Slack Q&amp;A</h1>
+  <p>Answers only come from what each person can see in Slack, across workspaces, channels and their own DMs.</p>
+  <div class="who" id="who"></div>
   <div id="status">Connecting…</div>
 </header>
 
@@ -74,9 +82,13 @@
     <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
     <label><input type="radio" name="mode" value="search" /> Search</label>
   </div>
-  <input type="search" id="q" placeholder="Ask a question, e.g. What caused the payment outage?" autocomplete="off" />
-  <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two users</label>
-  <button>Search</button>
+  <div class="modes" role="radiogroup" aria-label="Who is asking" id="asWho">
+    <label title="Act as anyone (demo)"><input type="radio" name="as" value="demo" checked /> Demo</label>
+    <label title="Ask as the person signed in on this browser"><input type="radio" name="as" value="me" /> Me</label>
+  </div>
+  <input type="search" id="q" placeholder="Ask a question, e.g. What do we know about the payment outage?" autocomplete="off" />
+  <label class="cmp"><input type="checkbox" id="compare" checked /> Compare</label>
+  <button>Go</button>
 </form>
 
 <main>
@@ -86,52 +98,79 @@
 
 <section class="log">
   <h2>Audit log (admin view)</h2>
-  <p>Server-side record of each search. The withheld column is for admins only and is never sent to the person searching. Hover a message to see its ID.</p>
+  <p>Server-side record of each search. The withheld column is for admins only and is never sent to the person asking. Withheld DMs are redacted. Hover a message to see its ID.</p>
   <div id="log"></div>
 </section>
 
 <script>
 const $ = (s) => document.querySelector(s);
-let users = [];
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let users = [], me = { signedIn: false }, cfg = { allowImpersonation: true };
 const panes = [$("#p0"), $("#p1")];
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 async function api(path, body) {
   const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
-  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 }
 
-const chipsHtml = (u) => u.access.map((a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`).join("");
+const mode = () => document.querySelector('input[name="mode"]:checked').value;
+const asWho = () => (cfg.allowImpersonation ? document.querySelector('input[name="as"]:checked').value : "me");
 
+const chip = (a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`;
+const chipsHtml = (u) => (u.workspaces || []).map((w) => `
+  <div class="wsgroup"><span class="wslabel">${esc(w.workspace)}${w.isGuest ? " (guest)" : ""}</span>${w.items.map(chip).join("")}</div>`).join("")
+  + `<div class="wsgroup"><span class="wslabel">DMs</span><span class="chip priv">🔒 their own DMs</span></div>`;
+
+const where = (r) => r.kind === "channel" ? `#${r.channel}` : r.channel;
+const convBadge = (r) => `<span class="badge ${r.is_private ? "priv" : ""}">${r.is_private ? "🔒 " : ""}${esc(where(r))}</span>`;
+
+// Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
 function renderPane(pane, selectedId) {
-  const u = users.find((x) => x.id === selectedId) || users[0];
+  const locked = pane.id === "p0" && asWho() === "me";
+  let u;
+  if (locked) {
+    u = me.signedIn ? me : null;
+    pane.dataset.user = "";
+    pane.innerHTML = u
+      ? `<div class="melabel">You: ${esc(u.name)}</div><div class="chips">${chipsHtml(u)}</div><div class="results"></div>`
+      : `<div class="melabel">Not signed in</div><div class="empty"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results"></div>`;
+    return;
+  }
+  u = users.find((x) => x.id === selectedId) || users[0];
   pane.dataset.user = u?.id || "";
   pane.innerHTML = `
-    <select>${users.map((x) => `<option value="${x.id}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}${x.isGuest ? " (guest)" : ""}</option>`).join("")}</select>
+    <select>${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
     <div class="chips">${u ? chipsHtml(u) : ""}</div>
     <div class="results"></div>`;
   pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
 }
 
-function renderResults(pane, data) {
-  const box = pane.querySelector(".results");
-  if (!data.results.length) { box.innerHTML = `<div class="empty">${esc(data.message)}</div>`; return; }
-  box.innerHTML = data.results.map((r) => resultHtml(r)).join("");
+function renderPanes() {
+  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
+  // The compare pane needs impersonation; with it off, only "Me" exists.
+  const canCompare = cfg.allowImpersonation && users.length > 0;
+  $("#compare").parentElement.style.display = canCompare ? "" : "none";
+  panes[1].classList.toggle("hidden", !canCompare || !$("#compare").checked);
 }
-
-const mode = () => document.querySelector('input[name="mode"]:checked').value;
 
 const resultHtml = (r, n) => `
     <div class="result" ${n ? `id="${n}"` : ""}>
       <div class="meta">
-        <span class="badge ${r.is_private ? "priv" : ""}">${r.is_private ? "🔒 " : ""}#${esc(r.channel)}</span>
+        <span class="badge ws">${esc(r.workspace)}</span>
+        ${convBadge(r)}
         <span>${esc(r.author)}</span>
         <span>${new Date(r.time).toLocaleString()}</span>
         <a href="${esc(r.permalink)}" target="_blank" rel="noopener">open in Slack</a>
       </div>
       <div class="text">${n ? `<b>[${n.split("-").pop()}]</b> ` : ""}${r.snippet}</div>
     </div>`;
+
+function renderResults(pane, data) {
+  const box = pane.querySelector(".results");
+  if (!data.results.length) { box.innerHTML = `<div class="empty">${esc(data.message)}</div>`; return; }
+  box.innerHTML = data.results.map((r) => resultHtml(r)).join("");
+}
 
 function renderAnswer(pane, data) {
   const box = pane.querySelector(".results");
@@ -153,10 +192,12 @@ async function runSearch() {
   const active = panes.filter((p) => !p.classList.contains("hidden"));
   await Promise.all(active.map(async (p) => {
     const box = p.querySelector(".results");
+    const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
+    if (who.asMe && !me.signedIn) return;
     if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
     try {
-      if (m === "ask") renderAnswer(p, await api("/api/ask", { userId: p.dataset.user, q }));
-      else renderResults(p, await api("/api/search", { userId: p.dataset.user, q }));
+      if (m === "ask") renderAnswer(p, await api("/api/ask", { ...who, q }));
+      else renderResults(p, await api("/api/search", { ...who, q }));
     } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   }));
   loadLog();
@@ -164,20 +205,22 @@ async function runSearch() {
 
 const docList = (docs, cls) => docs.length
   ? `<ul class="docs ${cls}">${docs.map((d) => `
-      <li title="${esc(d.id)}"><span class="badge ${d.is_private ? "priv" : ""}">${d.is_private ? "🔒 " : ""}#${esc(d.channel)}</span>
-        <b>${esc(d.author)}:</b> ${esc(d.text)}</li>`).join("")}</ul>`
+      <li title="${esc(d.id)}"><span class="badge ws">${esc(d.workspace)}</span> ${convBadge(d)}
+        ${d.author ? `<b>${esc(d.author)}:</b> ` : ""}${esc(d.text)}</li>`).join("")}</ul>`
   : `<div class="none">none</div>`;
 
 async function loadLog() {
   const log = await api("/api/log");
-  const name = (id) => users.find((u) => u.id === id)?.name || id;
+  const name = (id) => (me.id === id && me.name) || users.find((u) => u.id === id)?.name || id;
   $("#log").innerHTML = log.slice(0, 20).map((e) => `
     <div class="logrow">
-      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.userId))}</b> ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
+      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.personId))}</b>
+        <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span>
+        ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
         ${e.keywords ? `<span class="kw">(keywords: ${esc(e.keywords)})</span>` : ""}</div>
       ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
       <div class="cols">
-        <div><div class="lbl allow">✓ Shown to ${esc(name(e.userId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
+        <div><div class="lbl allow">✓ Shown to ${esc(name(e.personId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
         <div><div class="lbl deny">✕ Withheld (${e.denied.length})</div>${docList(e.denied, "deny")}</div>
       </div>
       ${e.droppedByRecheck.length ? `<div class="lbl deny">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
@@ -187,33 +230,48 @@ async function loadLog() {
 async function loadStatus() {
   try {
     const s = await api("/api/status");
-    $("#status").textContent = `${s.indexedMessages} messages indexed · ${s.eventsReceived} Slack events received` +
-      (s.lastEvent ? ` · last: ${s.lastEvent.type} at ${new Date(s.lastEvent.at).toLocaleTimeString()}` : "");
-    if (!s.llm) $("#status").textContent += " · Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env";
-    else $("#status").textContent += ` · LLM: ${s.llm}`;
+    $("#status").textContent = `${s.indexedMessages} messages indexed from ${s.workspaces.join(" + ")} · ` +
+      (s.liveSync ? `${s.eventsReceived} Slack events received` : "live sync off (backfill for new messages)") +
+      (s.lastEvent ? ` · last: ${s.lastEvent.type} at ${new Date(s.lastEvent.at).toLocaleTimeString()}` : "") +
+      (s.llm ? ` · LLM: ${s.llm}` : " · Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env");
   } catch { $("#status").textContent = "Server not reachable"; }
 }
 
-async function loadUsers() {
-  users = await api("/api/users");
-  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
+function renderWho() {
+  $("#who").innerHTML = me.signedIn
+    ? `<span>Signed in as <b>${esc(me.name)}</b>${me.email ? ` (${esc(me.email)})` : ""}</span>
+       <a href="/connect.html">Connections</a> <button class="linkbtn" id="signout">Sign out</button>`
+    : `<span>Not signed in.</span> <a href="/connect.html">Connect your Slack</a>`;
+  $("#signout")?.addEventListener("click", async () => { await api("/api/signout", {}); await loadMe(); renderPanes(); });
 }
 
+async function loadMe() { me = await api("/api/me"); renderWho(); }
+async function loadUsers() { users = await api("/api/users"); }
+
 document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = () => {
-  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What caused the payment outage?" : "Search Slack, e.g. outage, breach, migration";
+  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What do we know about the payment outage?" : "Search Slack, e.g. outage, breach, migration";
 });
+document.querySelectorAll('input[name="as"]').forEach((r) => r.onchange = () => { renderPanes(); runSearch(); });
 $("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
 $("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); runSearch(); };
 // Refresh access chips when the page regains focus (e.g. after changing membership in Slack).
 window.addEventListener("focus", async () => {
-  users = await api("/api/users");
+  await Promise.all([loadUsers(), loadMe()]);
   panes.forEach((p) => {
-    const u = users.find((x) => x.id === p.dataset.user);
-    if (u) p.querySelector(".chips").innerHTML = chipsHtml(u);
+    const u = p.id === "p0" && asWho() === "me" ? me : users.find((x) => x.id === p.dataset.user);
+    const c = p.querySelector(".chips");
+    if (u && c) c.innerHTML = chipsHtml(u);
   });
 });
 
-loadUsers().then(loadLog);
+(async () => {
+  cfg = await api("/api/config");
+  if (!cfg.allowImpersonation) $("#asWho").style.display = "none";
+  await Promise.all([loadUsers(), loadMe()]);
+  if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;
+  renderPanes();
+  loadLog();
+})();
 loadStatus();
 setInterval(loadStatus, 3000);
 </script>
