@@ -182,6 +182,18 @@ The key must match the provider in `LLM_BASE_URL`. A 401 error naming a differen
 
 The UI's status line shows the connected model, or a reminder if none is set.
 
+### Optional: hybrid search, rerank and tracing
+
+All three are off until their variables are set in `.env` (see `.env.example` for the full list), and each degrades gracefully on its own:
+
+| Feature | Variables | What you get |
+|---|---|---|
+| **Hybrid search** | `EMBEDDING_MODEL`, `EMBEDDING_DIMS` (+ optional `EMBEDDING_BASE_URL`/`EMBEDDING_API_KEY`; default to the LLM's) | BM25 + vector search fused with reciprocal rank fusion. Semantic paraphrases now match. Setting `EMBEDDING_DIMS` (first time or changed) requires `npm run backfill`. |
+| **Rerank** | `COHERE_API_KEY` ([free Trial key](https://dashboard.cohere.com/api-keys)), optional `COHERE_MODEL` | The fused candidates are reranked by Cohere; on error the pre-rerank order is kept. |
+| **Tracing** | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Per-query waterfall in [Langfuse](https://cloud.langfuse.com): embed → search legs → fuse → re-check → rerank → LLM, with latencies and token usage. |
+
+`RETRIEVAL_MODE=lexical|hybrid` and `RERANK=on|off` force either behavior; by default hybrid turns on when the embedding variables are set, and rerank when the Cohere key is set. `MULTI_QUERY=1-5` (or `on`) additionally rephrases the question N ways and runs a semantic search per phrasing before fusing — one extra LLM call per query. The status endpoint shows what's active.
+
 ---
 
 ## Demo script

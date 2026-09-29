@@ -2,6 +2,7 @@
 import type { App } from "@slack/bolt";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { config } from "./config.js";
+import { withVectors } from "./embeddings.js";
 import { deleteMessage, reaclChannel, upsert } from "./indexer.js";
 import { invalidate } from "./principals.js";
 import { docCtx, getChannel, getWorkspace, rememberChannel, web } from "./slack.js";
@@ -37,7 +38,7 @@ export function registerEvents(app: App) {
     }
     const doc = messageToDoc(action.msg, await getChannel(e.channel), await docCtx());
     if (doc) {
-      await upsert(doc);
+      await upsert((await withVectors([doc]))[0]);
       console.log(`indexed ${doc.doc_id} in #${doc.channel_name}`);
     }
   });

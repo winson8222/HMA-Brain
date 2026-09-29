@@ -8,6 +8,15 @@ export const config = {
   // Live Slack sync, off unless SLACK_SYNC=on. Only ONE server per Slack app should have it on:
   // Slack sends each event to just one open connection, so extra listeners would split the events.
   slackSync: process.env.SLACK_SYNC === "on",
+
+  // Hybrid retrieval knobs (see src/hybrid.ts; mode itself is resolved there, lazily from env)
+  hybridCandidates: Number(process.env.HYBRID_CANDIDATES ?? 50),
+  rrfK: Number(process.env.RRF_K ?? 60),
+  fuseTop: Number(process.env.FUSE_TOP ?? 20),
+  embeddingBatch: Number(process.env.EMBEDDING_BATCH ?? 64),
+  // Vector dimension of EMBEDDING_MODEL. Required for hybrid search: it sets the index mapping,
+  // so changing it needs `npm run backfill`.
+  embeddingDims: process.env.EMBEDDING_DIMS ? Number(process.env.EMBEDDING_DIMS) : undefined,
 };
 
 export function requireEnv(name: string): string {

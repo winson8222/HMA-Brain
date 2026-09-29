@@ -34,9 +34,17 @@ Browser (public/index.html) ──▶ server.ts ──▶ search.ts  retrieve():
 | `src/acl.ts` | shared | Principal strings, `aclFilter()`, `canSee()` |
 | `src/es.ts` | shared | Elasticsearch client and index mapping |
 | `src/indexer.ts` | shared | Upsert, bulk upsert, delete (with thread replies), relabel |
-| `src/search.ts` | shared | `retrieve()`: filtered search, live re-check, audit entry |
+| `src/search.ts` | shared | `retrieve()`: filtered search (lexical or BM25+kNN fused client-side — the ES `rrf` retriever needs an Enterprise license), live re-check, optional Cohere rerank, audit entry |
 | `src/ask.ts` | shared | Question → keywords → `retrieve()` → cited answer |
 | `src/llm.ts` | shared | OpenAI-compatible chat client |
+| `src/hybrid.ts` | shared | Hybrid retrieval: mode/rerank resolution, `knnQuery()` (ACL filter inside the knn clause), `rrfFuse()` |
+| `src/embeddings.ts` | shared | OpenAI-compatible `/embeddings` client; ingest enrichment (`withVectors`) and query embedding |
+| `src/rerank.ts` | shared | Cohere Rerank client + pure reorder helper |
+| `src/multiQuery.ts` | shared | Multi-query retrieval: LLM rephrasing of the question into N semantic variants (`MULTI_QUERY` knob) |
+| `src/tracing.ts` | shared | Langfuse (v4/OTel) tracing: per-query waterfall spans; no-op when unset |
+| `src/prompts.ts` | shared | Langfuse prompt management: fetches versioned prompts, falls back to built-in defaults |
+| `src/askRules.ts` | shared | The Ask-mode system rules (the fallback for the Langfuse `ask-answer-rules` prompt) |
+| `src/judge.ts` | shared | `npm run judge`: LLM-as-judge — scores Ask traces for faithfulness and posts scores to Langfuse |
 | `src/server.ts` | shared | Express API, static UI, starts Slack Socket Mode |
 | `public/index.html` | shared | UI: Ask/Search, two-person compare, audit log |
 | `src/slack.ts` | Slack | Web API client, channel and user caches, history pagination |
@@ -62,6 +70,7 @@ Every source produces the same document type (currently `BrainDoc` in `src/slack
 | `ts` | ISO date | Used for "as of" and ranking |
 | `permalink` | `https://…/archives/…` | Citation link back to the source |
 | `acl_container` | `["slack:channel:C09ABC"]` | **Permission label. Required.** |
+| `text_vector` | `[0.013, -0.082, …]` | Dense vector of `text` (embedding model from `.env`). Optional; only for hybrid search. Set once per doc at ingest by `withVectors()`; a doc without it is invisible to the kNN leg but still searchable lexically. |
 
 ## Permission model
 

@@ -1,6 +1,7 @@
 // Pulls Slack history into Elasticsearch and keeps channel labels correct.
 import type { ChannelInfo } from "./acl.js";
 import { bulkUpsert, reaclChannel } from "./indexer.js";
+import { withVectors } from "./embeddings.js";
 import { cachedChannels, channelMessages, docCtx, listChannels, rememberChannel, web } from "./slack.js";
 import { messageToDoc, type BrainDoc } from "./slackDocs.js";
 
@@ -9,7 +10,7 @@ export async function backfillChannel(ch: ChannelInfo): Promise<number> {
   const docs = (await channelMessages(ch.id))
     .map((m) => messageToDoc(m, ch, ctx))
     .filter((d): d is BrainDoc => d !== null);
-  await bulkUpsert(docs);
+  await bulkUpsert(await withVectors(docs));
   return docs.length;
 }
 

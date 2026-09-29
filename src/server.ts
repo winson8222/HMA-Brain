@@ -6,7 +6,9 @@ import { ensureIndex, es, INDEX } from "./es.js";
 import { registerEvents, status } from "./events.js";
 import { getAccess } from "./principals.js";
 import { ask } from "./ask.js";
+import { embeddingConfigured } from "./embeddings.js";
 import { llmConfigured } from "./llm.js";
+import { resolveMultiQuery, resolveRetrievalMode, resolveRerank } from "./hybrid.js";
 import { auditLog, search } from "./search.js";
 import { cachedChannels, displayName, getWorkspace, isHuman, listChannels, listUsers } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
@@ -94,7 +96,15 @@ web.get(
   "/api/status",
   wrap(async (_req, res) => {
     const { count } = await es.count({ index: INDEX });
-    res.json({ indexedMessages: count, llm: llmConfigured() ? process.env.LLM_MODEL : null, ...status });
+    res.json({
+      indexedMessages: count,
+      llm: llmConfigured() ? process.env.LLM_MODEL : null,
+      retrievalMode: resolveRetrievalMode(),
+      rerank: resolveRerank(),
+      multiQuery: resolveMultiQuery() || null,
+      embeddings: embeddingConfigured() ? process.env.EMBEDDING_MODEL : null,
+      ...status,
+    });
   }),
 );
 
