@@ -50,55 +50,35 @@ A second trail in the demo data, for vendors: Dave asks *"What's our SLA with Ac
 ```
 question → LLM ──tool call──▶ search(query, sources?, where?, from?, to?) ─┐
                                     │  fan out, in parallel, AS THE ASKER   │
-                                    ├─▶ Slack retriever  (filter · re-check)│
-                                    ├─▶ Drive retriever  (filter · re-check)│
-                                    └─▶ …future: Gmail, Confluence, Jira    │
+                                    ├─▶ Slack connector  (filter · re-check)│
+                                    ├─▶ Drive connector  (filter · re-check)│
+                                    └─▶ any registered connector (same API) │
               ◀── merged evidence (RRF across sources → rerank) ───────────┘
            …repeat until enough, max ~4 calls…  → answer citing every step
 ```
 
-**One retriever interface per source.** Each connector implements the same contract, and the agent never needs to know how a source stores data:
-```ts
-type Source = "slack" | "drive"; // later: "gmail", "confluence", "jira", …
+**Any platform plugs in the same way.** The agent, merging, rerank, audit and UI never know which platforms exist. Each platform is a **connector** that implements one contract and registers itself. Adding Gmail, Confluence, Jira, Notion or GitHub later means writing a connector, not changing the agent. Details are in [Connector contract](#connector-contract-any-platform) below.
 
-type Evidence = {
-  source: Source;
-  ref: string;          // stable id: slack:<team>:<channel>:<ts> · drive:<fileId>:<chunk>
-  title: string;        // "#payments-incident" · "Payment service runbook"
-  location: string;     // "Company A Demo" · "Company A / Engineering / Runbooks"
-  author: string | null;
-  time: string | null;  // Slack: ts · Drive: modified_at
-  text: string;
-  permalink: string;
-};
+**Tools the LLM gets** (generated from the registered connectors):
+- `search(query, sources?, where?, from?, to?)`. `sources` defaults to every connector the asker can use. `where` is the connector's own kind of container: a channel (`#payments-incident`), a folder (`Engineering/Runbooks`), a mailbox label, a Confluence space, a Jira project. The date range comes from section 1.
+- `open(ref)` reads one item in full (a Drive doc, a Slack thread, an email thread, a Confluence page) when a chunk isn't enough, such as step 2 above.
+- The tool description lists each connector's `where` examples, so the LLM knows what it can target.
 
-interface Retriever {
-  source: Source;
-  // Must filter by the person's permissions inside the query AND re-check live, like today.
-  search(personEmail: string, q: string, f: { where?: string; from?: string; to?: string; size: number }): Promise<Evidence[]>;
-  // Fetch one item in full (a whole Slack thread, a whole Drive doc), with the same permission checks.
-  open(personEmail: string, ref: string): Promise<Evidence[]>;
-}
-```
-- Slack wraps today's `retrieve(personId, …)` in `src/search.ts`. Drive wraps `retrieve(email, …)` in `src/connectors/drive/query.ts` (drive-connector branch).
-- **Identity:** both already key people by **email** (Slack `personId`, Drive `driveKeysFor(email)`), so one asker maps to both sources. Slack people without an email fall back to a workspace-scoped ID and get no Drive access, which is correct and fails closed.
-
-**Tools the LLM gets:**
-- `search(query, sources?, where?, from?, to?)`. `sources` defaults to all. `where` is a channel (`#payments-incident`) or a folder path (`Engineering/Runbooks`). The date range comes from section 1.
-- `open(ref)` reads a full Drive doc or Slack thread when a chunk isn't enough, such as step 2 above.
-
-**Merging across sources.** BM25 and vector scores aren't comparable between indices, so:
+**Merging across sources.** BM25 and vector scores aren't comparable between indices or platforms, so:
 1. Merge each source's ranked list with RRF, the same `rrfFuse` used today.
-2. Run Cohere rerank over the combined list. Rerank scores text against the question, so it works across sources.
+2. Run Cohere rerank over the combined list. Rerank scores text against the question, so it works for any source.
 
-**Cross-source links at ingest** (makes pointers cheap to follow):
-- Slack messages with a `docs.google.com` link: store the file IDs as `linked_refs`.
-- Drive text that mentions `#channel`: resolve it to the channel ID and store it too.
-- The agent can then `open()` a linked item directly instead of searching for it. `open()` still re-checks permissions, so a link never grants access.
+**Links between sources at ingest** (makes pointers cheap to follow): each connector extracts references to **other** platforms from its text, and a shared resolver turns them into refs:
+- a `docs.google.com` URL becomes `drive:<fileId>`
+- `#channel` becomes `slack:<team>:<channel>`
+- a Jira key like `PAY-240` becomes `jira:PAY-240`
+- a Confluence URL becomes `confluence:<pageId>`
 
-**Permissions (unchanged rules, now per source):**
+They're stored as `linked_refs`, so the agent can `open()` a linked item directly. `open()` always runs the target connector's permission checks, so a link never grants access.
+
+**Permissions (same rules for every connector):**
 - Every tool call runs **server-side as the asker**. The LLM never passes an identity, and can't widen access.
-- Each retriever keeps its own filter-in-query and live re-check: Slack membership and channel privacy, and Drive's live `getMeta` sharing check, which fails closed.
+- Each connector filters **inside** its index query, never with `post_filter`, and re-checks live against the platform before returning anything, failing closed on errors. Today that's Slack membership and channel privacy, and Drive's live `getMeta` sharing check.
 - Evidence the asker can't see is dropped before the LLM sees it. Only the audit log records it.
 
 **Audit.** Log every tool call, not just the final answer, as one entry per hop to the tamper-evident `brain-audit` log from drive-connector. Move Slack's in-memory `auditLog` onto it at the same time, which also fixes the `/api/log` issue below.
@@ -111,13 +91,108 @@ interface Retriever {
 
 **Provider.** This needs tool/function calling. Check that TokenHub `hy4-preview` supports it, or use a prompt-based JSON loop.
 
+### Connector contract (any platform)
+
+Each platform lives in `src/connectors/<name>/`, like `src/connectors/drive/` on drive-connector, and exports one object:
+
+```ts
+// The shape every result takes, whatever the platform.
+type Evidence = {
+  source: string;        // connector name: "slack", "drive", "gmail", "confluence", …
+  ref: string;           // stable id "<source>:<native id>", e.g. slack:<team>:<channel>:<ts>, drive:<fileId>:<chunk>
+  title: string;         // "#payments-incident" · "Payment service runbook" · email subject · page title
+  location: string;      // workspace / folder path / mailbox / space / project
+  author: string | null;
+  time: string | null;   // ISO date the content is "from" (Slack ts, Drive modified_at, email sent date, …)
+  text: string;          // the chunk the LLM reads
+  permalink: string;     // opens the item in its own app
+  linked_refs?: string[];// references to other items, any platform
+};
+
+type SearchFilters = { where?: string; from?: string; to?: string; size: number };
+
+interface Connector {
+  name: string;                         // "slack", "drive", …; also the `source` value and the ref prefix
+  label: string;                        // shown in the UI and to the LLM: "Slack", "Google Drive"
+  whereHelp: string;                    // for the tool description: "a channel, e.g. #payments"
+
+  capabilities: {
+    vectors: boolean;                   // has text_vector, so hybrid search works
+    open: boolean;                      // supports open(ref)
+    timeField: string | null;           // field for date filters, or null if the source has no dates
+  };
+
+  // Identity: turn a person (keyed by email) into this platform's permission labels.
+  // Return null if the person has no account here: the connector is skipped for them, fail closed.
+  principals(person: Person): Promise<string[] | null>;
+
+  // Retrieval: filter by principals INSIDE the query, then re-check live against the platform.
+  search(person: Person, q: string, f: SearchFilters): Promise<{ allowed: Evidence[]; audit: AuditHop }>;
+  open(person: Person, ref: string): Promise<{ allowed: Evidence[]; audit: AuditHop }>;
+
+  // Ingest: backfill + live updates into the connector's own index, with vectors if configured.
+  backfill(): Promise<void>;
+  startSync?(): Promise<void>;          // events, polling or webhooks; optional
+  verify?(): Promise<VerifyReport>;     // index vs the platform, like `npm run verify` today
+}
+
+// src/connectors/index.ts: the only place that knows which platforms exist.
+export const connectors: Connector[] = [slack, drive /*, gmail, confluence, … */]
+  .filter((c) => c.enabled()); // on when its credentials are in .env / tokens file
+```
+
+**Shared rules every connector follows:**
+
+| Concern | Rule |
+|---|---|
+| **Index** | One Elasticsearch index per connector (`brain-slack`, `brain-drive`, `brain-gmail`, …), with shared core fields (`text`, `text_vector`, `acl_container`, time) so hybrid search, date filters and `knnQuery` work the same everywhere. Queries always name their index. |
+| **Permission labels** | `acl_container` holds labels namespaced by platform, such as `slack:<team>:channel:<id>`, `drive:user:<email>`, `gmail:mailbox:<email>`, `confluence:space:<key>`. Labels from two platforms can never collide. |
+| **Identity** | People are keyed by **email**, as Slack `personId` and Drive `driveKeysFor(email)` already are. Accounts without an email get a platform-scoped ID and never match another platform. An optional mapping table covers platforms with different emails per person. |
+| **Live re-check** | Required. Use the platform's API at query time (membership, sharing, mailbox ownership), batched per container, and fail closed on errors. |
+| **Chunking** | The connector chunks its own content: one Slack message, a Drive doc per heading, an email per message, a Confluence page per section. |
+| **Embeddings** | Use the shared `withVectors()` from `src/embeddings.ts`, so every connector uses the same model and dims. Set `capabilities.vectors` to match. |
+| **Privacy switch** | Per connector: `<NAME>_EMBED=on/off` and `<NAME>_RERANK=on/off`, for sources that mustn't go to OpenAI or Cohere, such as email. |
+| **Audit** | Return an `AuditHop` (allowed / dropped by re-check / denied) per call, and the agent writes it to the shared `brain-audit` log. |
+| **Tracing** | Wrap `search` and `open` in `withSpan("<name>.search")` / `withSpan("<name>.open")`. |
+
+**How future platforms map onto the contract:**
+
+| Platform | `where` | Identity → principals | Live re-check | Time field |
+|---|---|---|---|---|
+| Slack (done) | channel / DM | email → workspace member + channels | channel info + membership | `ts` |
+| Google Drive (drive-connector) | folder path | email → shared-with keys | `files.get` permissions | `modified_at` |
+| Gmail | label / thread | email → own mailbox only | message still in mailbox | sent date |
+| Confluence | space | email → space and page restrictions | page restrictions API | last edited |
+| Jira | project | email → project roles and issue security | issue permission check | updated |
+| Notion | workspace / page tree | email → page shares | page access API | last edited |
+| GitHub | repo | GitHub login mapped to email → repo access | repo collaborator API | updated |
+
+**A connector is done when it passes one shared conformance test suite** (`src/__tests__/connector.contract.ts`), run against each connector with fixtures:
+- A person without access gets nothing: filtered in the query, not after.
+- A revoked share or membership disappears on the next query, through the live re-check, before any re-index.
+- A re-check error fails closed.
+- Every `Evidence` has a `ref` that `open()` resolves, and a working `permalink`.
+- A `linked_refs` entry to an item the person can't see stays invisible through `open()`.
+- Queries name the connector's own index.
+
+**Adding a platform, step by step:**
+1. Create `src/connectors/<name>/` implementing `Connector`.
+2. Add it to `src/connectors/index.ts`.
+3. Add its env keys to `.env.example`.
+4. Pass the conformance suite.
+5. Run backfill and verify.
+
+Nothing in the agent, Ask, Search, rerank, audit or UI changes.
+
 ### Build order
-1. **Merge `drive-connector`.** Point `knnQuery` and every source query at its own index; `knnQuery` already names the Slack index.
-2. **`Evidence` + `Retriever` interface.** Wrap the Slack and Drive retrievers. Ask becomes a **single-step federated search** (both sources, RRF, rerank). This is useful on its own, before any agent.
-3. **Embeddings for Drive chunks** (`text_vector` on `brain-drive`), so both sources get hybrid search.
-4. **Agent loop** with `search` + `open`, limits, a span per hop, and audit per hop.
-5. **Cross-source `linked_refs`** at ingest.
-6. **Golden dataset** with cross-source questions, like the two trails above, to measure each step.
+1. **Merge `drive-connector`.** Point every source query at its own index; `knnQuery` already names the Slack index.
+2. **Connector contract and registry** (`src/connectors/index.ts`). Wrap Slack (today's `retrieve` in `src/search.ts`) and Drive (`retrieve` in `src/connectors/drive/query.ts`) as the first two connectors, and write the conformance suite against both.
+3. **Single-step federated Ask/Search** over every registered connector (RRF, then rerank). This is useful on its own, before any agent.
+4. **Embeddings for Drive chunks** (`text_vector` on `brain-drive`), so both sources get hybrid search.
+5. **Agent loop** with `search` + `open`, limits, a span per hop, and audit per hop.
+6. **`linked_refs`** at ingest, with the shared reference resolver.
+7. **Golden dataset** with cross-source questions, like the two trails above, to measure each step.
+8. **Next connector** (for example Gmail or Confluence) as the test that the contract really is platform-agnostic: it should need no changes outside its own folder.
 
 ## 3. Other improvements
 
@@ -140,5 +215,5 @@ interface Retriever {
 
 1. Today's date in the prompts, then date-range filters: small and very visible in a demo.
 2. Thread and nearby-message context, and the faster re-check.
-3. Section 2, in its build order: merge Drive, federated single-step Ask, Drive embeddings, then the agent loop.
+3. Section 2, in its build order: merge Drive, the connector contract and registry, federated single-step Ask, Drive embeddings, then the agent loop.
 4. Golden dataset with single-source and cross-source questions, to measure 1–3.
