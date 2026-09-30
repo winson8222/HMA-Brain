@@ -6,16 +6,20 @@ import { embedQuery, embedTexts } from "./embeddings.js";
 import { knnQuery, resolveMultiQuery, resolveRetrievalMode, resolveRerank, rrfFuse } from "./hybrid.js";
 import { paraphrase } from "./multiQuery.js";
 import { llmConfigured } from "./llm.js";
-import { getAccess } from "./principals.js";
+import { getAccess } from "./people.js";
 import { applyRerankOrder, rerank } from "./rerank.js";
-import { getChannel, getWorkspace } from "./slack.js";
+import { workspaceByTeam } from "./slack.js";
 import type { BrainDoc } from "./slackDocs.js";
 import { withSpan, withTrace } from "./tracing.js";
 
 type SearchHit<T> = estypes.SearchHit<T>;
 
+export type AskMode = "demo" | "me";
+
 export type Result = {
+  workspace: string;
   channel: string;
+  kind: BrainDoc["kind"];
   is_private: boolean;
   author: string;
   snippet: string;
@@ -24,12 +28,21 @@ export type Result = {
 };
 
 // What the audit log records about each message (admin view only).
-export type LoggedDoc = { id: string; channel: string; is_private: boolean; author: string; text: string };
+export type LoggedDoc = {
+  id: string;
+  workspace: string;
+  channel: string;
+  kind: BrainDoc["kind"];
+  is_private: boolean;
+  author: string;
+  text: string;
+};
 
 export type LogEntry = {
   at: string;
   kind: "search" | "ask";
-  userId: string;
+  mode: AskMode;
+  personId: string;
   query: string;
   keywords?: string;
   answer?: string;
@@ -45,13 +58,20 @@ export function logEntry(e: Omit<LogEntry, "at">) {
   auditLog.length = Math.min(auditLog.length, 200);
 }
 
-const logged = (h: SearchHit<BrainDoc>): LoggedDoc => ({
-  id: h._id!,
-  channel: h._source!.channel_name,
-  is_private: h._source!.is_private,
-  author: h._source!.user_name,
-  text: h._source!.text,
-});
+const logged = (h: SearchHit<BrainDoc>, opts: { redactDm?: boolean } = {}): LoggedDoc => {
+  const d = h._source!;
+  const isDm = d.kind !== "channel";
+  return {
+    id: h._id!,
+    workspace: d.team_name,
+    channel: d.channel_name,
+    kind: d.kind,
+    is_private: d.is_private,
+    author: isDm && opts.redactDm ? "" : d.user_name,
+    // Compliance needs to know a private message was withheld, not what it said.
+    text: isDm && opts.redactDm ? "(withheld)" : d.text,
+  };
+};
 
 export function permissionedQuery(q: string, principals: string[], size = 10) {
   return {
@@ -68,9 +88,9 @@ export function permissionedQuery(q: string, principals: string[], size = 10) {
 }
 
 // Permission-aware retrieval shared by Search and Ask.
-export async function retrieve(userId: string, q: string, size = 10, opts: { vectorQuery?: string } = {}) {
-  // 1. What can this user see? (cached; refreshed on membership events or after 60s)
-  const access = await getAccess(userId);
+export async function retrieve(personId: string, q: string, size = 10, opts: { vectorQuery?: string } = {}) {
+  // 1. What can this person see, across all workspaces? (cached; refreshed on membership events or after 60s)
+  const access = await getAccess(personId);
 
   // 2. Candidate fetch, filtered by the user's principals. Restricted docs never leave Elasticsearch.
   //    lexical: BM25 only. hybrid: BM25 + kNN in parallel, fused with reciprocal rank fusion.
@@ -117,22 +137,28 @@ export async function retrieve(userId: string, q: string, size = 10, opts: { vec
     hits = (await es.search<BrainDoc>(permissionedQuery(q, access.principals, size))).hits.hits;
   }
 
-  // 3. Re-check each hit against live Slack data (fresh membership + current channel privacy),
-  //    in case an event was missed and the index or cache is stale.
-  const live = await getAccess(userId, { fresh: true });
-  const { teamId } = await getWorkspace();
+  // 3. Re-check channel hits against live Slack data (fresh membership + current channel privacy),
+  //    in case an event was missed. DMs need no re-check: who is in a DM never changes.
+  const live = await getAccess(personId, { fresh: true });
   let allowed: SearchHit<BrainDoc>[] = [];
   const dropped: LoggedDoc[] = [];
   await withSpan("recheck", { candidates: hits.length }, async () => {
     for (const h of hits) {
-      const ch = await getChannel(h._source!.channel_id, true);
-      if (canSee(aclForChannel(teamId, ch), live.principals)) allowed.push(h);
-      else dropped.push(logged(h));
+      const d = h._source!;
+      let ok: boolean;
+      if (d.kind === "channel") {
+        const ws = await workspaceByTeam(d.team_id);
+        ok = canSee(aclForChannel(d.team_id, await ws.getChannel(d.channel_id, true)), live.principals);
+      } else {
+        ok = canSee(d.acl_container, live.principals);
+      }
+      if (ok) allowed.push(h);
+      else dropped.push(logged(h, { redactDm: true }));
     }
     return { allowed: allowed.length, dropped: dropped.length };
   });
 
-  // 3. Rerank the permitted candidates with Cohere (falls back to the pre-rerank order on failure).
+  // 4. Rerank the permitted candidates with Cohere (falls back to the pre-rerank order on failure).
   //    After the re-check on purpose: only already-permitted text is ever sent to a third party,
   //    and the rerank budget isn't spent on docs that would be dropped anyway.
   if (resolveRerank() && allowed.length > 1) {
@@ -147,18 +173,20 @@ export async function retrieve(userId: string, q: string, size = 10, opts: { vec
     });
   }
 
-  // 4. Server-side only: which matching docs were withheld. Goes to the audit log, never to the user.
+  // 5. Server-side only: which matching docs were withheld. Goes to the audit log, never to the user.
   const shadow = await es.search<BrainDoc>({ index: INDEX, size: 50, query: { match: { text: q } } });
   const allowedIds = new Set(allowed.map((h) => h._id));
-  const denied = shadow.hits.hits.filter((h) => !allowedIds.has(h._id)).map(logged);
+  const denied = shadow.hits.hits.filter((h) => !allowedIds.has(h._id)).map((h) => logged(h, { redactDm: true }));
 
-  return { allowed: allowed.slice(0, size), audit: { allowed: allowed.map(logged), droppedByRecheck: dropped, denied } };
+  return { allowed: allowed.slice(0, size), audit: { allowed: allowed.map((h) => logged(h)), droppedByRecheck: dropped, denied } };
 }
 
 export function toResult(h: SearchHit<BrainDoc>): Result {
   const d = h._source!;
   return {
+    workspace: d.team_name,
     channel: d.channel_name,
+    kind: d.kind,
     is_private: d.is_private,
     author: d.user_name,
     snippet: h.highlight?.text?.join(" … ") ?? escapeHtml(d.text),
@@ -167,14 +195,13 @@ export function toResult(h: SearchHit<BrainDoc>): Result {
   };
 }
 
-export async function search(userId: string, q: string): Promise<Result[]> {
-  return withTrace("search", { userId, input: { query: q } }, async () => {
-    const { allowed, audit } = await retrieve(userId, q);
-    logEntry({ kind: "search", userId, query: q, ...audit });
+export async function search(personId: string, q: string, mode: AskMode): Promise<Result[]> {
+  return withTrace("search", { userId: personId, input: { query: q }, metadata: { mode } }, async () => {
+    const { allowed, audit } = await retrieve(personId, q);
+    logEntry({ kind: "search", mode, personId, query: q, ...audit });
     // Only content fields go back: no hit counts, no ACLs, nothing about withheld docs.
     return allowed.map(toResult);
   });
 }
 
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

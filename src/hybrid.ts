@@ -39,6 +39,8 @@ export function knnQuery(
   numCandidates = config.hybridCandidates * 2,
 ) {
   return {
+    // Name the index: without it, kNN would run across every index (Drive, audit, ...).
+    index: config.esIndex,
     knn: {
       field: "text_vector",
       query_vector: vector,
