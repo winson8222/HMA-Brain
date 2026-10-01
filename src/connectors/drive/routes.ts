@@ -5,12 +5,14 @@ import { randomBytes } from "node:crypto";
 import { requireAdmin } from "../../admin.js";
 import { config } from "../../config.js";
 import { es } from "../../es.js";
+import { asker as sharedAsker, HttpError, wrap as sharedWrap } from "../../http.js";
 import { llmConfigured } from "../../llm.js";
+import { getSession } from "../../session.js";
 import { driveKeysFor } from "./acl.js";
 import { newOAuthClient, saveToken, SCOPES } from "./auth.js";
 import { accountEmail, explain, isConnected, loadToken } from "./client.js";
 import { driveConfig } from "./config.js";
-import { demoPeople, findPerson, type Person } from "./people.js";
+import { demoPeople, findPerson, isRealEmail, type Person } from "./people.js";
 import { driveAsk, driveSearch } from "./query.js";
 import { ensureDriveIndices, getConnector } from "./store.js";
 import { driveStatus, loadStatus, pollOnce } from "./sync.js";
@@ -18,11 +20,7 @@ import { driveStatus, loadStatus, pollOnce } from "./sync.js";
 export const driveRouter = express.Router();
 
 type Handler = (req: express.Request, res: express.Response) => Promise<unknown>;
-const wrap = (fn: Handler) => (req: express.Request, res: express.Response) =>
-  fn(req, res).catch((e) => {
-    console.error(e);
-    res.status(500).json({ error: explain(e) });
-  });
+const wrap = (fn: Handler) => sharedWrap(fn, explain);
 
 async function adminEmail(): Promise<string | null> {
   const conn = await getConnector().catch(() => undefined);
@@ -34,14 +32,21 @@ async function people(): Promise<Person[]> {
   return demoPeople(await adminEmail());
 }
 
-// Demo only: the page picks "who am I" from the demo people. A real deployment takes it from the login session.
-async function asker(req: express.Request, res: express.Response): Promise<{ person: Person; q: string } | null> {
-  const { email, q } = req.body ?? {};
-  const person = typeof email === "string" ? findPerson(email, await people()) : null;
-  if (!person || typeof q !== "string" || !q.trim()) {
-    res.status(400).json({ error: "email (one of the demo people) and q are required" });
-    return null;
-  }
+// Me mode: the signed-in person, by their email. A person with no email (a workspace-scoped Slack ID)
+// has no Google identity, so they get no Drive access: fail closed.
+function signedInPerson(personId: string): Person {
+  if (!isRealEmail(personId)) throw new HttpError(403, "Your account has no email, so it can't be matched to Google Drive.");
+  return { name: personId, email: personId.toLowerCase(), admin: false, role: "" };
+}
+
+// Same rules as Slack's /api/search: Me mode takes identity only from the login cookie, and picking
+// another person (Demo mode) is allowed only with ALLOW_IMPERSONATION=on, from the demo people.
+async function asker(req: express.Request): Promise<{ person: Person; q: string }> {
+  const { personId, mode } = sharedAsker(req, "email");
+  const q = req.body?.q;
+  if (typeof q !== "string" || !q.trim()) throw new HttpError(400, "q is required");
+  const person = mode === "me" ? signedInPerson(personId) : findPerson(personId, await people());
+  if (!person) throw new HttpError(400, "email must be one of the demo people");
   return { person, q: q.trim().slice(0, 500) };
 }
 
@@ -58,17 +63,19 @@ async function visibleTitles(email: string): Promise<string[]> {
 
 driveRouter.get(
   "/api/drive/people",
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
     await ensureDriveIndices();
-    res.json(await Promise.all((await people()).map(async (p) => ({ ...p, files: await visibleTitles(p.email) }))));
+    // With impersonation off, only yourself: the page can't ask as anyone else anyway.
+    const me = getSession(req);
+    const list = config.allowImpersonation ? await people() : me ? [signedInPerson(me)] : [];
+    res.json(await Promise.all(list.map(async (p) => ({ ...p, files: await visibleTitles(p.email) }))));
   }),
 );
 
 driveRouter.post(
   "/api/drive/search",
   wrap(async (req, res) => {
-    const a = await asker(req, res);
-    if (!a) return;
+    const a = await asker(req);
     const { results } = await driveSearch(a.person.email, a.q);
     // Identical shape whether nothing matched or everything matching was restricted.
     res.json(results.length ? { results } : { results, message: "No results found" });
@@ -78,8 +85,7 @@ driveRouter.post(
 driveRouter.post(
   "/api/drive/ask",
   wrap(async (req, res) => {
-    const a = await asker(req, res);
-    if (!a) return;
+    const a = await asker(req);
     res.json((await driveAsk(a.person.email, a.q)).answer);
   }),
 );
@@ -112,10 +118,10 @@ driveRouter.post(
 
 // ---- Connect Google Drive (admin only) ----
 // The admin signs in with Google and approves read access; we keep the refresh token server-side.
-// The redirect URI must be registered on the Google OAuth client (default: http://localhost:3000/connect/google/callback).
+// The redirect URI must be registered on the Google OAuth client (default: <PUBLIC_URL>/connect/google/callback).
 
 const pending = new Map<string, number>(); // OAuth state → expiry
-const redirectUri = () => process.env.GOOGLE_REDIRECT_URI || `http://localhost:${config.port}/connect/google/callback`;
+const redirectUri = () => process.env.GOOGLE_REDIRECT_URI || `${config.publicUrl}/connect/google/callback`;
 
 driveRouter.post("/api/drive/connect", requireAdmin, (_req, res) => {
   for (const [s, exp] of pending) if (exp < Date.now()) pending.delete(s);

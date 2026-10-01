@@ -155,35 +155,15 @@ export async function driveSearch(email: string, q: string, via = "web"): Promis
   return { results: allowed.map(toResult), record };
 }
 
-// TokenHub sometimes rejects a call that works a second later (402 while an account balance hold settles,
-// 429 rate limits, 5xx), and sometimes stalls for minutes. Time-limit each call and retry those cases.
-async function chatRetry(messages: Parameters<typeof chat>[0], opts: { maxTokens?: number; timeoutMs: number; tries: number }): Promise<string> {
-  for (let attempt = 1; ; attempt++) {
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`LLM timed out after ${opts.timeoutMs / 1000}s`)), opts.timeoutMs);
-    });
-    try {
-      return await Promise.race([chat(messages, { maxTokens: opts.maxTokens }), timeout]);
-    } catch (e: any) {
-      const transient = /^LLM (error (402|429|5\d\d)\b|timed out)/.test(String(e?.message));
-      if (!transient || attempt >= opts.tries) throw e;
-      await new Promise((r) => setTimeout(r, 700 * attempt));
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-}
-
 // Questions are full of words like "what" and "the"; turn them into search keywords first.
 async function toKeywords(question: string): Promise<string> {
   try {
-    const k = await chatRetry(
+    const k = await chat(
       [
         { role: "system", content: KEYWORD_RULES },
         { role: "user", content: question },
       ],
-      { maxTokens: 1500, timeoutMs: 10_000, tries: 2 },
+      { maxTokens: 1500, timeoutMs: 10_000, attempts: 2 },
     );
     const kw = k.replace(/[\n"]/g, " ").trim();
     return kw && kw.split(/\s+/).length <= 20 ? kw : question; // a long reply is prose (e.g. a refusal), not keywords
@@ -202,10 +182,10 @@ export async function driveAsk(email: string, question: string, via = "web"): Pr
   if (allowed.length) {
     try {
       // Only chunks this person may see right now are ever put in the prompt.
-      answer = await chatRetry([
+      answer = await chat([
         { role: "system", content: ANSWER_RULES },
         { role: "user", content: `Excerpts:\n\n${buildContext(allowed.map((h) => h._source!))}\n\nQuestion: ${question}` },
-      ], { timeoutMs: 25_000, tries: 3 });
+      ], { timeoutMs: 25_000, attempts: 3 });
     } catch (e: any) {
       failure = String(e?.message ?? e);
     }

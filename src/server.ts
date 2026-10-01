@@ -11,7 +11,8 @@ import { auditRouter } from "./audit/routes.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
-import { auditLog, search, type AskMode } from "./search.js";
+import { asker, HttpError, wrap } from "./http.js";
+import { auditLog, search } from "./search.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
@@ -50,33 +51,6 @@ web.use(express.json());
 web.use(express.static("public"));
 web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
 if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
-
-class HttpError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-const wrap =
-  (fn: (req: express.Request, res: express.Response) => Promise<unknown>) =>
-  (req: express.Request, res: express.Response) =>
-    fn(req, res).catch((e) => {
-      if (!(e instanceof HttpError)) console.error(e);
-      res.status(e instanceof HttpError ? e.status : 500).json({ error: String(e?.message ?? e) });
-    });
-
-// Who is asking. Me mode: only the signed-in cookie counts, never the request body.
-// Demo mode (ALLOW_IMPERSONATION=on): the UI may pick any person, for the side-by-side compare.
-function asker(req: express.Request): { personId: string; mode: AskMode } {
-  const { personId, asMe } = req.body ?? {};
-  if (asMe || !config.allowImpersonation) {
-    const me = getSession(req);
-    if (!me) throw new HttpError(401, "Sign in first: open the Connect page and connect your Slack.");
-    return { personId: me, mode: "me" };
-  }
-  if (!personId) throw new HttpError(400, "personId is required");
-  return { personId: String(personId), mode: "demo" };
-}
 
 async function describePerson(personId: string) {
   const p = await findPerson(personId);

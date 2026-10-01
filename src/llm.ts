@@ -13,13 +13,13 @@ export function llmConfigured() {
   return !!(process.env.LLM_BASE_URL && process.env.LLM_MODEL);
 }
 
-async function callOnce(messages: Msg[], maxTokens: number): Promise<string> {
+async function callOnce(messages: Msg[], maxTokens: number, timeoutMs: number): Promise<string> {
   const base = process.env.LLM_BASE_URL!.replace(/\/$/, "");
   const gen = await startGeneration({ model: process.env.LLM_MODEL, input: messages });
   try {
     const res = await fetch(`${base}/chat/completions`, {
       method: "POST",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         "Content-Type": "application/json",
         ...(process.env.LLM_API_KEY ? { Authorization: `Bearer ${process.env.LLM_API_KEY}` } : {}),
@@ -41,25 +41,30 @@ async function callOnce(messages: Msg[], maxTokens: number): Promise<string> {
     return content;
   } catch (e: any) {
     // Close the generation on any failure (HTTP error, timeout, network) so the trace never shows it as still running.
-    gen?.fail(e?.name === "TimeoutError" ? `timed out after ${TIMEOUT_MS}ms` : String(e?.message ?? e));
+    gen?.fail(e?.name === "TimeoutError" ? `timed out after ${timeoutMs}ms` : String(e?.message ?? e));
     throw e;
   }
 }
 
-export async function chat(messages: Msg[], opts: { maxTokens?: number } = {}): Promise<string> {
+export async function chat(messages: Msg[], opts: { maxTokens?: number; timeoutMs?: number; attempts?: number } = {}): Promise<string> {
   if (!llmConfigured()) throw new Error("LLM not configured: set LLM_BASE_URL, LLM_MODEL and LLM_API_KEY in .env");
   const maxTokens = opts.maxTokens ?? 3000; // reasoning models spend tokens thinking before answering
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
+  const attempts = opts.attempts ?? ATTEMPTS;
   for (let attempt = 1; ; attempt++) {
     const t0 = Date.now();
     try {
-      return await callOnce(messages, maxTokens);
+      return await callOnce(messages, maxTokens, timeoutMs);
     } catch (e: any) {
       const timedOut = e?.name === "TimeoutError";
-      console.warn(`LLM call ${timedOut ? "timed out" : "failed"} after ${((Date.now() - t0) / 1000).toFixed(1)}s (attempt ${attempt}/${ATTEMPTS})`);
-      // Retry timeouts and provider/network hiccups; give up after the last attempt.
-      if (attempt >= ATTEMPTS || (!timedOut && /LLM error 4\d\d/.test(String(e?.message)))) {
+      console.warn(`LLM call ${timedOut ? "timed out" : "failed"} after ${((Date.now() - t0) / 1000).toFixed(1)}s (attempt ${attempt}/${attempts})`);
+      // Retry timeouts and provider/network hiccups; give up after the last attempt. Other 4xx are our
+      // fault and won't change, but TokenHub's 402 (a balance hold settling) and 429 (rate limit) clear up.
+      const permanent = !timedOut && /LLM error 4\d\d/.test(String(e?.message)) && !/LLM error (402|429)\b/.test(String(e?.message));
+      if (attempt >= attempts || permanent) {
         throw timedOut ? new Error("The LLM didn't respond in time. Try again.") : e;
       }
+      if (!timedOut) await new Promise((r) => setTimeout(r, 700 * attempt));
     }
   }
 }
