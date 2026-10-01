@@ -13,7 +13,7 @@ export const drive: Connector = {
     // Drive access is by email. A person known only by a workspace-scoped Slack ID has no Google
     // identity, so they get nothing here: fail closed.
     if (!isRealEmail(personId)) return { allowed: [], audit: [] };
-    const { allowed, audit } = await retrieve(personId.toLowerCase(), q, { size: opts.size, onePerFile: opts.purpose === "search" });
+    const { allowed, audit } = await retrieve(personId.toLowerCase(), q, { size: opts.size, onePerFile: opts.purpose === "search", vectorQuery: opts.vectorQuery });
     return {
       allowed: allowed.map((h): Evidence => {
         const d = h._source!;

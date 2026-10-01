@@ -10,8 +10,12 @@ import type { estypes } from "@elastic/elasticsearch";
 import { canSee } from "../../acl.js";
 import { appendAudit } from "../../audit/store.js";
 import type { AuditDoc, AuditRecord, Decision } from "../../audit/chain.js";
+import { config } from "../../config.js";
+import { embedQuery } from "../../embeddings.js";
 import { es } from "../../es.js";
+import { knnQuery, resolveRetrievalMode, rrfFuse } from "../../hybrid.js";
 import { chat } from "../../llm.js";
+import { withSpan } from "../../tracing.js";
 import { aclHash, driveKeysFor, permsToAcl, recheck, type LiveCheck } from "./acl.js";
 import { explain, getMeta, isAuthError } from "./client.js";
 import { driveConfig } from "./config.js";
@@ -84,12 +88,45 @@ const auditDoc = (d: DriveDoc, decision: Decision, reason?: string): AuditDoc =>
   ...(reason ? { reason } : {}),
 });
 
-export async function retrieve(email: string, q: string, opts: { size: number; onePerFile: boolean }) {
-  const keys = driveKeysFor(email);
+// Semantic leg: the question's vector against chunk vectors, with the same permission keys INSIDE the knn
+// clause. Empty (keyword search only) when embeddings are off, the index has no vectors, or embedding fails.
+async function vectorHits(q: string, keys: string[]): Promise<Hit[]> {
+  if (resolveRetrievalMode() !== "hybrid") return [];
+  try {
+    const vector = await withSpan("drive.embed.query", { text: q }, () => embedQuery(q));
+    const r = await es.search<DriveDoc>({ ...knnQuery(vector, keys, undefined, undefined, driveConfig.index), _source: { excludes: ["text_vector"] } });
+    return r.hits.hits;
+  } catch (e) {
+    console.warn("Drive vector search failed, using keyword search only:", String((e as any)?.message ?? e));
+    return [];
+  }
+}
 
-  // Filtered search: other people's files never leave Elasticsearch.
-  const r = await es.search<DriveDoc>({ ...driveQuery(q, keys, opts.size, opts.onePerFile), highlight });
-  const hits = r.hits.hits;
+// Filtered search: other people's files never leave Elasticsearch. Keyword (BM25) and, when configured,
+// vector search run in parallel and are merged with reciprocal rank fusion, like Slack's hybrid search.
+async function candidates(q: string, keys: string[], opts: { size: number; onePerFile: boolean; vectorQuery?: string }): Promise<Hit[]> {
+  const hybrid = resolveRetrievalMode() === "hybrid";
+  const [bm25, knn] = await Promise.all([
+    es.search<DriveDoc>({
+      ...driveQuery(q, keys, hybrid ? config.hybridCandidates : opts.size, opts.onePerFile && !hybrid),
+      highlight,
+      _source: { excludes: ["text_vector"] },
+    }),
+    vectorHits(opts.vectorQuery ?? q, keys),
+  ]);
+  if (!hybrid) return bm25.hits.hits;
+
+  const byId = new Map<string, Hit>();
+  for (const h of [...knn, ...bm25.hits.hits]) byId.set(h._id!, h); // BM25 copy wins: it carries the highlight
+  const fused = rrfFuse([bm25.hits.hits.map((h) => h._id!), knn.map((h) => h._id!)]).map((f) => byId.get(f.id)!);
+  const seenFiles = new Set<string>();
+  const out = opts.onePerFile ? fused.filter((h) => !seenFiles.has(h._source!.file_id) && !!seenFiles.add(h._source!.file_id)) : fused;
+  return out.slice(0, opts.size);
+}
+
+export async function retrieve(email: string, q: string, opts: { size: number; onePerFile: boolean; vectorQuery?: string }) {
+  const keys = driveKeysFor(email);
+  const hits = await candidates(q, keys, opts);
 
   // Live re-check with Drive, one call per matching file.
   const live = await liveChecks([...new Set(hits.map((h) => h._source!.file_id))]);
@@ -175,7 +212,7 @@ async function toKeywords(question: string): Promise<string> {
 // Returns the audit record too, for the admin CLI; the web API sends only `answer`.
 export async function driveAsk(email: string, question: string, via = "web"): Promise<{ answer: DriveAnswer; record: AuditRecord }> {
   const keywords = await toKeywords(question);
-  const { allowed, audit } = await retrieve(email, keywords, { size: 8, onePerFile: false });
+  const { allowed, audit } = await retrieve(email, keywords, { size: 8, onePerFile: false, vectorQuery: question });
 
   let answer = NO_INFO;
   let failure: string | null = null;

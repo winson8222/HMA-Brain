@@ -1,5 +1,7 @@
 // Elasticsearch storage for Drive: chunk docs (`brain-drive`) and sync state (`brain-drive-state`).
 // Separate from Slack's `brain` index, so a Slack backfill never touches Drive data.
+import { config } from "../../config.js";
+import { withVectors } from "../../embeddings.js";
 import { es } from "../../es.js";
 import { driveConfig } from "./config.js";
 import type { DriveDoc, FileState } from "./docs.js";
@@ -26,6 +28,10 @@ const docMappings = {
     acl_container: { type: "keyword" },
     content_hash: { type: "keyword" },
     title_only: { type: "boolean" },
+    // Vector for semantic search; only when embeddings are configured (dims come from EMBEDDING_DIMS).
+    ...(config.embeddingDims
+      ? { text_vector: { type: "dense_vector", dims: config.embeddingDims, index: true, similarity: "cosine" } as const }
+      : {}),
   },
 } as const;
 
@@ -41,8 +47,18 @@ const stateMappings = {
   },
 } as const;
 
+let warnedNoVectors = false;
+
 export async function ensureDriveIndices() {
   if (!(await es.indices.exists({ index: INDEX }))) await es.indices.create({ index: INDEX, mappings: docMappings });
+  else if (config.embeddingDims && !warnedNoVectors) {
+    // An index created before embeddings were configured can't hold vectors: Drive search stays keyword-only.
+    const m = await es.indices.getFieldMapping({ index: INDEX, fields: ["text_vector"] });
+    if (!Object.keys((m as any)[INDEX]?.mappings ?? {}).length) {
+      warnedNoVectors = true;
+      console.warn("brain-drive lacks text_vector: Drive search is keyword-only until you run `npm run drive:backfill -- --reset`");
+    }
+  }
   if (!(await es.indices.exists({ index: STATE }))) await es.indices.create({ index: STATE, mappings: stateMappings });
 }
 
@@ -56,7 +72,7 @@ export async function resetDriveIndices() {
 // Upsert the new chunks first, then remove leftovers from the previous version,
 // so a file never has zero chunks while it is being updated.
 export async function writeFileDocs(fileId: string, docs: DriveDoc[]) {
-  const operations = docs.flatMap((d) => [{ index: { _index: INDEX, _id: d.doc_id } }, d]);
+  const operations = (await withVectors(docs)).flatMap((d) => [{ index: { _index: INDEX, _id: d.doc_id } }, d]);
   const r = await es.bulk({ operations, refresh: true });
   if (r.errors) throw new Error("Bulk index had errors: " + JSON.stringify(r.items.find((i) => i.index?.error)));
   await es.deleteByQuery({
