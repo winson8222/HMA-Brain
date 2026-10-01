@@ -7,6 +7,7 @@ import { ensureIndex, es, INDEX } from "./es.js";
 import { registerEvents, status } from "./events.js";
 import { embeddingConfigured } from "./embeddings.js";
 import { resolveMultiQuery, resolveRetrievalMode, resolveRerank } from "./hybrid.js";
+import { auditRouter } from "./audit/routes.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
@@ -36,10 +37,19 @@ const slackApps = config.slackSync
       })
   : [];
 
+// ---- Google Drive: API + Connect (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
+// Loaded only when configured, so the server still runs without Google credentials.
+const driveConfigured =
+  /\.apps\.googleusercontent\.com$/.test(process.env.GOOGLE_CLIENT_ID ?? "") && !!process.env.GOOGLE_CLIENT_SECRET && !process.env.GOOGLE_CLIENT_SECRET.endsWith("...");
+const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
+const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
+
 // ---- HTTP API + UI ----
 const web = express();
 web.use(express.json());
 web.use(express.static("public"));
+web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
+if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string) {
@@ -170,6 +180,7 @@ web.get(
       multiQuery: resolveMultiQuery() || null,
       embeddings: embeddingConfigured() ? process.env.EMBEDDING_MODEL : null,
       ...status,
+      ...(drive ? { drive: drive.driveStatus } : {}),
     });
   }),
 );
@@ -242,6 +253,10 @@ for (const { app, ws } of slackApps) {
   await app.start();
   setInterval(() => reconcileChannels(ws).catch(console.error), 5 * 60_000);
 }
+if (drive) {
+  await drive.loadStatus();
+  drive.startPolling();
+}
 if (config.sessionSecretIsRandom) console.warn("SESSION_SECRET not set: everyone is signed out when the server restarts.");
 web.listen(config.port, (err?: Error) => {
   if (err) {
@@ -252,5 +267,7 @@ web.listen(config.port, (err?: Error) => {
   const sync = slackApps.length
     ? `live Slack sync on for ${slackApps.map((s) => s.ws.teamName).join(", ")}`
     : "live Slack sync OFF: run `npm run backfill` for new messages";
-  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")})`);
+  const driveSync = drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "";
+  if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
+  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });

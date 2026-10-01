@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Internal Brain: Drive</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f1f3f6; --text: #111827; --muted: #5f6878; --faint: #8b93a1;
+    --border: #e3e6eb; --accent: #3b5bdb; --accent-ink: #ffffff; --accent-soft: #edf1ff;
+    --ok: #17804a; --ok-soft: #e6f5ec; --deny: #c23a2c; --deny-soft: #fcebe8; --warn: #946200; --warn-soft: #fff3d6;
+    --mark: #fde68a; --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1016; --surface: #151a22; --surface-2: #1d2430; --text: #e8ecf2; --muted: #a0a9b8; --faint: #768091;
+      --border: #28303c; --accent: #8fa3ff; --accent-ink: #0d1016; --accent-soft: #1d2440;
+      --ok: #62d49c; --ok-soft: #12301f; --deny: #ff8f84; --deny-soft: #3a1b17; --warn: #f0c060; --warn-soft: #3a2e10;
+      --mark: #6b5a00; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+
+  /* top bar */
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #3b5bdb, #7048e8); display: grid; place-items: center; }
+  .source-pill { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .tabs { display: flex; gap: 4px; margin-left: 12px; }
+  .tab { border: 0; background: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; }
+  .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+  .spacer { flex: 1; }
+  .sync { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+  .dot.bad { background: var(--deny); box-shadow: 0 0 0 3px var(--deny-soft); }
+  .btn { border: 1px solid var(--border); background: var(--surface); padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .slack-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .slack-link:hover { color: var(--accent); }
+  .alert { margin: 16px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 14px; }
+
+  /* ask */
+  .hero { padding: 28px 0 8px; }
+  .hero h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -.02em; }
+  .hero p { margin: 0; color: var(--muted); }
+  .askbar { margin-top: 18px; display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px; box-shadow: var(--shadow); }
+  .askbar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .seg { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; flex: none; }
+  .seg button { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  .askbar input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font-size: 16px; padding: 0 6px; }
+  .askbar .btn.primary { padding: 9px 20px; font-size: 14px; border-radius: 10px; }
+  .under { display: flex; align-items: center; gap: 12px; margin: 12px 0 20px; flex-wrap: wrap; }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1; }
+  .examples span { font-size: 13px; color: var(--faint); }
+  .ex { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+  .ex:hover { border-color: var(--accent); color: var(--accent); }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+  .switch input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--border); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { left: 16px; }
+
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; padding-bottom: 40px; }
+  .pane { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
+  .who { display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; }
+  .who-main { flex: 1; min-width: 0; }
+  .who select { border: 0; background: none; font-weight: 700; font-size: 16px; padding: 0; cursor: pointer; max-width: 100%; }
+  .who .role { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge-admin { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; background: var(--deny-soft); color: var(--deny); }
+  details.access { margin: 0 16px; border-top: 1px solid var(--border); padding: 10px 0; }
+  details.access summary { cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; }
+  details.access summary::-webkit-details-marker { display: none; }
+  details.access summary::before { content: "▸ "; }
+  details.access[open] summary::before { content: "▾ "; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .out { padding: 4px 16px 16px; flex: 1; }
+  .idle { color: var(--faint); font-size: 14px; padding: 18px 0; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+  .loading { padding: 12px 0; }
+  .loading .msg { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .skel { height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.2s infinite; margin: 8px 0; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .answer { font-size: 15.5px; line-height: 1.6; padding: 6px 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cite { display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 5px; margin: 0 1px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; text-decoration: none; vertical-align: 2px; }
+  .noinfo { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }
+  .noinfo b { color: var(--text); }
+  .kw { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+  .srclbl { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 16px 0 8px; }
+  .src { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; scroll-margin-top: 80px; }
+  .src:target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .src-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .src-n { font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 5px; padding: 1px 6px; flex: none; }
+  .src-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src-open { margin-left: auto; font-size: 12px; font-weight: 600; text-decoration: none; flex: none; }
+  .src-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
+  .src-text { font-size: 13.5px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .trust { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--faint); border-top: 1px solid var(--border); padding: 10px 16px; }
+  .err { color: var(--deny); font-size: 14px; padding: 10px 0; }
+
+  /* audit */
+  .audit-head { display: flex; align-items: flex-end; gap: 16px; padding: 28px 0 16px; flex-wrap: wrap; }
+  .audit-head h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+  .audit-head p { margin: 4px 0 0; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; }
+  .lock { max-width: 460px; margin: 20px auto; text-align: center; }
+  .lock h2 { margin: 6px 0 4px; font-size: 17px; }
+  .lock p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+  .lock form { display: flex; gap: 8px; }
+  .field { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar select, .toolbar input { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+  .toolbar input { min-width: 220px; }
+  .chain { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
+  .chain.ok { background: var(--ok-soft); color: var(--ok); }
+  .chain.bad { background: var(--deny-soft); color: var(--deny); }
+  .chain.idle { background: var(--surface-2); color: var(--muted); }
+  .mono { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  .rec { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .rec-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .seq { font-weight: 700; color: var(--faint); font-size: 13px; }
+  .rec-q { font-weight: 600; }
+  .rec-when { font-size: 12px; color: var(--faint); margin-left: auto; }
+  .rec-ans { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); font-size: 14px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
+  .col h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .col.allow h4 { color: var(--ok); } .col.deny h4 { color: var(--deny); } .col.drop h4 { color: var(--warn); }
+  .col ul { list-style: none; margin: 0; padding: 0; }
+  .col li { font-size: 13px; padding: 4px 0 4px 10px; border-left: 3px solid var(--border); margin-bottom: 4px; overflow-wrap: anywhere; }
+  .col.allow li { border-color: var(--ok); } .col.deny li { border-color: var(--deny); } .col.drop li { border-color: var(--warn); }
+  .col .why { display: block; color: var(--faint); font-size: 12px; }
+  .col .none { font-size: 12px; color: var(--faint); }
+  .rec-foot { margin-top: 10px; color: var(--faint); }
+  .empty { text-align: center; color: var(--faint); padding: 30px 0; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 0 16px; }
+    .topbar .wrap { height: auto; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; gap: 10px; }
+    .tabs { margin-left: 0; order: 3; width: 100%; }
+    .sync .label { display: none; }
+    .askbar { flex-wrap: wrap; }
+    .askbar input { flex-basis: 100%; order: -1; padding: 8px 6px; }
+    .askbar .btn.primary { margin-left: auto; }
+    .under { flex-direction: column; align-items: flex-start; }
+    .panes { grid-template-columns: 1fr; }
+    .toolbar input { min-width: 0; flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7 4 4 0 0 0 6 4 4 4 0 0 0 6-4 4 4 0 0 0-2-7V7a4 4 0 0 0-4-4z"/><path d="M12 3v16"/></svg>
+      </div>
+      Internal Brain <span class="source-pill">Google Drive</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="ask" aria-selected="true">Ask</button>
+      <button class="tab" role="tab" data-view="audit" aria-selected="false">Audit log</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="sync"><span class="dot" id="dot"></span><span class="label" id="synctext">Connecting…</span>
+      <button class="btn" id="sync" type="button">Sync now</button></div>
+    <a class="slack-link" href="/">Slack demo ↗</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="alerts"></div>
+
+  <!-- ===== Ask ===== -->
+  <section id="view-ask">
+    <div class="hero">
+      <h1>Ask the company's documents</h1>
+      <p>Answers come only from files shared with that person in Google Drive, re-checked with Drive before anything is shown.</p>
+      <form class="askbar" id="f">
+        <div class="seg" role="group" aria-label="Mode">
+          <button type="button" data-mode="ask" aria-pressed="true">Ask</button>
+          <button type="button" data-mode="search" aria-pressed="false">Search</button>
+        </div>
+        <input id="q" type="search" autocomplete="off" placeholder="Ask a question…" aria-label="Question" />
+        <button class="btn primary" type="submit">Ask</button>
+      </form>
+      <div class="under">
+        <div class="examples" id="examples"></div>
+        <label class="switch"><input type="checkbox" id="compare" checked /> Compare two people</label>
+      </div>
+    </div>
+    <div class="panes">
+      <article class="pane" id="p0"></article>
+      <article class="pane" id="p1"></article>
+    </div>
+  </section>
+
+  <!-- ===== Audit ===== -->
+  <section id="view-audit" hidden>
+    <div class="audit-head">
+      <div>
+        <h1>Audit log</h1>
+        <p>Every search and answer: who asked, what they were shown, what was withheld, and why. Admins only.</p>
+      </div>
+    </div>
+
+    <div class="card lock" id="lock">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <h2>Admin access</h2>
+      <p>Enter the <code>ADMIN_TOKEN</code> from <code>.env</code>. The people asking questions never see this page.</p>
+      <form id="lockform"><input class="field" type="password" id="token" placeholder="Admin token" autocomplete="off" /><button class="btn primary">Unlock</button></form>
+      <div class="err" id="lockmsg"></div>
+    </div>
+
+    <div id="auditbody" hidden>
+      <div class="toolbar">
+        <select id="factor" aria-label="Person"><option value="">Everyone</option></select>
+        <select id="fdecision" aria-label="Outcome">
+          <option value="">Any outcome</option>
+          <option value="denied">Something was withheld</option>
+          <option value="dropped">Something was dropped by the re-check</option>
+        </select>
+        <input id="fdoc" placeholder="Drive file ID or doc ID" aria-label="File" />
+        <button class="btn" id="refresh" type="button">Apply</button>
+        <div class="spacer"></div>
+        <button class="btn" id="connect" type="button">Connect / reconnect Google Drive</button>
+        <button class="btn primary" id="verifybtn" type="button">Verify audit chain</button>
+      </div>
+      <div class="chain idle" id="chain">Each record is sealed with the previous record's hash. Verify to check nothing was edited or deleted.</div>
+      <div id="log"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const panes = [$("#p0"), $("#p1")];
+const NO_INFO = "I don't have information on that.";
+let people = [];
+let mode = "ask";
+
+const store = {
+  get: (k) => { try { return sessionStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch {} },
+};
+
+async function api(path, body, admin) {
+  const headers = { "Content-Type": "application/json" };
+  if (admin) headers["x-admin-token"] = store.get("adminToken");
+  const r = await fetch(path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status });
+  return data;
+}
+
+const ago = (iso) => {
+  if (!iso) return "never";
+  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
+  return s < 60 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : new Date(iso).toLocaleString();
+};
+const when = (iso) => (iso ? new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+
+// ---- icons ----
+const ICON = {
+  doc: `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285f4" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path fill="#fff" d="M8 12h8v1.5H8zm0 3h8v1.5H8zm0 3h5v1.5H8z"/></svg>`,
+  sheet: `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#0f9d58" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path fill="#fff" d="M8 11h8v8H8zm1.5 1.5v2h2v-2zm3.5 0v2h2v-2zm-3.5 3.5v1.5h2V16zm3.5 0v1.5h2V16z"/></svg>`,
+  slides: `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#f4b400" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="8" y="12" width="8" height="6" rx="1" fill="#fff"/></svg>`,
+  pdf: `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#db4437" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><text x="12" y="18" text-anchor="middle" font-size="6.5" font-weight="700" fill="#fff" font-family="system-ui">PDF</text></svg>`,
+  file: `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#8b93a1" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/></svg>`,
+  shield: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
+  info: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>`,
+};
+const iconFor = (mime = "") =>
+  mime.includes("document") ? ICON.doc : mime.includes("spreadsheet") || mime.includes("csv") ? ICON.sheet
+  : mime.includes("presentation") ? ICON.slides : mime.includes("pdf") ? ICON.pdf : ICON.file;
+
+const COLORS = ["#3b5bdb", "#0ca678", "#e8590c", "#ae3ec9", "#1098ad", "#d6336c"];
+const colorFor = (email) => COLORS[[...email].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+
+// ---- examples ----
+const EXAMPLES = {
+  ask: ["How do we fail over the payment database?", "What uptime does our support vendor commit to?", "What was in the Q3 breach report?", "What caused the payment outage?"],
+  search: ["failover", "SLA credits", "breach", "on-call"],
+};
+function renderExamples() {
+  $("#examples").innerHTML = `<span>Try:</span>` + EXAMPLES[mode].map((e) => `<button type="button" class="ex">${esc(e)}</button>`).join("");
+  document.querySelectorAll(".ex").forEach((b) => (b.onclick = () => { $("#q").value = b.textContent; run(); }));
+  $("#q").placeholder = mode === "ask" ? "Ask a question, e.g. How do we fail over the payment database?" : "Search Drive, e.g. failover";
+  $("#f .btn.primary").textContent = mode === "ask" ? "Ask" : "Search";
+}
+document.querySelectorAll(".seg button").forEach((b) => (b.onclick = () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  renderExamples();
+  if ($("#q").value.trim()) run();
+}));
+
+// ---- people panes ----
+function renderPane(pane, email) {
+  const p = people.find((x) => x.email === email) || people[0];
+  if (!p) { pane.innerHTML = `<div class="out"><div class="idle">No demo people configured (persona emails in .env).</div></div>`; return; }
+  pane.dataset.email = p.email;
+  const files = p.files || [];
+  pane.innerHTML = `
+    <div class="who">
+      <div class="avatar" style="background:${colorFor(p.email)}">${esc(p.name[0])}</div>
+      <div class="who-main">
+        <select aria-label="Ask as">${people.map((x) => `<option value="${esc(x.email)}" ${x.email === p.email ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+        <div class="role">${esc(p.role)} · ${esc(p.email)}</div>
+      </div>
+      ${p.admin ? `<span class="badge-admin" title="The Drive admin owns every demo file, so it can see all of them">Admin</span>` : ""}
+    </div>
+    <details class="access">
+      <summary>Can see ${files.length} file${files.length === 1 ? "" : "s"} in Drive</summary>
+      <div class="chips">${files.map((t) => `<span class="chip">${esc(t)}</span>`).join("") || `<span class="chip">none</span>`}</div>
+    </details>
+    <div class="out"><div class="idle">Ask a question to see ${esc(p.name)}'s answer.</div></div>
+    <div class="trust">${ICON.shield}<span>Only files shared with ${esc(p.name)} · re-checked with Google Drive before showing · every question is logged</span></div>`;
+  pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); if ($("#q").value.trim()) runPane(pane); };
+}
+
+async function loadPeople() {
+  const prev = panes.map((p) => p.dataset.email);
+  people = await api("/api/drive/people");
+  const regular = people.filter((p) => !p.admin);
+  const defaults = [regular[0] || people[0], regular[1] || people[1] || people[0]];
+  panes.forEach((pane, i) => {
+    const keep = prev[i] && people.some((p) => p.email === prev[i]);
+    const out = pane.querySelector(".out")?.innerHTML;
+    renderPane(pane, keep ? prev[i] : defaults[i]?.email);
+    if (keep && out) pane.querySelector(".out").innerHTML = out; // refresh the access list, keep the answer
+  });
+  $("#factor").innerHTML = `<option value="">Everyone</option>` + people.map((p) => `<option value="${esc(p.email)}">${esc(p.name)}</option>`).join("");
+}
+
+// ---- results ----
+const personName = (pane) => people.find((p) => p.email === pane.dataset.email)?.name || "this person";
+
+// r.snippet is HTML from the server: escaped text with <mark> highlights.
+const srcHtml = (r, id, n) => `
+  <div class="src" ${id ? `id="${id}"` : ""}>
+    <div class="src-head">${n ? `<span class="src-n">${n}</span>` : ""}${iconFor(r.mime_type)}
+      <span class="src-title" title="${esc(r.title)}">${esc(r.title)}</span>
+      <a class="src-open" href="${esc(r.permalink)}" target="_blank" rel="noopener">Open ↗</a></div>
+    <div class="src-meta">${esc(r.path)}${r.heading && r.heading !== r.title ? ` › ${esc(r.heading)}` : ""}${r.modified_at ? ` · updated ${esc(when(r.modified_at))}` : ""}</div>
+    <div class="src-text">${r.snippet}</div>
+  </div>`;
+
+function renderSearch(pane, data) {
+  const out = pane.querySelector(".out");
+  out.innerHTML = data.results.length
+    ? `<div class="srclbl">${data.results.length} result${data.results.length === 1 ? "" : "s"}</div>${data.results.map((r) => srcHtml(r)).join("")}`
+    : `<div class="noinfo">${ICON.info}<div><b>No results found</b><br>Nothing in ${esc(personName(pane))}'s files matches this.</div></div>`;
+}
+
+function renderAnswer(pane, data) {
+  const out = pane.querySelector(".out");
+  const byN = new Map(data.sources.map((s) => [s.n, s]));
+  const id = (n) => `${pane.id}-src-${n}`;
+  const text = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) => (byN.has(+n) ? `<a class="cite" href="#${id(n)}">${n}</a>` : m));
+  const refused = data.answer.startsWith(NO_INFO);
+  out.innerHTML = `
+    ${refused
+      ? `<div class="noinfo">${ICON.info}<div><b>${esc(NO_INFO)}</b>${text.slice(esc(NO_INFO).length) ? `<br>${text.slice(esc(NO_INFO).length).trim()}` : ""}</div></div>`
+      : `<div class="answer">${text}</div>`}
+    <div class="kw">Searched for: ${esc(data.keywords)}</div>
+    ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => srcHtml(s, id(s.n), s.n)).join("")}` : ""}`;
+}
+
+async function runPane(pane) {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  const out = pane.querySelector(".out");
+  out.innerHTML = `<div class="loading"><div class="msg">${mode === "ask" ? "Searching" : "Searching"} ${esc(personName(pane))}'s files and re-checking access with Drive…</div>
+    <div class="skel" style="width:92%"></div><div class="skel" style="width:78%"></div><div class="skel" style="width:85%"></div></div>`;
+  try {
+    if (mode === "ask") renderAnswer(pane, await api("/api/drive/ask", { email: pane.dataset.email, q }));
+    else renderSearch(pane, await api("/api/drive/search", { email: pane.dataset.email, q }));
+  } catch (e) { out.innerHTML = `<div class="err">Something went wrong: ${esc(e.message)}</div>`; }
+}
+
+async function run() {
+  await Promise.all(panes.filter((p) => !p.hidden).map(runPane));
+  if (unlocked) loadLog().catch(() => {});
+}
+
+$("#f").onsubmit = (e) => { e.preventDefault(); run(); };
+$("#compare").onchange = (e) => { panes[1].hidden = !e.target.checked; if (e.target.checked && $("#q").value.trim()) runPane(panes[1]); };
+
+// ---- status ----
+async function loadStatus() {
+  try {
+    const s = await api("/api/drive/status");
+    const last = s.lastPollAt || s.lastBackfillAt;
+    const stale = !last || Date.now() - Date.parse(last) > 3 * s.pollSeconds * 1000;
+    $("#dot").className = "dot " + (!s.connected || s.authError ? "bad" : s.lastError || stale ? "warn" : "ok");
+    $("#synctext").textContent = s.connected
+      ? `${s.files} files · synced ${ago(last)}${s.polling ? "" : " · auto-sync off"}`
+      : "Drive not connected";
+    $("#synctext").title = `Read as ${s.account ?? "?"} from "${s.rootFolder ?? "?"}"` +
+      (s.lastRun?.maxLagSeconds != null ? ` · last change indexed ${s.lastRun.maxLagSeconds}s after it was made` : "") +
+      (s.llm ? ` · LLM: ${s.llm}` : "");
+    const alerts = [...s.warnings, ...(s.lastError ? [`Last sync error: ${s.lastError}`] : []), ...(s.llm ? [] : ["Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env."])];
+    $("#alerts").innerHTML = alerts.map((w) => `<div class="alert">${esc(w)}</div>`).join("");
+  } catch {
+    $("#dot").className = "dot bad";
+    $("#synctext").textContent = "Server not reachable";
+  }
+}
+
+$("#sync").onclick = async () => {
+  const b = $("#sync");
+  b.disabled = true; b.textContent = "Syncing…";
+  try {
+    const r = await api("/api/drive/sync", {});
+    b.textContent = r.counts ? "Synced ✓" : "Already syncing";
+    await Promise.all([loadStatus(), loadPeople()]);
+  } catch (e) { b.textContent = "Sync failed"; alert(e.message); }
+  setTimeout(() => { b.disabled = false; b.textContent = "Sync now"; }, 1500);
+};
+
+// ---- tabs ----
+function show(view) {
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === view)));
+  $("#view-ask").hidden = view !== "ask";
+  $("#view-audit").hidden = view !== "audit";
+  if (view === "audit" && unlocked) loadLog().catch((e) => alert(e.message));
+  if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
+}
+document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => show(t.dataset.view)));
+
+// ---- audit ----
+let unlocked = false;
+const nameOf = (email) => people.find((p) => p.email === email)?.name || email;
+
+const docList = (docs, withReason) => docs.length
+  ? `<ul>${docs.map((d) => `<li title="${esc(d.doc_id)}">${d.cited ? "★ " : ""}${esc(d.title)}
+      <span class="why">${esc(d.path || "")}${withReason && d.reason ? ` · ${esc(d.reason)}` : ""}</span></li>`).join("")}</ul>`
+  : `<div class="none">none</div>`;
+
+async function loadLog() {
+  const qs = new URLSearchParams({ limit: "40" });
+  if ($("#factor").value) qs.set("actor", $("#factor").value);
+  if ($("#fdecision").value) qs.set("decision", $("#fdecision").value);
+  if ($("#fdoc").value.trim()) qs.set("doc", $("#fdoc").value.trim());
+  const log = await api(`/api/audit?${qs}`, null, true);
+  $("#log").innerHTML = log.map((e) => {
+    const by = (d) => e.docs.filter((x) => x.decision === d);
+    return `
+    <div class="rec">
+      <div class="rec-head"><span class="seq">#${e.seq}</span>
+        <span><b>${esc(nameOf(e.actor))}</b> ${e.kind === "ask" ? "asked" : "searched"}</span>
+        <span class="rec-q">“${esc(e.query)}”</span>
+        <span class="rec-when">${esc(when(e.at))} · ${esc(e.via)}</span></div>
+      ${e.answer ? `<div class="rec-ans">${esc(e.answer)}</div>` : ""}
+      <div class="cols">
+        <div class="col allow"><h4>Shown (${by("allowed").length})</h4>${docList(by("allowed"), false)}</div>
+        <div class="col deny"><h4>Withheld: not shared (${by("denied").length})</h4>${docList(by("denied"), false)}</div>
+        <div class="col drop"><h4>Dropped by live re-check (${by("dropped").length})</h4>${docList(by("dropped"), true)}</div>
+      </div>
+      <div class="rec-foot mono">hash ${esc(e.hash.slice(0, 20))}… ← previous ${esc(e.prev_hash.slice(0, 20))}…</div>
+    </div>`;
+  }).join("") || `<div class="empty">No matching records yet.</div>`;
+}
+
+async function unlock() {
+  try {
+    await loadLog();
+    unlocked = true;
+    $("#lock").hidden = true;
+    $("#auditbody").hidden = false;
+  } catch (e) {
+    unlocked = false;
+    $("#lockmsg").textContent = e.message;
+    if (e.status === 401) store.set("adminToken", "");
+  }
+}
+$("#lockform").onsubmit = (e) => { e.preventDefault(); store.set("adminToken", $("#token").value.trim()); unlock(); };
+$("#refresh").onclick = () => loadLog().catch((e) => alert(e.message));
+["#factor", "#fdecision"].forEach((s) => ($(s).onchange = () => loadLog().catch((e) => alert(e.message))));
+$("#fdoc").onkeydown = (e) => { if (e.key === "Enter") loadLog().catch((err) => alert(err.message)); };
+
+$("#verifybtn").onclick = async () => {
+  const c = $("#chain");
+  c.className = "chain idle"; c.textContent = "Checking every record…";
+  try {
+    const v = await api("/api/audit/verify", null, true);
+    c.className = "chain " + (v.ok ? "ok" : "bad");
+    c.innerHTML = v.ok
+      ? `<b>✓ Chain intact</b><span>All ${v.checked} records verified.</span>${v.head ? `<span class="mono">head #${v.head.seq} ${esc(v.head.hash.slice(0, 24))}…</span>` : ""}`
+      : `<b>✕ Chain broken</b><span>${v.problems.map((p) => `#${p.seq}: ${esc(p.problem)}`).join(" · ")}</span>`;
+  } catch (e) { c.className = "chain bad"; c.textContent = e.message; }
+};
+
+$("#connect").onclick = async () => {
+  try { location.href = (await api("/api/drive/connect", {}, true)).url; }
+  catch (e) { alert(e.message); }
+};
+
+// ---- start ----
+renderExamples();
+loadPeople().catch((e) => { panes[0].innerHTML = `<div class="out"><div class="err">${esc(e.message)}</div></div>`; });
+loadStatus();
+setInterval(loadStatus, 5000);
+if (store.get("adminToken")) unlock();
+show(location.hash === "#audit" ? "audit" : "ask");
+</script>
+</body>
+</html>
