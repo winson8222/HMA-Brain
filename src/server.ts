@@ -1,6 +1,5 @@
 import { App, LogLevel } from "@slack/bolt";
 import express from "express";
-import { ask } from "./ask.js";
 import { config } from "./config.js";
 import { backfillUserDms, cleanupAfterDisconnect, personIdOfToken, userClient } from "./dms.js";
 import { ensureIndex, es, INDEX } from "./es.js";
@@ -12,7 +11,8 @@ import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
 import { asker, HttpError, wrap } from "./http.js";
-import { auditLog, search } from "./search.js";
+import { connectors, driveConfigured } from "./connectors/index.js";
+import { ask, auditLog, search, UnknownSourceError } from "./federated.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
@@ -40,8 +40,6 @@ const slackApps = config.slackSync
 
 // ---- Google Drive: API + Connect (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
 // Loaded only when configured, so the server still runs without Google credentials.
-const driveConfigured =
-  /\.apps\.googleusercontent\.com$/.test(process.env.GOOGLE_CLIENT_ID ?? "") && !!process.env.GOOGLE_CLIENT_SECRET && !process.env.GOOGLE_CLIENT_SECRET.endsWith("...");
 const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
 const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
 
@@ -114,25 +112,37 @@ web.get(
   }),
 );
 
+// Which sources a person can search. The UI shows one checkbox per connector.
+web.get("/api/connectors", (_req, res) => {
+  res.json(connectors.map((c) => ({ name: c.name, label: c.label })));
+});
+
+// Search/Ask over the chosen connectors (body.sources, e.g. ["slack","drive"]; default: all of them).
+function query(req: express.Request) {
+  const { personId, mode } = asker(req);
+  const q = String(req.body?.q ?? "");
+  if (!q) throw new HttpError(400, "q is required");
+  return { personId, mode, q, sources: req.body?.sources };
+}
+const badSources = (e: unknown) => {
+  throw e instanceof UnknownSourceError ? new HttpError(400, e.message) : e;
+};
+
 web.post(
   "/api/search",
   wrap(async (req, res) => {
-    const { personId, mode } = asker(req);
-    const q = String(req.body?.q ?? "");
-    if (!q) throw new HttpError(400, "q is required");
-    const results = await search(personId, q, mode);
+    const { personId, mode, q, sources } = query(req);
+    const out = await search(personId, q, mode, sources).catch(badSources);
     // Identical shape whether nothing matched or everything matching was restricted.
-    res.json(results.length ? { results } : { results, message: "No results found" });
+    res.json(out.results.length ? out : { ...out, message: "No results found" });
   }),
 );
 
 web.post(
   "/api/ask",
   wrap(async (req, res) => {
-    const { personId, mode } = asker(req);
-    const q = String(req.body?.q ?? "");
-    if (!q) throw new HttpError(400, "q is required");
-    res.json(await ask(personId, q, mode));
+    const { personId, mode, q, sources } = query(req);
+    res.json(await ask(personId, q, mode, sources).catch(badSources));
   }),
 );
 

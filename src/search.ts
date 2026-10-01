@@ -10,7 +10,7 @@ import { getAccess } from "./people.js";
 import { applyRerankOrder, rerank } from "./rerank.js";
 import { workspaceByTeam } from "./slack.js";
 import type { BrainDoc } from "./slackDocs.js";
-import { withSpan, withTrace } from "./tracing.js";
+import { withSpan } from "./tracing.js";
 
 type SearchHit<T> = estypes.SearchHit<T>;
 
@@ -37,26 +37,6 @@ export type LoggedDoc = {
   author: string;
   text: string;
 };
-
-export type LogEntry = {
-  at: string;
-  kind: "search" | "ask";
-  mode: AskMode;
-  personId: string;
-  query: string;
-  keywords?: string;
-  answer?: string;
-  allowed: LoggedDoc[];
-  droppedByRecheck: LoggedDoc[];
-  denied: LoggedDoc[];
-};
-
-export const auditLog: LogEntry[] = [];
-
-export function logEntry(e: Omit<LogEntry, "at">) {
-  auditLog.unshift({ at: new Date().toISOString(), ...e });
-  auditLog.length = Math.min(auditLog.length, 200);
-}
 
 const logged = (h: SearchHit<BrainDoc>, opts: { redactDm?: boolean } = {}): LoggedDoc => {
   const d = h._source!;
@@ -88,7 +68,7 @@ export function permissionedQuery(q: string, principals: string[], size = 10) {
 }
 
 // Permission-aware retrieval shared by Search and Ask.
-export async function retrieve(personId: string, q: string, size = 10, opts: { vectorQuery?: string } = {}) {
+export async function retrieve(personId: string, q: string, size = 10, opts: { vectorQuery?: string; rerank?: boolean } = {}) {
   // 1. What can this person see, across all workspaces? (cached; refreshed on membership events or after 60s)
   const access = await getAccess(personId);
 
@@ -161,7 +141,8 @@ export async function retrieve(personId: string, q: string, size = 10, opts: { v
   // 4. Rerank the permitted candidates with Cohere (falls back to the pre-rerank order on failure).
   //    After the re-check on purpose: only already-permitted text is ever sent to a third party,
   //    and the rerank budget isn't spent on docs that would be dropped anyway.
-  if (resolveRerank() && allowed.length > 1) {
+  //    Skipped when the caller reranks a merged multi-source list itself (src/federated.ts).
+  if (opts.rerank !== false && resolveRerank() && allowed.length > 1) {
     allowed = await withSpan("rerank", { model: process.env.COHERE_MODEL ?? "rerank-v3.5", candidates: allowed.length }, async () => {
       try {
         const order = await rerank(q, allowed.map((h) => ({ text: h._source!.text })));
@@ -193,15 +174,6 @@ export function toResult(h: SearchHit<BrainDoc>): Result {
     time: d.ts,
     permalink: d.permalink,
   };
-}
-
-export async function search(personId: string, q: string, mode: AskMode): Promise<Result[]> {
-  return withTrace("search", { userId: personId, input: { query: q }, metadata: { mode } }, async () => {
-    const { allowed, audit } = await retrieve(personId, q);
-    logEntry({ kind: "search", mode, personId, query: q, ...audit });
-    // Only content fields go back: no hit counts, no ACLs, nothing about withheld docs.
-    return allowed.map(toResult);
-  });
 }
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

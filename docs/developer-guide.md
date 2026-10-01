@@ -44,8 +44,10 @@ Every audit entry records which mode was used.
 | `src/acl.ts` | shared | Principal strings, `aclForChannel()`, `aclFilter()`, `canSee()` |
 | `src/es.ts` | shared | Elasticsearch client and index mapping |
 | `src/indexer.ts` | shared | Upsert, bulk upsert, delete (with thread replies), delete conversation, relabel |
-| `src/search.ts` | shared | `retrieve()`: filtered search (lexical or BM25+kNN fused client-side — the ES `rrf` retriever needs an Enterprise license), live re-check, optional Cohere rerank, audit entry (DM redaction) |
-| `src/ask.ts` | shared | Question → keywords → `retrieve()` → cited answer |
+| `src/search.ts` | Slack | `retrieve()`: filtered search (lexical or BM25+kNN fused client-side — the ES `rrf` retriever needs an Enterprise license), live re-check, optional Cohere rerank |
+| `src/connectors/types.ts`, `index.ts` | shared | The `Connector` contract (`retrieve` as the asker → `Evidence`) and the registry: the only list of platforms |
+| `src/connectors/slack/index.ts`, `src/connectors/drive/index.ts` | Slack / Drive | Each platform's `Connector`, wrapping its own permission-aware retrieval |
+| `src/federated.ts` | shared | Search/Ask over the chosen connectors (`sources`): per-source retrieval in parallel, RRF merge, one rerank, cited answer, one audit record |
 | `src/llm.ts` | shared | OpenAI-compatible chat client (timeout + retries; Langfuse generations) |
 | `src/hybrid.ts` | shared | Hybrid retrieval: mode/rerank resolution, `knnQuery()` (ACL filter inside the knn clause), `rrfFuse()` |
 | `src/embeddings.ts` | shared | OpenAI-compatible `/embeddings` client; ingest enrichment (`withVectors`) and query embedding |
@@ -53,7 +55,7 @@ Every audit entry records which mode was used.
 | `src/multiQuery.ts` | shared | Multi-query retrieval: LLM rephrasing of the question into N semantic variants (`MULTI_QUERY` knob) |
 | `src/tracing.ts` | shared | Langfuse (v4/OTel) tracing: per-query waterfall spans; no-op when unset |
 | `src/prompts.ts` | shared | Langfuse prompt management: fetches versioned prompts, falls back to built-in defaults |
-| `src/askRules.ts` | shared | The Ask-mode system rules (the fallback for the Langfuse `ask-answer-rules` prompt) |
+| `src/askRules.ts` | shared | The source-neutral Ask rules (the fallback for the Langfuse `ask-answer-rules` prompt); connectors add an `answerHint` |
 | `src/judge.ts` | shared | `npm run judge`: LLM-as-judge — scores Ask traces for faithfulness and posts scores to Langfuse |
 | `src/session.ts` | shared | Signed cookie ("who am I") and signed OAuth `state` |
 | `src/server.ts` | shared | Express API, static UI, Connect routes, starts one Socket Mode app per workspace |
