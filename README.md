@@ -2,7 +2,7 @@
 
 HMA Brain answers questions over company data while respecting each source's own access rules. A person only ever gets answers built from content they can see in the source system, and every search is recorded for audit.
 
-This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
+This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** connector (backfill + change polling into the `brain-drive` index) has its own Search/Ask page at `/drive.html`, with a live permission re-check and a tamper-evident audit log; see [docs/drive-setup.md](docs/drive-setup.md). The Slack page doesn't search Drive yet. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
 
 **What works today**
 
@@ -121,7 +121,16 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run seed:slack` | Create demo channels, members and messages **in Slack**, in every workspace, plus DMs as connected personas |
 | `npm run backfill` | Wipe the index and reload all Slack history: every workspace's channels, and connected people's DMs |
 | `npm run verify` | Per channel and DM: messages in Slack vs Elasticsearch, plus label correctness. Exits 1 on mismatch |
-| `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies) |
+| `npm run drive:connect` | One time: sign in as the Drive admin and save the token ([Drive setup](docs/drive-setup.md)) |
+| `npm run seed:drive` | Create the demo "Company A" folder **in Drive** (`-- --edit-runbook` for a live update) |
+| `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
+| `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
+| `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
+| `npm run drive:ask` | Ask or search Drive as a persona from the terminal (`-- --as bob "question"`, add `--search`) |
+| `npm run drive:doctor` | Check the whole Drive setup and list what's left to do |
+| `npm run audit:log` | Query the audit log (`-- --user bob`, `--doc <file id>`, `--denied`, `--since <date>`) |
+| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed |
+| `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies, Drive mapping and queries, audit chain) |
 | `npm run typecheck` | TypeScript check |
 
 ### Sharing the demo (optional)
@@ -253,5 +262,5 @@ Architecture, the permission model, the file map, and **what a new connector (Gm
 
 - With `ALLOW_IMPERSONATION=on`, the UI can act as anyone (Me mode is the real sign-in, via Slack).
 - Tokens are stored in a JSON file instead of an encrypted database.
-- The audit log is in memory and not tamper-evident.
+- The Slack page's audit log is in memory and not tamper-evident. (Drive's is, in `brain-audit`.)
 - Elasticsearch runs without security on localhost.

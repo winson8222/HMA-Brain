@@ -59,20 +59,25 @@
   .docs li { padding: 3px 0; overflow-wrap: anywhere; }
   .none { color: var(--muted); font-size: 12px; padding-left: 11px; }
   .allow { color: var(--ok); } .deny { color: var(--deny); }
-  @media (max-width: 600px) { header, form { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } section.log { margin: 0 16px 24px; } form { flex-wrap: wrap; } }
+  @media (max-width: 600px) { .sources { padding: 0 16px 4px; } header, form { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } section.log { margin: 0 16px 24px; } form { flex-wrap: wrap; } }
   .who { font-size: 13px; margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .who a, .linkbtn { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
   .wsgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
   .wslabel { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
   .badge.ws { background: transparent; border: 1px solid var(--border); color: var(--muted); }
   .melabel { padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; }
+  .sources { display: flex; gap: 12px; align-items: center; padding: 0 24px 4px; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
+  .sources label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); }
+  .sources input { accent-color: var(--accent); }
+  .badge.src { background: var(--accent); color: #fff; }
+  .note { font-size: 12px; color: var(--deny); padding: 6px 0; }
   .tag { font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
 </style>
 </head>
 <body>
 <header>
-  <h1>HMA Brain: permission-aware Slack Q&amp;A</h1>
-  <p>Answers only come from what each person can see in Slack, across workspaces, channels and their own DMs.</p>
+  <h1>HMA Brain: permission-aware company Q&amp;A</h1>
+  <p>Answers only come from what each person can see in each source: Slack (workspaces, channels, their own DMs) and Google Drive (files shared with them).</p>
   <div class="who" id="who"></div>
   <div id="status">Connecting…</div>
 </header>
@@ -91,6 +96,8 @@
   <button>Go</button>
 </form>
 
+<div class="sources" id="sources" aria-label="Sources to search"><span>Search in:</span></div>
+
 <main>
   <div class="pane" id="p0"></div>
   <div class="pane" id="p1"></div>
@@ -98,14 +105,24 @@
 
 <section class="log">
   <h2>Audit log (admin view)</h2>
-  <p>Server-side record of each search. The withheld column is for admins only and is never sent to the person asking. Withheld DMs are redacted. Hover a message to see its ID.</p>
+  <p>Server-side record of each search, across sources. The withheld column is for admins only and is never sent to the person asking; it shows only titles, never text. Hover an item to see its ID.</p>
   <div id="log"></div>
 </section>
 
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-let users = [], me = { signedIn: false }, cfg = { allowImpersonation: true };
+let users = [], me = { signedIn: false }, cfg = { allowImpersonation: true }, connectorList = [];
+// Remember which sources this browser last searched (a convenience only; all sources if unset).
+const loadPicked = () => { try { return JSON.parse(localStorage.getItem("sources") || "null"); } catch { return null; } };
+const savePicked = (v) => { try { localStorage.setItem("sources", JSON.stringify(v)); } catch {} };
+const chosenSources = () => [...document.querySelectorAll('#sources input:checked')].map((i) => i.value);
+function renderSources() {
+  const saved = loadPicked();
+  $("#sources").innerHTML = `<span>Search in:</span>` + connectorList.map((c) => `
+    <label><input type="checkbox" value="${esc(c.name)}" ${!saved || saved.includes(c.name) ? "checked" : ""} /> ${esc(c.label)}</label>`).join("");
+  $("#sources").querySelectorAll("input").forEach((i) => i.onchange = () => { savePicked(chosenSources()); runSearch(); });
+}
 const panes = [$("#p0"), $("#p1")];
 
 async function api(path, body) {
@@ -122,8 +139,6 @@ const chipsHtml = (u) => (u.workspaces || []).map((w) => `
   <div class="wsgroup"><span class="wslabel">${esc(w.workspace)}${w.isGuest ? " (guest)" : ""}</span>${w.items.map(chip).join("")}</div>`).join("")
   + `<div class="wsgroup"><span class="wslabel">DMs</span><span class="chip priv">🔒 their own DMs</span></div>`;
 
-const where = (r) => r.kind === "channel" ? `#${r.channel}` : r.channel;
-const convBadge = (r) => `<span class="badge ${r.is_private ? "priv" : ""}">${r.is_private ? "🔒 " : ""}${esc(where(r))}</span>`;
 
 // Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
 function renderPane(pane, selectedId) {
@@ -154,22 +169,27 @@ function renderPanes() {
   panes[1].classList.toggle("hidden", !canCompare || !$("#compare").checked);
 }
 
+const openLabel = (r) => r.source === "slack" ? "open in Slack" : `open in ${r.sourceLabel}`;
 const resultHtml = (r, n) => `
     <div class="result" ${n ? `id="${n}"` : ""}>
       <div class="meta">
-        <span class="badge ws">${esc(r.workspace)}</span>
-        ${convBadge(r)}
-        <span>${esc(r.author)}</span>
-        <span>${new Date(r.time).toLocaleString()}</span>
-        <a href="${esc(r.permalink)}" target="_blank" rel="noopener">open in Slack</a>
+        <span class="badge src">${esc(r.sourceLabel)}</span>
+        <span class="badge ws">${esc(r.location)}</span>
+        <span class="badge ${r.private ? "priv" : ""}">${r.private ? "🔒 " : ""}${esc(r.title)}</span>
+        ${r.author ? `<span>${esc(r.author)}</span>` : ""}
+        ${r.time ? `<span>${new Date(r.time).toLocaleString()}</span>` : ""}
+        <a href="${esc(r.permalink)}" target="_blank" rel="noopener">${esc(openLabel(r))}</a>
       </div>
       <div class="text">${n ? `<b>[${n.split("-").pop()}]</b> ` : ""}${r.snippet}</div>
     </div>`;
 
+const unavailableHtml = (data) => data.unavailable?.length
+  ? `<div class="note">Couldn't search ${esc(data.unavailable.join(", "))} right now, so results from it are missing.</div>` : "";
+
 function renderResults(pane, data) {
   const box = pane.querySelector(".results");
-  if (!data.results.length) { box.innerHTML = `<div class="empty">${esc(data.message)}</div>`; return; }
-  box.innerHTML = data.results.map((r) => resultHtml(r)).join("");
+  if (!data.results.length) { box.innerHTML = unavailableHtml(data) + `<div class="empty">${esc(data.message)}</div>`; return; }
+  box.innerHTML = unavailableHtml(data) + data.results.map((r) => resultHtml(r)).join("");
 }
 
 function renderAnswer(pane, data) {
@@ -179,7 +199,7 @@ function renderAnswer(pane, data) {
   // Escape the model's text, then turn [n] into links to the cited message.
   const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) =>
     byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m);
-  box.innerHTML = `
+  box.innerHTML = unavailableHtml(data) + `
     <div class="answer">${answer}</div>
     <div class="kw">Searched for: ${esc(data.keywords)}</div>
     ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => resultHtml(s, id(s.n))).join("")}` : ""}`;
@@ -188,6 +208,8 @@ function renderAnswer(pane, data) {
 async function runSearch() {
   const q = $("#q").value.trim();
   if (!q) return;
+  const sources = chosenSources();
+  if (!sources.length) { panes.forEach((p) => { const b = p.querySelector(".results"); if (b) b.innerHTML = `<div class="empty">Pick at least one source to search.</div>`; }); return; }
   const m = mode();
   const active = panes.filter((p) => !p.classList.contains("hidden"));
   await Promise.all(active.map(async (p) => {
@@ -196,17 +218,18 @@ async function runSearch() {
     if (who.asMe && !me.signedIn) return;
     if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
     try {
-      if (m === "ask") renderAnswer(p, await api("/api/ask", { ...who, q }));
-      else renderResults(p, await api("/api/search", { ...who, q }));
+      if (m === "ask") renderAnswer(p, await api("/api/ask", { ...who, q, sources }));
+      else renderResults(p, await api("/api/search", { ...who, q, sources }));
     } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   }));
   loadLog();
 }
 
+const label = (src) => connectorList.find((c) => c.name === src)?.label || src;
 const docList = (docs, cls) => docs.length
   ? `<ul class="docs ${cls}">${docs.map((d) => `
-      <li title="${esc(d.id)}"><span class="badge ws">${esc(d.workspace)}</span> ${convBadge(d)}
-        ${d.author ? `<b>${esc(d.author)}:</b> ` : ""}${esc(d.text)}</li>`).join("")}</ul>`
+      <li title="${esc(d.id)}"><span class="badge src">${esc(label(d.source))}</span> <span class="badge ws">${esc(d.location)}</span>
+        <b>${esc(d.title)}</b>${d.text ? `: ${esc(d.text.length > 240 ? d.text.slice(0, 240) + "…" : d.text)}` : ""}</li>`).join("")}</ul>`
   : `<div class="none">none</div>`;
 
 async function loadLog() {
@@ -216,7 +239,7 @@ async function loadLog() {
     <div class="logrow">
       <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.personId))}</b>
         <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span>
-        ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
+        ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}" in ${esc(e.sources.map(label).join(" + "))}
         ${e.keywords ? `<span class="kw">(keywords: ${esc(e.keywords)})</span>` : ""}</div>
       ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
       <div class="cols">
@@ -230,7 +253,8 @@ async function loadLog() {
 async function loadStatus() {
   try {
     const s = await api("/api/status");
-    $("#status").textContent = `${s.indexedMessages} messages indexed from ${s.workspaces.join(" + ")} · ` +
+    $("#status").textContent = `Slack: ${s.indexedMessages} messages from ${s.workspaces.join(" + ")} · ` +
+      (s.drive ? `Drive: ${s.drive.files} files from ${s.drive.rootFolder ?? "?"}${s.drive.polling ? " (polling)" : ""} · ` : "") +
       (s.liveSync ? `${s.eventsReceived} Slack events received` : "live sync off (backfill for new messages)") +
       (s.lastEvent ? ` · last: ${s.lastEvent.type} at ${new Date(s.lastEvent.at).toLocaleTimeString()}` : "") +
       (s.llm ? ` · LLM: ${s.llm}` : " · Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env");
@@ -249,7 +273,7 @@ async function loadMe() { me = await api("/api/me"); renderWho(); }
 async function loadUsers() { users = await api("/api/users"); }
 
 document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = () => {
-  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What do we know about the payment outage?" : "Search Slack, e.g. outage, breach, migration";
+  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What do we know about the payment outage?" : "Search everything, e.g. outage, breach, migration, rollback";
 });
 document.querySelectorAll('input[name="as"]').forEach((r) => r.onchange = () => { renderPanes(); runSearch(); });
 $("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
@@ -265,7 +289,8 @@ window.addEventListener("focus", async () => {
 });
 
 (async () => {
-  cfg = await api("/api/config");
+  [cfg, connectorList] = await Promise.all([api("/api/config"), api("/api/connectors")]);
+  renderSources();
   if (!cfg.allowImpersonation) $("#asWho").style.display = "none";
   await Promise.all([loadUsers(), loadMe()]);
   if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;

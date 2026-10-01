@@ -1,16 +1,18 @@
 import { App, LogLevel } from "@slack/bolt";
 import express from "express";
-import { ask } from "./ask.js";
 import { config } from "./config.js";
 import { backfillUserDms, cleanupAfterDisconnect, personIdOfToken, userClient } from "./dms.js";
 import { ensureIndex, es, INDEX } from "./es.js";
 import { registerEvents, status } from "./events.js";
 import { embeddingConfigured } from "./embeddings.js";
 import { resolveMultiQuery, resolveRetrievalMode, resolveRerank } from "./hybrid.js";
+import { auditRouter } from "./audit/routes.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
-import { auditLog, search, type AskMode } from "./search.js";
+import { asker, HttpError, wrap } from "./http.js";
+import { connectors, driveConfigured } from "./connectors/index.js";
+import { ask, auditLog, search, UnknownSourceError } from "./federated.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
@@ -36,37 +38,17 @@ const slackApps = config.slackSync
       })
   : [];
 
+// ---- Google Drive: API + Connect (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
+// Loaded only when configured, so the server still runs without Google credentials.
+const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
+const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
+
 // ---- HTTP API + UI ----
 const web = express();
 web.use(express.json());
 web.use(express.static("public"));
-
-class HttpError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-const wrap =
-  (fn: (req: express.Request, res: express.Response) => Promise<unknown>) =>
-  (req: express.Request, res: express.Response) =>
-    fn(req, res).catch((e) => {
-      if (!(e instanceof HttpError)) console.error(e);
-      res.status(e instanceof HttpError ? e.status : 500).json({ error: String(e?.message ?? e) });
-    });
-
-// Who is asking. Me mode: only the signed-in cookie counts, never the request body.
-// Demo mode (ALLOW_IMPERSONATION=on): the UI may pick any person, for the side-by-side compare.
-function asker(req: express.Request): { personId: string; mode: AskMode } {
-  const { personId, asMe } = req.body ?? {};
-  if (asMe || !config.allowImpersonation) {
-    const me = getSession(req);
-    if (!me) throw new HttpError(401, "Sign in first: open the Connect page and connect your Slack.");
-    return { personId: me, mode: "me" };
-  }
-  if (!personId) throw new HttpError(400, "personId is required");
-  return { personId: String(personId), mode: "demo" };
-}
+web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
+if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
 
 async function describePerson(personId: string) {
   const p = await findPerson(personId);
@@ -130,25 +112,37 @@ web.get(
   }),
 );
 
+// Which sources a person can search. The UI shows one checkbox per connector.
+web.get("/api/connectors", (_req, res) => {
+  res.json(connectors.map((c) => ({ name: c.name, label: c.label })));
+});
+
+// Search/Ask over the chosen connectors (body.sources, e.g. ["slack","drive"]; default: all of them).
+function query(req: express.Request) {
+  const { personId, mode } = asker(req);
+  const q = String(req.body?.q ?? "");
+  if (!q) throw new HttpError(400, "q is required");
+  return { personId, mode, q, sources: req.body?.sources };
+}
+const badSources = (e: unknown) => {
+  throw e instanceof UnknownSourceError ? new HttpError(400, e.message) : e;
+};
+
 web.post(
   "/api/search",
   wrap(async (req, res) => {
-    const { personId, mode } = asker(req);
-    const q = String(req.body?.q ?? "");
-    if (!q) throw new HttpError(400, "q is required");
-    const results = await search(personId, q, mode);
+    const { personId, mode, q, sources } = query(req);
+    const out = await search(personId, q, mode, sources).catch(badSources);
     // Identical shape whether nothing matched or everything matching was restricted.
-    res.json(results.length ? { results } : { results, message: "No results found" });
+    res.json(out.results.length ? out : { ...out, message: "No results found" });
   }),
 );
 
 web.post(
   "/api/ask",
   wrap(async (req, res) => {
-    const { personId, mode } = asker(req);
-    const q = String(req.body?.q ?? "");
-    if (!q) throw new HttpError(400, "q is required");
-    res.json(await ask(personId, q, mode));
+    const { personId, mode, q, sources } = query(req);
+    res.json(await ask(personId, q, mode, sources).catch(badSources));
   }),
 );
 
@@ -170,6 +164,7 @@ web.get(
       multiQuery: resolveMultiQuery() || null,
       embeddings: embeddingConfigured() ? process.env.EMBEDDING_MODEL : null,
       ...status,
+      ...(drive ? { drive: drive.driveStatus } : {}),
     });
   }),
 );
@@ -242,6 +237,10 @@ for (const { app, ws } of slackApps) {
   await app.start();
   setInterval(() => reconcileChannels(ws).catch(console.error), 5 * 60_000);
 }
+if (drive) {
+  await drive.loadStatus();
+  drive.startPolling();
+}
 if (config.sessionSecretIsRandom) console.warn("SESSION_SECRET not set: everyone is signed out when the server restarts.");
 web.listen(config.port, (err?: Error) => {
   if (err) {
@@ -252,5 +251,7 @@ web.listen(config.port, (err?: Error) => {
   const sync = slackApps.length
     ? `live Slack sync on for ${slackApps.map((s) => s.ws.teamName).join(", ")}`
     : "live Slack sync OFF: run `npm run backfill` for new messages";
-  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")})`);
+  const driveSync = drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "";
+  if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
+  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });

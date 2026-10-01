@@ -9,6 +9,15 @@
     "seed:slack": "tsx src/seedSlack.ts",
     "backfill": "tsx src/backfill.ts",
     "verify": "tsx src/verify.ts",
+    "drive:connect": "tsx src/connectors/drive/cli/connect.ts",
+    "seed:drive": "tsx src/connectors/drive/cli/seed.ts",
+    "drive:backfill": "tsx src/connectors/drive/cli/backfill.ts",
+    "drive:poll": "tsx src/connectors/drive/cli/poll.ts",
+    "drive:verify": "tsx src/connectors/drive/cli/verify.ts",
+    "drive:ask": "tsx src/connectors/drive/cli/ask.ts",
+    "drive:doctor": "tsx src/connectors/drive/cli/doctor.ts",
+    "audit:log": "tsx src/audit/cli.ts",
+    "audit:verify": "tsx src/audit/cli.ts verify",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "judge": "tsx src/judge.ts",
@@ -22,7 +31,9 @@
     "@slack/bolt": "^5.1.0",
     "@slack/web-api": "^8.1.1",
     "dotenv": "^18.0.3",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "googleapis": "^182.0.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

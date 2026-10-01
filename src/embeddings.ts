@@ -1,7 +1,6 @@
 // Embeddings via any OpenAI-compatible /embeddings endpoint, configured in .env.
 // Falls back to the chat LLM's provider (LLM_BASE_URL/LLM_API_KEY) when EMBEDDING_* is unset.
 import { config } from "./config.js";
-import type { BrainDoc } from "./slackDocs.js";
 
 const embeddingModel = () => process.env.EMBEDDING_MODEL;
 const embeddingBaseUrl = () =>
@@ -79,8 +78,8 @@ export async function embedQuery(q: string): Promise<number[]> {
 
 // Ingest-time enrichment: attach `text_vector` to docs. No-op when embeddings aren't configured.
 // A batch that fails to embed keeps its docs vector-less — lexical search still works,
-// and the next `npm run backfill` fills the vectors in.
-export async function withVectors<T extends BrainDoc>(docs: T[]): Promise<T[]> {
+// and the next backfill (`npm run backfill` / `npm run drive:backfill`) fills the vectors in.
+export async function withVectors<T extends { text: string }>(docs: T[]): Promise<T[]> {
   if (!embeddingConfigured() || !docs.length) return docs;
   for (let i = 0; i < docs.length; i += config.embeddingBatch) {
     const slice = docs.slice(i, i + config.embeddingBatch);
