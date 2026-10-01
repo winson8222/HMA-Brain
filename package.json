@@ -10,10 +10,15 @@
     "backfill": "tsx src/backfill.ts",
     "verify": "tsx src/verify.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "judge": "tsx src/judge.ts",
+    "prompts:seed": "tsx src/pushPrompt.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.19.2",
+    "@langfuse/otel": "^5.11.1",
+    "@langfuse/tracing": "^5.11.1",
+    "@opentelemetry/sdk-node": "^0.222.0",
     "@slack/bolt": "^5.1.0",
     "@slack/web-api": "^8.1.1",
     "dotenv": "^18.0.3",

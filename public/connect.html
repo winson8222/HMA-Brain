@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connect Slack</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3de;
+    --accent: #2f5bd3; --ok: #217a3c; --ok-bg: #e5f3e9; --deny: #b3261e; --deny-bg: #fbeae4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --text: #ececea; --muted: #9b9b95; --border: #33332f;
+      --accent: #8aa8ff; --ok: #7fd49a; --ok-bg: #1c2e22; --deny: #f2a19b; --deny-bg: #3a2019;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 4px 0 16px; }
+  a { color: var(--accent); }
+  .notice { padding: 10px 12px; border-radius: 8px; margin: 12px 0; }
+  .notice.ok { background: var(--ok-bg); color: var(--ok); }
+  .notice.err { background: var(--deny-bg); color: var(--deny); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin: 12px 0; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .name { font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .btn { display: inline-block; padding: 8px 14px; border-radius: 8px; background: var(--accent); color: #fff; text-decoration: none; border: 0; font: inherit; cursor: pointer; }
+  .btn.secondary { background: transparent; color: var(--deny); border: 1px solid var(--deny); }
+  .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  ol { color: var(--muted); padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/">← Back to HMA Brain</a></p>
+  <h1>Connect your Slack</h1>
+  <p>Connecting signs you in and lets HMA Brain read <b>your own DMs and group DMs</b>, so you can ask about them. Nobody else can see them in answers unless they're in the conversation too.</p>
+  <div id="notice"></div>
+  <div id="me" class="card"></div>
+  <div id="list"></div>
+  <ol>
+    <li>Make sure you're signed in to Slack <b>as yourself</b> in this browser. The connection belongs to whoever Slack sees as signed in.</li>
+    <li>Click <b>Connect</b> for each workspace you're in, then <b>Allow</b> in Slack.</li>
+    <li><b>Sign out</b> (on the main page) forgets you in this browser. <b>Disconnect</b> also revokes access and removes your DMs from the index, unless another participant is still connected.</li>
+  </ol>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const api = async (path, body) => {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+};
+
+const params = new URLSearchParams(location.search);
+if (params.get("connected")) $("#notice").innerHTML = `<div class="notice ok">Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.</div>`;
+if (params.get("error")) $("#notice").innerHTML = `<div class="notice err">${esc(params.get("error"))}</div>`;
+
+async function render() {
+  const [me, conns] = await Promise.all([api("/api/me"), api("/api/connections")]);
+  $("#me").innerHTML = me.signedIn
+    ? `<div class="name">Signed in as ${esc(me.name)}</div><div class="muted">${esc(me.email || "")}</div>`
+    : `<div class="name">Not signed in</div><div class="muted">Connect a workspace below to sign in.</div>`;
+
+  $("#list").innerHTML = conns.map((c) => {
+    const mine = me.signedIn && me.connections.find((x) => x.workspace === c.workspace);
+    const action = !c.canConnect
+      ? `<span class="muted">Not set up for Connect (no clientId/clientSecret)</span>`
+      : mine?.connected
+        ? `<button class="btn secondary" data-disconnect="${esc(mine.teamId)}">Disconnect</button>`
+        : `<a class="btn" href="/slack/oauth/start?ws=${encodeURIComponent(c.key)}">Connect</a>`;
+    return `<div class="card"><div class="row">
+      <div><div class="name">${esc(c.workspace)}</div>
+        <div class="muted">Connected: ${c.connected.length ? c.connected.map(esc).join(", ") : "nobody yet"}</div></div>
+      ${action}</div></div>`;
+  }).join("");
+
+  document.querySelectorAll("[data-disconnect]").forEach((b) => b.onclick = async () => {
+    b.setAttribute("aria-disabled", "true");
+    try {
+      const r = await api("/api/disconnect", { teamId: b.dataset.disconnect });
+      $("#notice").innerHTML = `<div class="notice ok">Disconnected. Removed ${r.removedConversations} DM conversation(s) that no other participant still allows.</div>`;
+    } catch (e) {
+      $("#notice").innerHTML = `<div class="notice err">${esc(e.message)}</div>`;
+    }
+    render();
+  });
+}
+render();
+</script>
+</body>
+</html>
