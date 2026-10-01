@@ -1,7 +1,7 @@
 // Elasticsearch storage for Drive: chunk docs (`brain-drive`) and sync state (`brain-drive-state`).
 // Separate from Slack's `brain` index, so a Slack backfill never touches Drive data.
 import { config } from "../../config.js";
-import { withVectors } from "../../embeddings.js";
+import { embeddingConfigured, withVectors } from "../../embeddings.js";
 import { es } from "../../es.js";
 import { driveConfig } from "./config.js";
 import type { DriveDoc, FileState } from "./docs.js";
@@ -71,8 +71,11 @@ export async function resetDriveIndices() {
 
 // Upsert the new chunks first, then remove leftovers from the previous version,
 // so a file never has zero chunks while it is being updated.
-export async function writeFileDocs(fileId: string, docs: DriveDoc[]) {
-  const operations = (await withVectors(docs)).flatMap((d) => [{ index: { _index: INDEX, _id: d.doc_id } }, d]);
+// Returns false when embeddings are configured but some chunk was written without a vector (the embed
+// call failed); the sync records that and retries the file on its next pass.
+export async function writeFileDocs(fileId: string, docs: DriveDoc[]): Promise<boolean> {
+  const withVec = await withVectors(docs);
+  const operations = withVec.flatMap((d) => [{ index: { _index: INDEX, _id: d.doc_id } }, d]);
   const r = await es.bulk({ operations, refresh: true });
   if (r.errors) throw new Error("Bulk index had errors: " + JSON.stringify(r.items.find((i) => i.index?.error)));
   await es.deleteByQuery({
@@ -87,6 +90,7 @@ export async function writeFileDocs(fileId: string, docs: DriveDoc[]) {
       },
     },
   });
+  return !embeddingConfigured() || withVec.every((d) => "text_vector" in d);
 }
 
 // Sharing changed but content didn't: rewrite only the labels.
@@ -156,6 +160,17 @@ export const putFolderState = (f: FolderState) => es.index({ index: STATE, id: f
 export const allFolderStates = () => allOfKind<FolderState>("folder");
 export async function deleteFolderState(id: string) {
   await es.delete({ index: STATE, id: folderKey(id), refresh: true }, { ignore: [404] });
+}
+
+// Files whose content re-index is waiting for them to stop being edited (the debounce), by file ID.
+export type PendingState = { kind: "pending"; file_id: string; due_at: string };
+const pendingKey = (id: string) => `pending:${id}`;
+export const putPending = (fileId: string, dueAt: string) =>
+  es.index({ index: STATE, id: pendingKey(fileId), document: { kind: "pending", file_id: fileId, due_at: dueAt } satisfies PendingState, refresh: true });
+export const allPending = () => allOfKind<PendingState>("pending");
+export const countPending = async () => (await es.count({ index: STATE, query: { term: { kind: "pending" } } })).count;
+export async function deletePending(fileId: string) {
+  await es.delete({ index: STATE, id: pendingKey(fileId), refresh: true }, { ignore: [404] });
 }
 
 export type ConnectorState = {

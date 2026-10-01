@@ -111,7 +111,7 @@ driveRouter.post(
   wrap(async (_req, res) => {
     if (Date.now() - lastManualSync < 5000) return res.json({ skipped: "just synced" });
     lastManualSync = Date.now();
-    const counts = await pollOnce();
+    const counts = await pollOnce({ force: true }); // "Sync now" doesn't wait for files being edited
     res.json(counts ? { counts } : { skipped: "a sync is already running" });
   }),
 );

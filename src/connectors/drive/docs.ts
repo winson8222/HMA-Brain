@@ -84,6 +84,7 @@ export type FileState = {
   error: string | null;
   modified_at: string | null;
   indexed_at: string;
+  vectors?: boolean; // false: written without embeddings (the embed call failed), so retried on the next pass
 };
 
 // Stored files can be compared without downloading. Google-native files can't (their modifiedTime
@@ -95,10 +96,18 @@ export function contentSignal(f: { mimeType: string; md5Checksum?: string | null
 
 type Kind = "export" | "download" | "title";
 
-export function mustFetchContent(prev: FileState | undefined, kind: Kind, signal: string | null, name: string, path: string): boolean {
+export function mustFetchContent(prev: FileState | undefined, kind: Kind, signal: string | null, name: string, path: string, wantVectors = false): boolean {
   if (kind === "title") return false;
   if (kind === "export") return true;
+  if (wantVectors && prev?.vectors === false) return true;
   return !prev || prev.status === "error" || prev.content_signal !== signal || prev.name !== name || prev.path !== path;
+}
+
+// Debounce: was the file edited so recently that someone is probably still typing?
+export function stillEditing(modifiedTime: string | null | undefined, now: number, quietMs: number): boolean {
+  if (!quietMs || !modifiedTime) return false;
+  const t = Date.parse(modifiedTime);
+  return Number.isFinite(t) && now - t < quietMs;
 }
 
 export type Decision = "reindex" | "relabel" | "none";
@@ -107,9 +116,10 @@ export type Decision = "reindex" | "relabel" | "none";
 // Only sharing changed → relabel the existing chunks, no re-download.
 export function planUpdate(
   prev: FileState | undefined,
-  next: { name: string; path: string; aclHash: string; contentHash: string | null },
+  next: { name: string; path: string; aclHash: string; contentHash: string | null; wantVectors?: boolean },
 ): Decision {
   if (!prev || prev.status === "error") return "reindex";
+  if (next.wantVectors && prev.vectors === false) return "reindex"; // embeddings failed last time
   if (next.contentHash !== null && next.contentHash !== prev.content_hash) return "reindex";
   if (prev.name !== next.name || prev.path !== next.path) return "reindex";
   if (prev.acl_hash !== next.aclHash) return "relabel";

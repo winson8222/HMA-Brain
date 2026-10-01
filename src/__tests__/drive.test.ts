@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { aclHash, DRIVE_ANYONE, permsToAcl } from "../connectors/drive/acl.js";
 import { chunkText } from "../connectors/drive/chunk.js";
-import { contentHash, contentSignal, fileToDocs, mustFetchContent, planUpdate, type FileState } from "../connectors/drive/docs.js";
+import { contentHash, contentSignal, fileToDocs, mustFetchContent, planUpdate, stillEditing, type FileState } from "../connectors/drive/docs.js";
 import { cleanMarkdown, extractionFor, GOOGLE_DOC, GOOGLE_SHEET, GOOGLE_SLIDES, TITLE_ONLY } from "../connectors/drive/extract.js";
 
 // Permission and export payloads captured from the real Drive API in the Phase 0 spike.
@@ -163,8 +163,32 @@ describe("change handling", () => {
     expect(mustFetchContent(undefined, "download", "md5-a", "Runbook", "Company A / Eng")).toBe(true);
   });
   it("title-only files are never fetched", () => expect(mustFetchContent(undefined, "title", "x", "a", "b")).toBe(false));
+  it("chunks written without vectors are retried when embeddings are on", () => {
+    const noVec = { ...prev, vectors: false };
+    expect(planUpdate(noVec, { ...same, wantVectors: true })).toBe("reindex");
+    expect(planUpdate(noVec, { ...same, wantVectors: false })).toBe("none");
+    expect(planUpdate({ ...prev, vectors: true }, { ...same, wantVectors: true })).toBe("none");
+    expect(planUpdate(prev, { ...same, wantVectors: true })).toBe("none"); // older state without the flag: assume fine
+    const stored = { ...noVec, mime_type: "text/markdown", content_signal: "md5-a" };
+    expect(mustFetchContent(stored, "download", "md5-a", "Runbook", "Company A / Eng", true)).toBe(true);
+  });
   it("content hash depends on text and format", () => {
     expect(contentHash({ text: "a", format: "plain", titleOnly: false })).not.toBe(contentHash({ text: "b", format: "plain", titleOnly: false }));
     expect(contentHash(TITLE_ONLY)).not.toBe(contentHash({ text: "", format: "plain", titleOnly: false }));
+  });
+});
+
+describe("debounce (stillEditing)", () => {
+  const now = Date.parse("2026-10-01T12:00:00Z");
+  it("a file edited within the quiet window is still being edited", () => {
+    expect(stillEditing("2026-10-01T11:59:30Z", now, 120_000)).toBe(true);
+  });
+  it("a file quiet for longer than the window is ready", () => {
+    expect(stillEditing("2026-10-01T11:57:00Z", now, 120_000)).toBe(false);
+  });
+  it("off when the window is 0, or the time is unknown or invalid", () => {
+    expect(stillEditing("2026-10-01T11:59:59Z", now, 0)).toBe(false);
+    expect(stillEditing(null, now, 120_000)).toBe(false);
+    expect(stillEditing("not a date", now, 120_000)).toBe(false);
   });
 });

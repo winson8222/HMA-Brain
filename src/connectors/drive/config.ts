@@ -7,6 +7,10 @@ export const driveConfig = {
   rootFolderId: process.env.DRIVE_ROOT_FOLDER_ID || "",
   rootFolderName: process.env.DRIVE_ROOT_FOLDER_NAME || "Company A",
   pollSeconds: Number(process.env.DRIVE_POLL_SECONDS || 60),
+  // Debounce: a file edited within this many seconds is still being worked on (Google Docs autosave
+  // every few seconds), so polls wait until it has been quiet before re-exporting and re-embedding it.
+  // Sharing changes, deletes and moves are never delayed. "Sync now" and drive:backfill skip the wait. 0 = off.
+  quietSeconds: Number(process.env.DRIVE_QUIET_SECONDS ?? 120),
   // Full reconcile (re-list everything, fix anything a poll missed) while the server runs. 0 turns it off.
   reconcileMinutes: Number(process.env.DRIVE_RECONCILE_MINUTES ?? 60),
   index: process.env.DRIVE_INDEX || "brain-drive",

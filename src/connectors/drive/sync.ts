@@ -20,15 +20,19 @@ import {
   startPageToken,
 } from "./client.js";
 import { driveConfig } from "./config.js";
-import { contentHash, contentSignal, fileToDocs, mustFetchContent, planUpdate } from "./docs.js";
+import { embeddingConfigured } from "../../embeddings.js";
+import { contentHash, contentSignal, fileToDocs, mustFetchContent, planUpdate, stillEditing } from "./docs.js";
 import { extractionFor, FOLDER, normalise, TITLE_ONLY, type Extracted, type Extraction } from "./extract.js";
 import {
   allFileStates,
   allFolderStates,
+  allPending,
+  countPending,
   countDocs,
   countFileStates,
   deleteFileDocs,
   deleteFileState,
+  deletePending,
   descendantStates,
   ensureDriveIndices,
   getConnector,
@@ -36,6 +40,7 @@ import {
   indexedFileIds,
   putConnector,
   putFileState,
+  putPending,
   relabelFile,
   resetDriveIndices,
   writeFileDocs,
@@ -44,11 +49,12 @@ import { cachedFolder, forgetFolder, loadFolders, locate, rememberFolder } from 
 import { MAX_PDF_BYTES, pdfText } from "./pdf.js";
 
 type Root = { id: string; name: string };
-export type Outcome = "indexed" | "relabelled" | "unchanged" | "deleted" | "skipped" | "error";
+export type Outcome = "indexed" | "relabelled" | "unchanged" | "deleted" | "skipped" | "deferred" | "error";
 export type Counts = Record<Outcome, number>;
-type Run = { root: Root; counts: Counts; maxLagMs: number; measureLag: boolean };
+// quietMs: the debounce window for this run (0 = re-index edited files right away).
+type Run = { root: Root; counts: Counts; maxLagMs: number; measureLag: boolean; quietMs: number };
 
-const newCounts = (): Counts => ({ indexed: 0, relabelled: 0, unchanged: 0, deleted: 0, skipped: 0, error: 0 });
+const newCounts = (): Counts => ({ indexed: 0, relabelled: 0, unchanged: 0, deleted: 0, skipped: 0, deferred: 0, error: 0 });
 
 export const summary = (c: Counts) =>
   (Object.entries(c) as [Outcome, number][])
@@ -67,6 +73,8 @@ export const driveStatus = {
   rootFolder: null as string | null,
   files: 0,
   chunks: 0,
+  pending: 0, // edited files waiting to be quiet before re-indexing
+  quietSeconds: driveConfig.quietSeconds,
   lastBackfillAt: null as string | null,
   lastPollAt: null as string | null,
   lastRun: null as null | { kind: "backfill" | "poll"; at: string; counts: Counts; maxLagSeconds: number | null },
@@ -109,6 +117,7 @@ export async function resolveRoot(): Promise<Root> {
 // Files outside Company A also show up in the changes feed; they were never indexed, so there's nothing to do.
 // (Chunks without state, e.g. after a crash mid-write, are cleaned up by backfill.)
 async function deleteFile(fileId: string): Promise<Outcome> {
+  await deletePending(fileId);
   if (!(await getFileState(fileId))) return "skipped";
   await deleteFileDocs(fileId);
   await deleteFileState(fileId);
@@ -125,6 +134,8 @@ async function processItem(fileId: string, run: Run) {
     outcome = "error";
   }
   run.counts[outcome]++;
+  // Handled (or nothing to do): it's no longer waiting. Errors stay pending, so they're retried.
+  if (outcome !== "deferred" && outcome !== "error") await deletePending(fileId);
 }
 
 async function processFile(fileId: string, run: Run): Promise<Outcome> {
@@ -148,10 +159,22 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
   const aHash = aclHash(acl);
   const prev = await getFileState(fileId);
   const signal = contentSignal({ mimeType: meta.mimeType!, md5Checksum: meta.md5Checksum, size: meta.size, modifiedTime: meta.modifiedTime });
+  const wantVectors = embeddingConfigured();
+
+  // Debounce: someone is probably still editing. Wait until the file has been quiet before re-exporting
+  // and re-embedding it. Sharing can't wait (it decides who may see the file), so it's applied now.
+  if (how.kind !== "title" && stillEditing(meta.modifiedTime, Date.now(), run.quietMs)) {
+    if (prev && prev.status !== "error" && prev.acl_hash !== aHash) {
+      await relabelFile(fileId, acl);
+      await putFileState({ ...prev, acl_hash: aHash });
+    }
+    await putPending(fileId, new Date(Date.parse(meta.modifiedTime!) + run.quietMs).toISOString());
+    return "deferred";
+  }
 
   let extracted: Extracted | null = null;
   let error: string | null = null;
-  if (mustFetchContent(prev, how.kind, signal, name, loc.path)) {
+  if (mustFetchContent(prev, how.kind, signal, name, loc.path, wantVectors)) {
     try {
       extracted = await extract(meta, how);
     } catch (e) {
@@ -161,16 +184,17 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
     }
   }
   const cHash = extracted ? contentHash(extracted) : (prev?.content_hash ?? null);
-  const decision = planUpdate(prev, { name, path: loc.path, aclHash: aHash, contentHash: cHash });
+  const decision = planUpdate(prev, { name, path: loc.path, aclHash: aHash, contentHash: cHash, wantVectors });
   if (decision === "none") return "unchanged";
 
   let chunkCount = prev?.chunk_count ?? 0;
   let finalHash = cHash;
+  let vectors = prev?.vectors;
   if (decision === "reindex") {
     const e = extracted ?? TITLE_ONLY; // title-only files are never fetched
     const file = { id: fileId, name, mimeType: meta.mimeType!, modifiedTime: meta.modifiedTime, webViewLink: meta.webViewLink, owners: meta.owners };
     const docs = fileToDocs(file, e, acl, loc);
-    await writeFileDocs(fileId, docs);
+    vectors = await writeFileDocs(fileId, docs);
     chunkCount = docs.length;
     finalHash = contentHash(e);
     if (run.measureLag && meta.modifiedTime) run.maxLagMs = Math.max(run.maxLagMs, Date.now() - Date.parse(meta.modifiedTime));
@@ -193,6 +217,7 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
     error,
     modified_at: meta.modifiedTime ?? null,
     indexed_at: new Date().toISOString(),
+    ...(vectors !== undefined ? { vectors } : {}),
   });
   return decision === "reindex" ? "indexed" : "relabelled";
 }
@@ -265,6 +290,7 @@ async function refreshStatus(kind: "backfill" | "poll", run: Run) {
     lastPollAt: conn?.last_poll_at ?? null,
     files: await countFileStates(),
     chunks: await countDocs(),
+    pending: await countPending(),
     lastRun: { kind, at: new Date().toISOString(), counts: run.counts, maxLagSeconds: run.maxLagMs ? Math.round(run.maxLagMs / 1000) : null },
     lastError: null,
     authError: false,
@@ -276,7 +302,8 @@ async function refreshStatus(kind: "backfill" | "poll", run: Run) {
 
 let busy = false; // one backfill or poll at a time in this process
 
-export async function backfill(opts: { reset?: boolean } = {}): Promise<Counts> {
+// quietMs: debounce for files edited moments ago (the server's periodic reconcile); 0 for an explicit backfill.
+export async function backfill(opts: { reset?: boolean; quietMs?: number } = {}): Promise<Counts> {
   if (busy) throw new Error("A Drive sync is already running.");
   busy = true;
   try {
@@ -294,7 +321,7 @@ function noteError(e: unknown) {
   driveStatus.authError = isAuthError(e);
 }
 
-async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
+async function backfillInner(opts: { reset?: boolean; quietMs?: number }): Promise<Counts> {
   if (opts.reset) await resetDriveIndices();
   else await ensureDriveIndices();
   await loadFolders();
@@ -303,7 +330,7 @@ async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
   const token = await startPageToken();
   const root = await resolveRoot();
   await rememberFolder({ id: root.id, name: root.name, parentId: null });
-  const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: false };
+  const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: false, quietMs: opts.quietMs ?? 0 };
 
   const fileIds: string[] = [];
   const folderIds = new Set<string>();
@@ -312,6 +339,7 @@ async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
 
   // Remove anything indexed earlier that is no longer under the root.
   const seen = new Set(fileIds);
+  if (!run.quietMs) for (const p of await allPending()) if (!seen.has(p.file_id)) await deletePending(p.file_id); // left the folder
   for (const s of await allFileStates()) if (!seen.has(s.file_id)) run.counts[await deleteFile(s.file_id)]++;
   for (const id of await indexedFileIds()) if (!seen.has(id)) await deleteFileDocs(id); // chunks without state
   for (const f of await allFolderStates()) if (!folderIds.has(f.folder_id)) await forgetFolder(f.folder_id);
@@ -329,8 +357,9 @@ async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
 
 // ---- poll ----
 
-// Returns null if another sync is still running.
-export async function pollOnce(): Promise<Counts | null> {
+// Returns null if another sync is still running. force: skip the debounce ("Sync now", `drive:poll`).
+export async function pollOnce(opts: { force?: boolean } = {}): Promise<Counts | null> {
+  const quietMs = opts.force ? 0 : driveConfig.quietSeconds * 1000;
   if (busy) return null;
   busy = true;
   try {
@@ -373,7 +402,7 @@ export async function pollOnce(): Promise<Counts | null> {
     }
 
     // 2. Apply. Folders first, so files get the right paths.
-    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true };
+    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true, quietMs };
     const entries = [...latest].sort((a, b) => Number(b[1].folder) - Number(a[1].folder));
     for (const [id, c] of entries) {
       if (c.removed) {
@@ -382,7 +411,15 @@ export async function pollOnce(): Promise<Counts | null> {
       } else await processItem(id, run);
     }
 
-    // 3. Save the new position only after everything is applied. A crash before this just redoes the batch.
+    // 3. Files that were being edited earlier and have been quiet long enough (all of them when forced).
+    //    Re-read now; one that is still being edited is pushed back again.
+    const now = Date.now();
+    for (const p of await allPending()) {
+      if (latest.has(p.file_id)) continue; // just handled above
+      if (opts.force || Date.parse(p.due_at) <= now) await processItem(p.file_id, run);
+    }
+
+    // 4. Save the new position only after everything is applied. A crash before this just redoes the batch.
     await putConnector({ page_token: newStart!, root_name: run.root.name, last_poll_at: new Date().toISOString() });
     await refreshStatus("poll", run);
     return run.counts;
@@ -409,7 +446,7 @@ export function startPolling() {
   if (driveConfig.reconcileMinutes > 0) {
     setInterval(() => {
       if (busy || !isConnected()) return;
-      backfill()
+      backfill({ quietMs: driveConfig.quietSeconds * 1000 })
         .then((c) => changed(c) && console.log(`Drive reconcile: ${summary(c)}`))
         .catch((e) => console.error(`Drive reconcile failed: ${explain(e)}`));
     }, driveConfig.reconcileMinutes * 60_000);
@@ -427,6 +464,7 @@ export async function loadStatus() {
     lastPollAt: conn.last_poll_at,
     files: await countFileStates(),
     chunks: await countDocs(),
+    pending: await countPending(),
   });
   return driveStatus;
 }
