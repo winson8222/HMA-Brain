@@ -110,7 +110,7 @@ After this, **new, edited and deleted Slack messages are indexed automatically**
 | `npm run backfill` | Wipe the index and reload all Slack history |
 | `npm run verify` | Per channel: messages in Slack vs Elasticsearch, plus label correctness. Exits 1 on mismatch |
 | `npm run drive:connect` | One time: sign in as the Drive admin and save the token ([Drive setup](docs/drive-setup.md)) |
-| `npm run seed:drive` | Create the demo "Company A" folder **in Drive** (`-- --edit-runbook` for a live update) |
+| `npm run seed:drive` | Create the demo "Company A" folder **in Drive**: 19 files, 8 formats (`-- --edit-runbook`, `--close-vendor-access`, `--reset`: see docs/drive-setup.md) |
 | `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
 | `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
 | `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |

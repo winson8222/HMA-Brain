@@ -5,8 +5,16 @@ export const PERSONAS: Persona[] = ["alice", "bob", "carol", "dave"];
 
 export type Person = { name: string; email: string; admin: boolean; role: string };
 
-// Their part in the demo story (mirrors the Slack seed).
-const ROLES: Record<Persona, string> = { alice: "Payments engineer", bob: "Engineer", carol: "Security lead", dave: "Contractor" };
+// Their part in the demo story (docs/design/demo-story-and-mock-data.md in the team workspace).
+const ROLES: Record<Persona, string> = {
+  alice: "Senior payments engineer",
+  bob: "Junior engineer, on call",
+  carol: "Security and compliance lead",
+  dave: "Contractor (Acme)",
+};
+
+// Carol is meant to see every seeded file, so she can be the Drive admin without changing the story.
+const MAY_BE_ADMIN: Persona[] = ["carol"];
 
 const PLACEHOLDERS = new Set(["you@gmail.com"]);
 
@@ -41,7 +49,7 @@ export function findPerson(who: string, people: Person[]): Person | null {
 export function setupWarnings(admin: string | null): string[] {
   const out: string[] = [];
   const persona = PERSONAS.find((p) => personaEmail(p) === admin);
-  if (persona) {
+  if (persona && !MAY_BE_ADMIN.includes(persona)) {
     out.push(
       `${title(persona)} is also the Drive admin, so ${title(persona)} owns every file and can see all of them. ` +
         "Connect a separate admin account before the real demo (docs/drive-setup.md, “Switch to a dedicated admin”).",

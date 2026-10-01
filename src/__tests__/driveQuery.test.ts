@@ -66,9 +66,9 @@ describe("demo people", () => {
   it("skips placeholders and flags the admin", () => {
     env("alice@gmail.com", "Bob@gmail.com", "you@gmail.com", "dave@gmail.com");
     expect(demoPeople("alice@gmail.com")).toEqual([
-      { name: "Alice", email: "alice@gmail.com", admin: true, role: "Payments engineer" },
-      { name: "Bob", email: "bob@gmail.com", admin: false, role: "Engineer" },
-      { name: "Dave", email: "dave@gmail.com", admin: false, role: "Contractor" },
+      { name: "Alice", email: "alice@gmail.com", admin: true, role: "Senior payments engineer" },
+      { name: "Bob", email: "bob@gmail.com", admin: false, role: "Junior engineer, on call" },
+      { name: "Dave", email: "dave@gmail.com", admin: false, role: "Contractor (Acme)" },
     ]);
   });
   it("adds a dedicated admin that isn't a persona", () => {
@@ -85,6 +85,10 @@ describe("demo people", () => {
     const w = setupWarnings("alice@gmail.com");
     expect(w[0]).toContain("Alice is also the Drive admin");
     expect(w[1]).toContain("CAROL_EMAIL isn't set");
+  });
+  it("lets Carol be the admin: she sees every file in the story anyway", () => {
+    env("alice@gmail.com", "bob@gmail.com", "carol@gmail.com", "dave@gmail.com");
+    expect(setupWarnings("carol@gmail.com")).toEqual([]);
   });
 });
 

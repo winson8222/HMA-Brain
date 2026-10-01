@@ -1,5 +1,5 @@
 // Google Drive API client for the crawler: runs as the admin account that connected Drive.
-import { google, type drive_v3 } from "googleapis";
+import { google, type drive_v3, type slides_v1 } from "googleapis";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { newOAuthClient, saveToken } from "./auth.js";
 import { driveConfig } from "./config.js";
@@ -48,6 +48,8 @@ export class NotConnectedError extends Error {
 }
 
 export const drive: drive_v3.Drive = google.drive({ version: "v3", auth });
+// seed:drive only: fills in the demo slide deck (allowed by drive.file on files the app created).
+export const slides: slides_v1.Slides = google.slides({ version: "v1", auth });
 
 // ---- errors and retries ----
 
