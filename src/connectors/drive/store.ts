@@ -3,6 +3,7 @@
 import { config } from "../../config.js";
 import { embeddingConfigured, withVectors } from "../../embeddings.js";
 import { es } from "../../es.js";
+import { aclHash } from "./acl.js";
 import { driveConfig } from "./config.js";
 import type { DriveDoc, FileState } from "./docs.js";
 
@@ -94,6 +95,8 @@ export async function writeFileDocs(fileId: string, docs: DriveDoc[]): Promise<b
 }
 
 // Sharing changed but content didn't: rewrite only the labels.
+// Also records the new sharing in the file's state. Otherwise, after the live re-check relabels a file,
+// sharing it back exactly as before would look "unchanged" to the poller and the labels would stay stale.
 export async function relabelFile(fileId: string, acl: string[]) {
   await es.updateByQuery({
     index: INDEX,
@@ -102,6 +105,11 @@ export async function relabelFile(fileId: string, acl: string[]) {
     query: { term: { file_id: fileId } },
     script: { source: "ctx._source.acl_container = params.acl", params: { acl } },
   });
+  await es
+    .update({ index: STATE, id: fileKey(fileId), doc: { acl_hash: aclHash(acl) }, refresh: true })
+    .catch((e) => {
+      if (e?.meta?.statusCode !== 404) throw e; // no state yet: the next poll writes it
+    });
 }
 
 export async function deleteFileDocs(fileId: string) {

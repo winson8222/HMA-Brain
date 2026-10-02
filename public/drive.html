@@ -293,8 +293,8 @@ const colorFor = (email) => COLORS[[...email].reduce((a, c) => a + c.charCodeAt(
 
 // ---- examples ----
 const EXAMPLES = {
-  ask: ["How do we fail over the payment database?", "What uptime does our support vendor commit to?", "What was in the Q3 breach report?", "What caused the payment outage?"],
-  search: ["failover", "SLA credits", "breach", "on-call"],
+  ask: ["How do I fail over the payment database?", "Which merchants were affected by the outage?", "Show me the security incident report from the Q3 breach", "What are Acme's P1 response commitments?"],
+  search: ["failover", "merchants refunded", "breach", "SLA"],
 };
 function renderExamples() {
   $("#examples").innerHTML = `<span>Try:</span>` + EXAMPLES[mode].map((e) => `<button type="button" class="ex">${esc(e)}</button>`).join("");
