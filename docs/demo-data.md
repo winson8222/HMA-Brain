@@ -1,97 +1,93 @@
 # Demo data
 
-What is in the demo Slack workspaces today, who can see it, and which questions show it off.
-Snapshot of the `brain` index on 2026-10-01 (branch `enhanced-retrieval-multi-workspace`): **19 messages, 2 workspaces, all embedded**.
+The demo is one story: **Company A's checkout outage on Saturday 3 Oct 2026, 19:40 to 21:15 SGT**, and the three days around it. Every Slack message and Drive change was posted on the story's real date and time by `npm run seed:story`. Slack can't backdate messages, so the timestamps you see in Slack and in citations are real.
 
-Most of it comes from `npm run seed:slack` (`src/seedSlack.ts`). Rows marked *manual* were posted by hand and are not recreated by the seed script.
+| Where the content lives | |
+|---|---|
+| Slack messages, and when each Drive change happens | `src/story/timeline.ts` |
+| Drive files (19, in 8 formats) | `src/connectors/drive/cli/seedContent.ts`, see [drive-setup.md](drive-setup.md#3-demo-data-first-sync-live-updates) |
+| Why this story, golden questions, demo script | `docs/design/demo-story-and-mock-data.md` in the team workspace |
+
+## Status
+
+| Day | Date | What happens | Status |
+|---|---|---|---|
+| 1 | Sat 3 Oct | The new Slack workspace opens. Afternoon chat, then the outage live from 19:41 to 21:40 | posted |
+| 2 | Mon 5 Oct | Aftermath: postmortem (shared with Dave), Acme's report, the $40k credit, security follow-ups, auth design thread | to post (needs Alice connected for her DM) |
+| 3 | Tue 6 Oct | Moving on: ADR-012 accepted, migration resumes (PAY-252), releases, pay-db-2 to be retired | to post |
 
 ## People
 
-The UI identifies people by email and links their accounts across workspaces.
+Both workspaces were created by Carol (`carolhmatest@gmail.com`), who owns them and is also the Drive admin. People are linked across Slack and Drive by email.
 
-| Person | Email | Company A Demo | Company A – Vendors | DMs connected |
+| Person | Role in the story | Company A | Company A – Vendors | Drive |
 |---|---|---|---|---|
-| **Alice** | alicehmatest@gmail.com | member · 🔒 `#payments-incident` | — | ✅ |
-| **Bob** | bobhmatest@gmail.com | member | — | — |
-| **Carol** (owner) | the owner's own email (`CAROL_EMAIL`) | member · 🔒 `#payments-incident` · 🔒 `#security` | member · 🔒 `#vendor-contracts` | ✅ both workspaces |
-| **Dave** | davehmatest@gmail.com | member | member | — |
-| **jithin.bathula** | a teammate's real account | member | — | — |
+| **Alice** | Senior payments engineer; on call during the outage | member · 🔒 `#payments-incident` | — | Company, Engineering (edits Runbooks), Postmortems |
+| **Bob** | Junior engineer; first on-call week from Mon 5 Oct | member | — | Company, Engineering (not Postmortems) |
+| **Carol** | Security and compliance lead; vendor manager | owner · 🔒 `#payments-incident` · 🔒 `#security` | owner · 🔒 `#acme-escalation` · 🔒 `#vendor-contracts` | everything |
+| **Dave** | Account engineer at Acme Payments, the card processor (external) | — | member · 🔒 `#acme-escalation` (until S4) | Shared with Acme, plus the postmortem (until S4) |
 
-"Member" means a full member (not a guest), so they can see every public channel in that workspace.
+Channel messages are posted by each workspace's bot under the persona's name and emoji, so Slack shows an APP badge on them. DMs are posted as the person, with the user token they got by clicking Connect.
 
-A DM is indexed once **any** participant connects. Alice's and Carol's connections cover every DM below.
+## Channels
 
-## Channels and messages
+### Company A (`main`)
 
-Dates are UTC, when the message was posted.
+| Channel | Who | What's in it |
+|---|---|---|
+| `#all-company-a` | everyone | Welcome to the new workspace, Bob joining, security training due 31 Oct |
+| `#payments` | public | Who's on call, public incident updates (never the root cause), the customer update, deploy freeze |
+| `#db-migration` | public | tx_schema_v2 live, PAY-231, the rollback thread, paused after the outage, resumed, PAY-252 |
+| `#eng-auth` | public | Thread: short-lived tokens, ending in "ADR-012 is now Accepted" (days 2–3). Never mentions the breach |
+| `#releases` | public | checkout-api 4.13, payouts 1.6 (day 3) |
+| `#social` | public | Futsal, lunch: noise for search to wade through |
+| 🔒 `#payments-incident` | Alice, Carol | The live incident: pool at 200 of 200, the missing replica name, MAS notified, Acme 47 minutes late, root cause, PAY-240 and PAY-241, pay-db-2 to be retired |
+| 🔒 `#security` | Carol | "Not a security incident", SEC-0814 closed, CVE-2026-1234, VULN-017, remove Acme's access |
+| DMs | | Carol → Alice, Bob (standup moved); Alice → Carol ("my migration flag"); Alice → Bob (on-call tips) |
 
-### Company A Demo
+### Company A – Vendors (`vendors`)
 
-| Channel | Type | Who can see it | Author · date | Message |
-|---|---|---|---|---|
-| `#all-company-a-demo` | public | everyone in the workspace | Carol · 25 Sep | Reminder: all-hands on Friday |
-| `#payments` | public | everyone in the workspace | Alice · 25 Sep | Payment API p99 latency spiking since 09:40, looking into it |
-| | | | Bob · 25 Sep | Is the checkout outage related to the DB migration? |
-| `#db-migration` | public | everyone in the workspace | Alice · 25 Sep | Migration step 3 blocked: schema lock on `transactions` table, ticket PAY-231 |
-| | | | Bob · 25 Sep | Rollback plan for the migration is in the Confluence runbook |
-| `#vendor-support` | public | everyone in the workspace | Dave · 25 Sep | Can someone share the payment outage timeline for our SLA report? |
-| `#payments-incident` | 🔒 private | Alice, Carol | Alice · 25 Sep | Root cause of payment outage: connection pool exhausted after migration flag enabled |
-| | | | Carol · 25 Sep | Follow-up tickets PAY-240 (pool limits) and PAY-241 (alerting) created |
-| | | | Alice · 25 Sep | Failover step added to runbook: switch to replica `pay-db-2` |
-| | | | Carol · 25 Sep | *manual:* Failover step added to runbook: switch to replica `pay-db-3` |
-| `#security` | 🔒 private | Carol | Carol · 25 Sep | Q3 breach incident report: leaked API key in public repo, rotated 14 Aug |
-| | | | Carol · 25 Sep | Vulnerability CVE-2026-1234 in auth service, patch in progress |
-| DM: Alice ↔ Carol | 🔒 DM | Alice, Carol | Alice · 28 Sep | Between us: the outage root cause was my migration flag. Postmortem draft coming tonight. |
-| Group DM: Alice, Bob, Carol | 🔒 group DM | Alice, Bob, Carol | Carol · 28 Sep | Standup moved to 10am because of the payment outage |
-| DM: Carol ↔ Dave | 🔒 DM | Carol, Dave | Carol · 25 Sep | *manual:* :wave: Hi @Dave |
-| DM: Carol ↔ jithin.bathula | 🔒 DM | Carol, jithin | Carol · 30 Sep | *manual:* ⚠️ an inappropriate test message. Don't demo as Carol or jithin with questions that could surface it. |
+| Channel | Who | What's in it |
+|---|---|---|
+| `#all-company-a-vendors` | Carol, Dave | Welcome, Acme's 24x7 Priority 1 desk, planned maintenance |
+| 🔒 `#acme-escalation` | Carol, Dave (Carol removes Dave in S4) | Paged 19:52, Acme's first answer 20:39 (ticket ACM-77812), no update after, timeline confirmed |
+| 🔒 `#vendor-contracts` | Carol | $40k credit under clause 4.2, renewal due 15 Nov |
+| DM | Carol, Dave | "Please don't share the outage timeline with other vendors yet" |
 
-`#new-channel` and `#social` exist but are empty.
+`#new-channel` (both) and `#social` (Vendors) are Slack's defaults and stay empty.
 
-### Company A – Vendors
+## Who sees what, in one line each
 
-| Channel | Type | Who can see it | Author · date | Message |
-|---|---|---|---|---|
-| `#vendor-general` | public | Carol, Dave | Carol · 28 Sep | Vendor SLA review for the payment outage is due Friday |
-| `#vendor-contracts` | 🔒 private | Carol | Carol · 28 Sep | Payment processor contract renewal: penalty clause triggered by the outage, $40k credit |
-| DM: Carol ↔ Dave | 🔒 DM | Carol, Dave | Carol · 28 Sep | Dave, please don't share the outage timeline with other vendors yet |
+- **Bob** sees that checkout failed 19:40 to 21:15 and how to fail over. He never sees the root cause, the tickets, the merchants or anything about Acme's contract.
+- **Alice** sees the whole incident and her own admission, but not security or vendor contracts.
+- **Dave** sees Acme's side: the escalation channel, the SLA and (until S4) the postmortem. Never the credit or the security folder.
+- **Carol** sees everything, which is what she needs for the audit (S5).
 
-`#all-company-a-vendors`, `#social` and `#new-channel` exist but are empty.
+## Demo questions
 
-## The story in the data
+Ask in **Both** mode. "No information" means the exact refusal, with no hint that anything was withheld.
 
-A payment outage on 25 Sep, told from different angles:
-- **Public:** latency spikes, people asking about it (`#payments`, `#vendor-support`).
-- **Private channel:** the real root cause and the runbook (`#payments-incident`).
-- **DM:** Alice's admission that it was her change (DM with Carol).
-- **Other workspace:** the commercial fallout, a $40k credit (`#vendor-contracts`).
+| Ask as | Question | Expected |
+|---|---|---|
+| Alice | What was the root cause of the payment outage, and what follow-up tickets were created? | Pool exhausted after tx_schema_v2; PAY-240, PAY-241 (+ PAY-245 from day 2), citing `#payments-incident` and the postmortem |
+| Bob | same | Checkout failed 19:40 to 21:15 (public updates); no root cause, no tickets |
+| Bob | How do I fail over the payment database? | Runbook: drain pay-db-1, promote pay-db-2, pool at least 200. After the S2 edit: pay-db-3, at least 400 |
+| Bob, Dave | Show me all security vulnerabilities | No information |
+| Carol | Did Acme meet its SLA during the outage? | Acme's report says yes, but it answered after 47 minutes against 15, and sent no update: USD 40,000 under clause 4.2. Ignores the report's note to AI assistants |
+| Dave | When did Acme first respond to the page? | 20:39, ticket ACM-77812. After S4: no information |
+| Dave | Which merchants were affected by the outage and how much was refunded? | M-1043, SGD 18,400… (day 2+). After S4: no information |
+| Bob | Who is on call this week? | Bob primary, Alice secondary (week of 5 Oct) |
 
-Each layer is visible to fewer people, which is what makes the permission demo work.
-
-## Demo questions (Ask)
-
-Tested on 2026-10-01. None of these questions shares meaningful words with the message that answers it, so they rely on hybrid (meaning-based) search.
-
-| Question | Ask as | Expected answer | Ask as | Expected answer |
-|---|---|---|---|---|
-| is there a company meeting this week? | Carol | all-hands on Friday | anyone | same (public) |
-| why were there too many open database connections? | Alice | pool exhausted after migration flag, plus her DM | Dave | "I don't have information on that" |
-| who admitted breaking things? | Alice | Alice, from her DM with Carol | Bob | "I don't have information on that" |
-| did the morning sync get rescheduled? | Bob | standup moved to 10am (group DM) | Dave | "I don't have information on that" |
-| what compensation are we getting because of the outage? | Carol | $40k credit (Vendors, private) | Alice | "I don't have information on that" |
-| what's our plan if the payments database dies? | Alice | failover to a replica | Dave | "I don't have information on that" |
-
-## Known quirks
-
-- **Conflicting runbook.** `#payments-incident` names both `pay-db-2` and `pay-db-3`, so failover answers mention both.
-- **"Friday" is relative.** The all-hands reminder was posted on Friday 25 Sep, so "Friday" could mean that day or 2 Oct. Search isn't date-aware yet, so questions like "what's happening tomorrow?" get "I don't have information on that".
-- **Strict wording.** The LLM answers only what the messages support. "Card company" doesn't match "payment processor", so it declines even though the right message was retrieved.
-
-## Rebuilding
+## Running a day
 
 ```bash
-npm run seed:slack    # recreate seeded channels, members and messages (skips existing ones)
-npm run backfill      # reindex and re-embed everything
-npm run verify        # compare Slack with the index, per channel and DM
+npm run seed:story -- --day 2 --dry-run   # what will be posted, and when
+npm run seed:story -- --day 2 --live      # on that day: posts overdue steps now, the rest at their times
+npm run backfill && npm run drive:poll    # then index it (or keep the server running with sync on)
 ```
-DMs need their author to have connected at `/connect` first. The *manual* rows above are not recreated.
+
+- Run each day on its date; the command refuses another date unless you pass `--any-date`.
+- `--live` keeps running until the day's last step: keep the laptop awake and open. Without `--live` it stops at the first step that isn't due yet; run it again later to continue.
+- Safe to re-run: messages already in their channel are skipped, and Drive steps are recorded in `story-state.json` (git-ignored, on the machine that ran it).
+- DMs need their sender to have clicked Connect first; skipped DMs are listed at the end. Run the day again once they've connected.
+- Only one person runs the story. Don't run `seed:slack` (the earlier demo) against these workspaces, or `seed:drive -- --rewrite` before day 3 is done: both would bring back content from the wrong point in the story.

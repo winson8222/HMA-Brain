@@ -123,6 +123,7 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run verify` | Per channel and DM: messages in Slack vs Elasticsearch, plus label correctness. Exits 1 on mismatch |
 | `npm run drive:connect` | One time: sign in as the Drive admin and save the token ([Drive setup](docs/drive-setup.md)) |
 | `npm run seed:drive` | Create the demo "Company A" folder **in Drive**: 19 files, 8 formats (`-- --edit-runbook`, `--close-vendor-access`, `--reset`: see docs/drive-setup.md) |
+| `npm run seed:story -- --day N` | Play one day of the demo story into **Slack and Drive**, on its real date (`--dry-run` to preview, `--live` to post each step at its time): see docs/demo-data.md |
 | `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
 | `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
 | `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
@@ -226,7 +227,7 @@ Use **Demo** mode with the compare view for 1–6, and **Me** mode for 7.
 | 1 | **Ask**, Carol vs Alice: `What do we know about the payment outage?` | **Union:** Carol's answer draws on both workspaces (the vendor contract penalty in 🔒 `#vendor-contracts`) and her DMs. **Isolation:** Alice gets workspace A and her own DMs, nothing from the Vendors workspace. |
 | 2 | **Ask**, Alice vs Bob: `What caused the payment outage?` | Alice gets the root cause from 🔒 `#payments-incident` and her DM with Carol. Bob gets "I don't have information on that" plus only public hints and the group DM he's in. |
 | 3 | **Search**, Bob vs Carol: `migration flag` | Carol sees the Alice ↔ Carol DM; Bob, who isn't in it, gets nothing from it. |
-| 4 | **Search** as Dave: `outage`, then `contract` | Dave sees `#vendor-general` and his DM with Carol, but never 🔒 `#vendor-contracts`. |
+| 4 | **Search** as Dave: `outage`, then `contract` | Dave sees `#all-company-a-vendors`, 🔒 `#acme-escalation` and his DM with Carol, but never 🔒 `#vendor-contracts`. |
 | 5 | Remove Alice from `#payments-incident` in Slack, then Alice asks again | Root cause from the channel is gone. Add her back and it returns. |
 | 6 | Post a new DM or channel message in Slack (with `SLACK_SYNC=on`) | Appears within seconds (the status bar shows the event) |
 | 7 | Switch to **Me** in a persona's signed-in browser and ask | Answers as that person only. On `/connect`, **Disconnect** removes their DMs unless another participant is still connected. |
