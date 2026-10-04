@@ -16,6 +16,7 @@
     "drive:verify": "tsx src/connectors/drive/cli/verify.ts",
     "drive:ask": "tsx src/connectors/drive/cli/ask.ts",
     "drive:doctor": "tsx src/connectors/drive/cli/doctor.ts",
+    "seed:jira": "tsx src/connectors/jira/cli/seed.ts",
     "jira:backfill": "tsx src/connectors/jira/cli/backfill.ts",
     "jira:poll": "tsx src/connectors/jira/cli/poll.ts",
     "jira:doctor": "tsx src/connectors/jira/cli/doctor.ts",
