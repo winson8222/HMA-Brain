@@ -9,9 +9,14 @@ export const driveConfigured =
   !!process.env.GOOGLE_CLIENT_SECRET &&
   !process.env.GOOGLE_CLIENT_SECRET.endsWith("...");
 
+// Jira loads only when a site and the service account's API token are set.
+export const jiraConfigured =
+  /^https:\/\/[^/]+/.test(process.env.JIRA_BASE_URL ?? "") && !!process.env.JIRA_EMAIL && !!process.env.JIRA_API_TOKEN && !process.env.JIRA_API_TOKEN.endsWith("...");
+
 export const connectors: Connector[] = [
   slack,
   ...(driveConfigured ? [(await import("./drive/index.js")).drive] : []),
+  ...(jiraConfigured ? [(await import("./jira/index.js")).jira] : []),
 ];
 
 export const connectorByName = (name: string) => connectors.find((c) => c.name === name);

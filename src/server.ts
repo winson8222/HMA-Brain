@@ -11,7 +11,7 @@ import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
 import { asker, HttpError, wrap } from "./http.js";
-import { connectors, driveConfigured } from "./connectors/index.js";
+import { connectors, driveConfigured, jiraConfigured } from "./connectors/index.js";
 import { ask, auditLog, search, UnknownSourceError } from "./federated.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
@@ -42,6 +42,9 @@ const slackApps = config.slackSync
 // Loaded only when configured, so the server still runs without Google credentials.
 const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
 const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
+// ---- Jira: searched through the connector registry; polled here when JIRA_SYNC=on ----
+const jiraRoutes = jiraConfigured ? await import("./connectors/jira/routes.js") : null;
+const jira = jiraConfigured && process.env.JIRA_SYNC === "on" ? await import("./connectors/jira/sync.js") : null;
 
 // ---- HTTP API + UI ----
 const web = express();
@@ -49,6 +52,7 @@ web.use(express.json());
 web.use(express.static("public"));
 web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
 if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
+if (jiraRoutes) web.use(jiraRoutes.jiraRouter); // Connect Jira on /connect.html
 
 async function describePerson(personId: string) {
   const p = await findPerson(personId);
@@ -165,6 +169,7 @@ web.get(
       embeddings: embeddingConfigured() ? process.env.EMBEDDING_MODEL : null,
       ...status,
       ...(drive ? { drive: drive.driveStatus } : {}),
+      ...(jira ? { jira: jira.jiraStatus } : {}),
     });
   }),
 );
@@ -241,6 +246,10 @@ if (drive) {
   await drive.loadStatus();
   drive.startPolling();
 }
+if (jira) {
+  await jira.loadStatus();
+  jira.startPolling();
+}
 if (config.sessionSecretIsRandom) console.warn("SESSION_SECRET not set: everyone is signed out when the server restarts.");
 web.listen(config.port, (err?: Error) => {
   if (err) {
@@ -251,7 +260,9 @@ web.listen(config.port, (err?: Error) => {
   const sync = slackApps.length
     ? `live Slack sync on for ${slackApps.map((s) => s.ws.teamName).join(", ")}`
     : "live Slack sync OFF: run `npm run backfill` for new messages";
-  const driveSync = drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "";
+  const driveSync =
+    (drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "") +
+    (jira ? `; Jira polling every ${process.env.JIRA_POLL_SECONDS || 60}s` : "");
   if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
   console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });
