@@ -42,6 +42,7 @@
   <div id="notice"></div>
   <div id="me" class="card"></div>
   <div id="list"></div>
+  <div id="jira"></div>
   <ol>
     <li>Make sure you're signed in to Slack <b>as yourself</b> in this browser. The connection belongs to whoever Slack sees as signed in.</li>
     <li>Click <b>Connect</b> for each workspace you're in, then <b>Allow</b> in Slack.</li>
@@ -58,7 +59,9 @@ const api = async (path, body) => {
 };
 
 const params = new URLSearchParams(location.search);
-if (params.get("connected")) $("#notice").innerHTML = `<div class="notice ok">Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.</div>`;
+if (params.get("connected")) $("#notice").innerHTML = params.get("connected").startsWith("Jira")
+  ? `<div class="notice ok">Connected ${esc(params.get("connected"))}. Jira issues you can see in Jira are now included in your results.</div>`
+  : `<div class="notice ok">Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.</div>`;
 if (params.get("error")) $("#notice").innerHTML = `<div class="notice err">${esc(params.get("error"))}</div>`;
 
 async function render() {
@@ -79,6 +82,27 @@ async function render() {
         <div class="muted">Connected: ${c.connected.length ? c.connected.map(esc).join(", ") : "nobody yet"}</div></div>
       ${action}</div></div>`;
   }).join("");
+
+  // Connect Jira: only shown when the server has the Jira connector. Links your own Atlassian account.
+  const jira = await api("/api/jira/me").catch(() => null);
+  $("#jira").innerHTML = !jira ? "" : `<div class="card"><div class="row">
+      <div><div class="name">Jira</div>
+        <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. Jira results follow your Jira permissions.` : "Link your Atlassian account to include Jira issues you can see in Jira."}</div></div>
+      ${!me.signedIn ? `<span class="muted">Connect Slack first to sign in</span>`
+        : !jira.canConnect ? `<span class="muted">Not set up (no JIRA_OAUTH_CLIENT_ID)</span>`
+        : jira.linked ? `<button class="btn secondary" id="jira-disconnect">Disconnect</button>`
+        : `<a class="btn" href="/connect/jira/start">Connect Jira</a>`}</div></div>`;
+  const jd = $("#jira-disconnect");
+  if (jd) jd.onclick = async () => {
+    jd.setAttribute("aria-disabled", "true");
+    try {
+      await api("/api/jira/disconnect", {});
+      $("#notice").innerHTML = `<div class="notice ok">Jira disconnected. You'll get no Jira results until you connect again.</div>`;
+    } catch (e) {
+      $("#notice").innerHTML = `<div class="notice err">${esc(e.message)}</div>`;
+    }
+    render();
+  };
 
   document.querySelectorAll("[data-disconnect]").forEach((b) => b.onclick = async () => {
     b.setAttribute("aria-disabled", "true");
