@@ -34,8 +34,8 @@ export const CHANNELS: Record<WsKey, ChannelDef[]> = {
   ],
 };
 
-// A channel message, posted by the workspace's bot under the persona's name. `id` names a thread's first
-// message; `thread` makes this a reply to it.
+// A channel message, posted as `as` with their own user token (they must have clicked Connect). `id` names a
+// thread's first message; `thread` makes this a reply to it.
 export type Post = { ws: WsKey; channel: string; as: Who; text: string; id?: string; thread?: string };
 // A DM or group DM, posted as `as` with their own user token (they must have clicked Connect).
 export type Dm = { ws: WsKey; as: Who; to: Who[]; text: string };

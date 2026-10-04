@@ -2,7 +2,9 @@
 // Builds the whole demo story at once: the "Company A" folder in Drive (seed:drive's content) and every Slack
 // message and DM in timeline.ts. Writes only to Slack and Drive; then run `npm run backfill` and
 // `npm run drive:backfill` (or keep the server running with sync on) to index it.
-// Safe to re-run: existing files, channels, members and messages are skipped.
+// Every message and DM is posted as its author, with the user token they got by clicking Connect (so Slack shows
+// the real person, not the app); authors who haven't connected are listed at the end. Safe to re-run: existing
+// files, channels, members and messages are skipped.
 //   --dry-run   print what would be posted and change nothing
 //   --rewrite   also rewrite every Drive file from seedContent.ts (after editing the content)
 import { WebClient } from "@slack/web-api";
@@ -14,11 +16,11 @@ import { workspaceByKey, type Workspace } from "../slack.js";
 import { userTokens } from "../tokens.js";
 import { CHANNELS, STORY, type ChannelDef, type Dm, type Post, type Step, type Who, type WsKey } from "./timeline.js";
 
-const PEOPLE: Record<Who, { name: string; emoji: string; email: string }> = {
-  carol: { name: "Carol", emoji: ":female-detective:", email: requireEnv("CAROL_EMAIL").toLowerCase() },
-  alice: { name: "Alice", emoji: ":female-technologist:", email: requireEnv("ALICE_EMAIL").toLowerCase() },
-  bob: { name: "Bob", emoji: ":male-technologist:", email: requireEnv("BOB_EMAIL").toLowerCase() },
-  dave: { name: "Dave", emoji: ":construction_worker:", email: requireEnv("DAVE_EMAIL").toLowerCase() },
+const PEOPLE: Record<Who, { name: string; email: string }> = {
+  carol: { name: "Carol", email: requireEnv("CAROL_EMAIL").toLowerCase() },
+  alice: { name: "Alice", email: requireEnv("ALICE_EMAIL").toLowerCase() },
+  bob: { name: "Bob", email: requireEnv("BOB_EMAIL").toLowerCase() },
+  dave: { name: "Dave", email: requireEnv("DAVE_EMAIL").toLowerCase() },
 };
 const WS_NAMES: Record<WsKey, string> = { main: "Company A", vendors: "Vendors" };
 
@@ -119,8 +121,18 @@ class SlackSide {
     return this.seen.get(k)!;
   }
 
-  async post(s: Post): Promise<"posted" | "exists"> {
+  // The author's own Slack client, or null (noted for the summary) if they haven't connected this workspace.
+  private async author(key: WsKey, who: Who): Promise<WebClient | null> {
+    const ws = await this.ws(key);
+    const token = userTokens(ws.teamId).find((t) => personIdOfToken(t) === PEOPLE[who].email);
+    if (!token) this.needsConnect.add(`${PEOPLE[who].name} → Connect ${ws.teamName}`);
+    return token ? new WebClient(token.token) : null;
+  }
+
+  async post(s: Post): Promise<"posted" | "exists" | "skipped"> {
     const ws = await this.ws(s.ws);
+    const client = await this.author(s.ws, s.as);
+    if (!client) return "skipped";
     const channel = await this.channel(s.ws, def(s.ws, s.channel));
     let threadTs: string | undefined;
     if (s.thread) {
@@ -131,26 +143,14 @@ class SlackSide {
     }
     const seen = await this.messages(ws.web, channel, threadTs);
     if (seen.some((m) => m.text === s.text)) return "exists";
-    const r = await ws.web.chat.postMessage({
-      channel,
-      text: s.text,
-      thread_ts: threadTs,
-      username: PEOPLE[s.as].name,
-      icon_emoji: PEOPLE[s.as].emoji,
-      unfurl_links: false,
-    });
+    const r = await client.chat.postMessage({ channel, text: s.text, thread_ts: threadTs, unfurl_links: false });
     seen.push({ ts: r.ts!, text: s.text });
     return "posted";
   }
 
   async dm(s: Dm): Promise<"posted" | "exists" | "skipped"> {
-    const ws = await this.ws(s.ws);
-    const token = userTokens(ws.teamId).find((t) => personIdOfToken(t) === PEOPLE[s.as].email);
-    if (!token) {
-      this.needsConnect.add(`${PEOPLE[s.as].name} → Connect ${ws.teamName}`);
-      return "skipped";
-    }
-    const client = new WebClient(token.token);
+    const client = await this.author(s.ws, s.as);
+    if (!client) return "skipped";
     const users = await Promise.all(s.to.map((p) => this.userId(s.ws, p)));
     const channel = (await client.conversations.open({ users: users.join(",") })).channel!.id!;
     const seen = await this.messages(client, channel);
@@ -187,7 +187,7 @@ async function main() {
   }
   console.log(`\n${posted} posted, ${STORY.length - posted} already there or skipped.`);
   if (slack.needsConnect.size) {
-    console.log("Some DMs weren't posted: the sender hasn't connected. Open /connect in their browser, then run this again:");
+    console.log("Some messages weren't posted: their author hasn't connected. Open /connect in their browser, then run this again:");
     slack.needsConnect.forEach((t) => console.log(`  - ${t}`));
   }
   console.log("To search it: npm run backfill (Slack) and npm run drive:backfill (Drive), or keep the server running with sync on.");
