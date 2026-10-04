@@ -2,7 +2,7 @@
 
 HMA Brain answers questions over company data while respecting each source's own access rules. A person only ever gets answers built from content they can see in the source system, and every search is recorded for audit.
 
-This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** connector (backfill + change polling into the `brain-drive` index) has its own Search/Ask page at `/drive.html`, with a live permission re-check and a tamper-evident audit log; see [docs/drive-setup.md](docs/drive-setup.md). The Slack page doesn't search Drive yet. More connectors (Gmail, Jira, Confluence, Drive) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
+This repo contains the first connector, **Slack**, plus the shared search, Q&A and UI layers. A **Google Drive** connector (backfill + change polling into the `brain-drive` index) has its own Search/Ask page at `/drive.html`, with a live permission re-check and a tamper-evident audit log; see [docs/drive-setup.md](docs/drive-setup.md). A **Jira** connector indexes Jira Cloud issues into `brain-jira` and enforces Jira's own permissions (project access, issue security levels, picker-field grants), with each person linking their own Atlassian account through **Connect Jira**; see [Jira connector](#4-jira-connector-optional). More connectors (Gmail, Confluence) and a fuller UI will follow. The [developer guide](docs/developer-guide.md) explains how they fit in.
 
 **What works today**
 
@@ -12,6 +12,7 @@ This repo contains the first connector, **Slack**, plus the shared search, Q&A a
 - **Ask** mode: an LLM answers from only those permitted messages, with `[n]` citations.
 - **Demo** mode (act as anyone, side by side) and **Me** mode (you are whoever signed in via Connect).
 - Audit log per search: what was shown, and what was withheld (admin view; withheld DMs are redacted).
+- **Jira** (optional): issues and comments from chosen projects, searchable next to Slack and Drive. Who can see what follows Jira exactly: permission schemes, project roles, groups, reporter, assignee, picker fields and issue security levels, re-checked live with Jira on every search.
 
 ---
 
@@ -21,9 +22,10 @@ This repo contains the first connector, **Slack**, plus the shared search, Q&A a
 2. [Slack setup](docs/slack-setup.md) (skip if already done), including [teammates joining](docs/slack-setup.md#8-teammates-joining-an-existing-setup)
 3. [Install and run](#2-install-and-run)
 4. [Configure the LLM](#3-configure-the-llm-env)
-5. [Demo script](#demo-script)
-6. [Developer guide](docs/developer-guide.md): architecture, permission model, adding a connector
-7. [Troubleshooting](#troubleshooting)
+5. [Jira connector](#4-jira-connector-optional) (optional), with the full [Jira demo setup guide](docs/jira-mock-data-plan.md)
+6. [Demo script](#demo-script)
+7. [Developer guide](docs/developer-guide.md): architecture, permission model, adding a connector
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -128,6 +130,10 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
 | `npm run drive:ask` | Ask or search Drive as a persona from the terminal (`-- --as bob "question"`, add `--search`) |
 | `npm run drive:doctor` | Check the whole Drive setup and list what's left to do |
+| `npm run seed:jira` | Create the Jira demo **in Jira** (people, groups, PAY/SEC/VEND projects, permission and security schemes, 14 issues). Safe to re-run ([Jira demo setup](docs/jira-mock-data-plan.md)) |
+| `npm run jira:backfill` | Index every issue in the Jira projects; unchanged issues are skipped (`-- --reset` rebuilds the Jira indexes only) |
+| `npm run jira:poll` | Apply Jira changes (issues and permissions) since the last run (`-- --watch` to keep polling) |
+| `npm run jira:doctor` | Check the Jira setup: crawler token, Administer Jira, each project's permissions, Connect Jira, who has linked |
 | `npm run audit:log` | Query the audit log (`-- --user bob`, `--doc <file id>`, `--denied`, `--since <date>`) |
 | `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed |
 | `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies, Drive mapping and queries, audit chain) |
@@ -141,7 +147,7 @@ To let others reach your local demo, put it behind a password with ngrok (passwo
 ngrok http 3000 --basic-auth "user:long-password"
 ```
 
-With `ALLOW_IMPERSONATION=on`, anyone with the link can act as any persona, including Carol, so always use a password, or set it to `off` so visitors can only ask as themselves after connecting. For Connect to work through ngrok, set `PUBLIC_URL` to the ngrok address and add its callback to both Slack apps ([details](docs/slack-setup.md#where-connect-returns-to)).
+With `ALLOW_IMPERSONATION=on`, anyone with the link can act as any persona, including Carol, so always use a password, or set it to `off` so visitors can only ask as themselves after connecting. For Connect to work through ngrok, set `PUBLIC_URL` to the ngrok address and add its callback to both Slack apps ([details](docs/slack-setup.md#where-connect-returns-to)). For Connect Jira, also add `<ngrok address>/connect/jira/callback` to the Atlassian OAuth app. Use an ngrok **static domain**, so the callbacks never have to change again.
 
 ---
 
@@ -217,6 +223,75 @@ All three are off until their variables are set in `.env` (see `.env.example` fo
 
 ---
 
+## 4. Jira connector (optional)
+
+Jira loads only when `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN` are set. Without them, everything else works as before.
+
+**The full walkthrough, verified on a real site, is [docs/jira-mock-data-plan.md](docs/jira-mock-data-plan.md).** It covers the scenario, every screen, the data, the who-sees-what matrix and troubleshooting. This section is the short version.
+
+### How it connects
+
+| Connection | What it does | Configured by |
+|---|---|---|
+| **Crawler** (HMA Brain's server ↔ your Jira site) | Copies issues into `brain-jira`, reads each project's permissions, and re-checks every search result live with Jira as the asker | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`: a dedicated, normal Atlassian account with Jira admin |
+| **Connect Jira** (each person ↔ their own Atlassian account) | The person signs in to Atlassian once; HMA Brain stores only *person → Atlassian account ID*, so their Jira results follow their Jira permissions | `JIRA_OAUTH_CLIENT_ID`, `JIRA_OAUTH_CLIENT_SECRET`: one OAuth app, created once |
+
+Someone who hasn't clicked Connect Jira gets nothing from Jira (their Slack and Drive results are unaffected).
+
+### `.env`
+
+| Variable | What it is | How to fill it in |
+|---|---|---|
+| `JIRA_BASE_URL` | Your Jira Cloud site | e.g. `https://hma-brain-demo.atlassian.net` |
+| `JIRA_EMAIL`, `JIRA_API_TOKEN` | The **crawler** account and its classic API token | A dedicated address (not a persona). Token: id.atlassian.com → Security → **Create API token** (not "with scopes") |
+| `JIRA_PROJECTS` | Project keys to index | `PAY,SEC,VEND` for the demo. Keeps onboarding projects (KAN, SAM1) out |
+| `JIRA_OAUTH_CLIENT_ID`, `JIRA_OAUTH_CLIENT_SECRET` | The Connect Jira OAuth app | From the developer console (below) |
+| `JIRA_SYNC` | Poll Jira every `JIRA_POLL_SECONDS` (60) for edited issues and permission changes | `on` while demoing. Several servers can have it on |
+| `JIRA_ADMIN_EMAIL`, `JIRA_ADMIN_API_TOKEN` | A site admin's (Carol's) classic token | **Only for `npm run seed:jira`**; the app never uses it |
+| `ALICE_JIRA_API_TOKEN`, `BOB_JIRA_API_TOKEN`, `DAVE_JIRA_API_TOKEN` | Optional persona tokens | Only so seeded comments are posted as their real authors. Set them before the seed run that creates the issues |
+
+The demo personas reuse `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL` and `DAVE_EMAIL`; there are no separate Jira emails.
+
+### Setup in order
+
+1. **Site and trial, as Carol only.** In a private window, sign up for Jira with `CAROL_EMAIL`, name the site (e.g. `hma-brain-demo`) and start the **Standard or Premium trial**. The Free plan has no permission schemes or security levels. Nobody else signs up: whoever signs up first owns the site, and "Get it free" from another account creates a separate empty site.
+2. **Tokens and `.env`.** Carol's classic token goes in `JIRA_ADMIN_*`. Set `JIRA_BASE_URL`, `JIRA_EMAIL` (the crawler's address) and `JIRA_PROJECTS`.
+3. **`npm run seed:jira`.** The first run invites Alice, Bob, Dave and the crawler, then stops. Each accepts the invite email with that exact address.
+4. **Crawler token.** Signed in as the crawler, create its classic token and set `JIRA_API_TOKEN`. Optionally add the persona tokens too.
+5. **`npm run seed:jira` again.** It builds everything: groups, PAY/SEC/VEND, Task/Bug work types, the Approvers and Owning team fields, permission and security schemes, and the 14 issues with comments.
+6. **Make the crawler a Jira admin.** admin.atlassian.com → Directory → Users → the crawler → **Apps** → Jira → Roles: tick **User** and **User access admin**. The Global permissions page in Jira doesn't offer "Administer Jira" any more.
+7. **Connect Jira OAuth app, created once.** developer.atlassian.com/console/myapps, preferably as the crawler → **Create** → **OAuth 2.0 integration**. Then:
+   - **Permissions:** User identity API (`read:me`), at account level.
+   - **Authorization:** callback `http://localhost:3000/connect/jira/callback`, which must match `PUBLIC_URL` + `/connect/jira/callback`.
+   - **Distribution:** **Enable sharing**, so everyone can connect, not just the owner.
+   - **Settings:** copy the client ID and secret into `.env`.
+8. **Check and index:**
+   ```bash
+   npm run jira:doctor      # every line ok, then "nobody has connected Jira yet"
+   npm run jira:backfill    # 14 issues; right after seeding, Jira's search can lag, so re-run after a minute if it finds fewer
+   ```
+9. **Start the app and link each persona.** Start with `npm run dev`, or `SLACK_SYNC=off npm run dev` if Slack's live connection hangs. Then, for each of Alice, Bob, Carol and Dave:
+   - In their own browser profile, open `http://localhost:3000/connect.html` (localhost, not 127.0.0.1).
+   - Connect Slack, then **Connect Jira**.
+   - On Atlassian's screen, choose the demo site under "Install app on", check the account is that persona's, and click **Accept**.
+   - Confirm the page shows **"Linked to <name>"**.
+
+### Checking it (signed in as Alice, Jira only)
+
+Tick only **Jira** in the sources so Slack and Drive don't blur the test.
+
+| Ask | Alice should get |
+|---|---|
+| `What's the status of the connection pool fix?` | PAY-240 (her team's project) |
+| `What do I need to prepare for the vendor timeline?` | VEND-4 (she's the assignee) |
+| `How much is the contract penalty from the outage?` | Nothing. PAY-243 is security level "Leadership only". Carol gets it. |
+| `Was an API key leaked?` | Nothing. SEC is the security team's. |
+| `Is anything waiting on my approval?` | Nothing. Only Bob, named in VEND-5's Approvers field. |
+
+The audit log lists each withheld issue as **denied** (title only) or **dropped** by the live check.
+
+---
+
 ## Demo script
 
 Use **Demo** mode with the compare view for 1–6, and **Me** mode for 7.
@@ -257,6 +332,8 @@ Architecture, the permission model, the file map, and **what a new connector (Gm
 | TokenHub `401006 service ID does not exist` | Activate the model in the TokenHub console. |
 | Ask is very slow or returns empty answers | Set `LLM_EXTRA_BODY={"thinking":{"type":"disabled"}}` (TokenHub hy4). |
 | Changed `.env` but nothing changed | Restart the server. `.env` is only read at start-up. |
+| No Jira results for someone | They haven't clicked **Connect Jira**, or their account has no access to those projects. `npm run jira:doctor` lists who's linked. More in the [Jira guide's troubleshooting](docs/jira-mock-data-plan.md#8-verification-checklist-and-troubleshooting). |
+| `npm run dev` hangs on `A pong wasn't received from the server` | Slack's live connection can't connect, and the server waits for it. Run `SLACK_SYNC=off npm run dev`. |
 
 ### Demo-only shortcuts (not production)
 
