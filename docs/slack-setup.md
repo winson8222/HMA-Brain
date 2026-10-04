@@ -12,7 +12,7 @@ The demo uses **two Slack workspaces** and people's **private messages (DMs)**:
 Plus DMs: Carol → Alice and Bob, Alice ↔ Carol, Alice ↔ Bob (in `main`), and Carol ↔ Dave (in `vendors`). Both workspaces were created by Carol (`carolhmatest@gmail.com`), and only the four personas are in them. What's in them and when it was posted: [demo-data.md](demo-data.md).
 
 **What you do by hand:** create the workspaces, people and Slack apps (steps 1–4), and have personas click Connect (step 6).
-**What the script does:** channels, members and all messages, posted day by day on the story's real dates (`npm run seed:story`, see [demo-data.md](demo-data.md#running-a-day)). `npm run seed:slack` is the earlier, smaller demo; don't run it against the story's workspaces.
+**What the script does:** channels, members and all messages (`npm run seed:story`, see [demo-data.md](demo-data.md#rebuilding)). `npm run seed:slack` is the earlier, smaller demo; don't run it against the story's workspaces.
 
 Already set up and just joining as a teammate? Go to [step 8](#8-teammates-joining-an-existing-setup).
 
@@ -152,7 +152,7 @@ Each persona opens **http://localhost:3000/connect** in **their own browser prof
 
 | Persona | Connect |
 |---|---|
-| **Alice** | Company A (needed: she sends demo DMs, from story day 2) |
+| **Alice** | Company A (needed: she sends demo DMs) |
 | **Carol** | Company A **and** Company A – Vendors (needed: she sends demo DMs in both) |
 | Bob, Dave | Optional. Their DMs are already readable through Alice's and Carol's connections |
 

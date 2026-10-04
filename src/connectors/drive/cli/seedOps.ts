@@ -15,9 +15,7 @@ import {
   RUNBOOK_NAME,
   migrationPlan,
   runbook,
-  storyDayToday,
   type Kind,
-  type RunbookVersion,
   type SeedFile,
   type Slide,
 } from "./seedContent.js";
@@ -163,34 +161,10 @@ export const fileNamed = (name: string) => {
   return f;
 };
 
-// ---- single-file steps (seed:story and the demo flags) ----
-
-// Writes one file's content (default: its latest version from seedContent.ts).
-export async function rewrite(name: string, body?: string | Slide[]) {
+// Writes one file's content (default: its version in seedContent.ts).
+async function rewrite(name: string, body?: string | Slide[]) {
   const f = fileNamed(name);
   await writeContent(await locate(f.folder, f.name), f, body ?? f.body);
-}
-
-// Creates one file (with its shares) if it's missing.
-export async function createNamed(name: string, admin: string) {
-  const f = fileNamed(name);
-  const parent = await folderId(f.folder);
-  if (!parent) throw new Error(`No folder ${f.folder.join("/")}. Run \`npm run seed:drive\` first.`);
-  let id = await findFile(f.name, parent);
-  if (!id) {
-    id = await createFile(f, parent);
-    console.log(`  created ${[...f.folder, f.name].join("/")} (${f.kind})`);
-  }
-  await ensureShares(id, f.name, f.readers, f.writers, admin);
-}
-
-// Moves a file to the trash (recoverable for 30 days). Returns false if it wasn't there.
-export async function trash(folder: string[], name: string): Promise<boolean> {
-  const id = await find(folder, name);
-  if (!id) return false;
-  await withRetry(() => drive.files.update({ fileId: id, requestBody: { trashed: true } }));
-  console.log(`  trashed ${[...folder, name].join("/")}`);
-  return true;
 }
 
 // ---- the demo moments ----
@@ -198,8 +172,8 @@ export async function trash(folder: string[], name: string): Promise<boolean> {
 export const sgtNow = () =>
   `${new Date().toLocaleString("en-GB", { timeZone: "Asia/Singapore", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} SGT`;
 
-export async function setRunbook(version: RunbookVersion) {
-  await rewrite(RUNBOOK_NAME, runbook(version));
+export async function setRunbook(editedAt?: string) {
+  await rewrite(RUNBOOK_NAME, runbook(editedAt));
 }
 
 export async function setMigrationStage(stage: number) {
@@ -222,7 +196,6 @@ export async function closeVendorAccess() {
 
 // ---- the whole folder ----
 
-// Files that belong to a later story day are left out until that day (seed:story creates them).
 export async function seed(admin: string, rewriteAll: boolean) {
   console.log(`Seeding "${driveConfig.rootFolderName}" in ${admin}'s Drive`);
   const rootId = await ensureFolder(driveConfig.rootFolderName, "root");
@@ -232,16 +205,10 @@ export async function seed(admin: string, rewriteAll: boolean) {
     folderIds.set(f.path.join("/"), id);
     await ensureShares(id, f.path.join("/"), f.readers, f.writers, admin);
   }
-  const today = storyDayToday();
-  let n = 0;
   for (const f of FILES) {
     const parent = folderIds.get(f.folder.join("/"))!;
     let id = await findFile(f.name, parent);
     if (!id) {
-      if ((f.day ?? 0) > today) {
-        console.log(`  skipped ${[...f.folder, f.name].join("/")}: it appears on story day ${f.day} (npm run seed:story)`);
-        continue;
-      }
       id = await createFile(f, parent);
       console.log(`  created ${[...f.folder, f.name].join("/")} (${f.kind})`);
     } else if (rewriteAll) {
@@ -249,7 +216,6 @@ export async function seed(admin: string, rewriteAll: boolean) {
       console.log(`  rewrote ${[...f.folder, f.name].join("/")}`);
     }
     await ensureShares(id, f.name, f.readers, f.writers, admin);
-    n++;
   }
-  console.log(`Done: ${n} files. Root folder ID: ${rootId}`);
+  console.log(`Done: ${FILES.length} files. Root folder ID: ${rootId}`);
 }

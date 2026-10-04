@@ -6,16 +6,6 @@
 // PDFs are ASCII only (minipdf); no real company names and nothing that looks like a real secret.
 import type { Persona } from "../people.js";
 
-// The story's days (SGT). Slack can't backdate, so each day is posted on its real date (npm run seed:story);
-// Drive files that only exist from a later day are created on that day.
-export const STORY_DAYS: Record<number, string> = { 1: "2026-10-03", 2: "2026-10-05", 3: "2026-10-06" };
-
-export function storyDayToday(now = new Date()): number {
-  const today = now.toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-  const past = Object.entries(STORY_DAYS).filter(([, d]) => d <= today).map(([n]) => Number(n));
-  return past.length ? Math.max(...past) : 0;
-}
-
 export type Kind = "doc" | "sheet" | "slides" | "markdown" | "text" | "csv" | "json" | "pdf";
 export type Slide = { title: string; body: string };
 
@@ -26,8 +16,7 @@ export type SeedFile = {
   kind: Kind;
   readers?: Persona[]; // shared on the file itself, on top of what its folders give
   writers?: Persona[];
-  body: string | Slide[]; // the latest version; seed:story writes the earlier ones on their days
-  day?: number; // the story day it's created on (default: before the story starts)
+  body: string | Slide[];
 };
 
 // My Drive folders pass their shares down and a child can't drop them, so Engineering itself
@@ -45,26 +34,17 @@ export const FOLDERS: SeedFolder[] = [
 
 const ENG: Persona[] = ["alice", "bob", "carol"];
 
-// ---- the runbook ----
-// "before": what on-call had during the 3 Oct outage, without the replica's name (the lost 25 minutes).
-// "after": Alice adds pay-db-2 that night. { editedAt }: the live S2 edit (pay-db-3, pool at least 400).
+// ---- the runbook (S2: the live edit swaps the replica and the pool size) ----
 
 export const RUNBOOK_NAME = "Payment service runbook";
 
-export type RunbookVersion = "before" | "after" | { editedAt: string };
-
-export function runbook(version: RunbookVersion = "after"): string {
-  const edited = typeof version === "object" ? version.editedAt : undefined;
+export function runbook(edited?: string): string {
   const reviewed = edited
     ? `Last updated ${edited} by Alice: pay-db-2 is retired.`
-    : version === "before"
-      ? "Last reviewed 14 Aug 2026 by Marcus."
-      : "Last reviewed 3 Oct 2026 by Alice: added the replica's name after the checkout incident.";
+    : "Last reviewed 3 Oct 2026 by Alice: added the replica's name after the checkout incident.";
   const promote = edited
     ? "pay-db-2 is retired. Promote the replica pay-db-3 and restart the payment API pods."
-    : version === "before"
-      ? "Promote the read replica (check with the DBA team which one is current) and restart the payment API pods."
-      : "Promote the replica pay-db-2 and restart the payment API pods.";
+    : "Promote the replica pay-db-2 and restart the payment API pods.";
   const pool = edited ? 400 : 200;
   return `<h1>Payment service runbook</h1>
 <p>Owner: Alice (payments team). Escalation: #payments-incident. ${reviewed}</p>
@@ -82,14 +62,11 @@ export function runbook(version: RunbookVersion = "after"): string {
 <p>Disable the migration feature flag <code>tx_schema_v2</code> and redeploy the previous release.</p>`;
 }
 
-// ---- the DB migration plan (0: before the outage, 1: paused, 2: resumed, 4: late October) ----
+// ---- the DB migration plan (1: paused after the outage, 2: resumed, 4: late October) ----
 
 export const MIGRATION_NAME = "DB migration plan";
 
 const MIGRATION_STATUS: Record<number, string> = {
-  0: `<p>Steps 1 and 2 are complete: dual-write (tx_schema_v2) was enabled in production on 2 Oct at 18:05.</p>
-<p>Blocker: step 3 (backfill) is blocked by a schema lock on the transactions table (PAY-231).</p>
-<p>Targets: step 3 by 16 Oct, step 4 by 30 Oct.</p>`,
   1: `<p>Steps 1 and 2 are complete. The migration is paused after the 3 Oct incident: tx_schema_v2 stays off until the connection pool fixes are in production.</p>
 <p>Blocker: step 3 (backfill) is blocked by a schema lock on the transactions table (PAY-231).</p>`,
   2: `<p>Steps 1 and 2 are complete. Resumed on 6 Oct: dual-write is back on in staging.</p>
@@ -114,10 +91,6 @@ ${MIGRATION_STATUS[stage]}
 // ---- the postmortem (S4: Carol removes Dave's file-level share) ----
 
 export const POSTMORTEM_NAME = "Payment outage postmortem";
-export const FAILED_CHECKOUTS_NAME = "Failed checkouts 3 Oct.csv";
-export const HANDOVER_NAME = "On-call handover W41.txt";
-export const RENEWAL_NAME = "Acme renewal notes";
-export const ACME_REPORT_NAME = "Acme incident report - 3 Oct.pdf";
 
 const POSTMORTEM = `<h1>Payment outage postmortem</h1>
 <p>Status: draft. Severity: SEV1. Blameless: this document describes systems and decisions, not people.</p>
@@ -230,41 +203,46 @@ Tips for your first week
 - Deploys go out on Tuesday and Thursday only. The payments deploy freeze for 11.11 starts on 9 Nov.
 `;
 
-// The pool saturation rule is added on 5 Oct, after the outage showed there was none.
-export const ALERT_RULES_NAME = "Payment alert rules.json";
+// The pool saturation rule was added on 5 Oct, after the outage showed there was none.
+const POOL_RULE = {
+  name: "pool_saturation",
+  description: "Pages the primary on-call when the pay-db-1 connection pool is more than 80% in use for 5 minutes.",
+  metric: "db.pool.in_use_ratio",
+  database: "pay-db-1",
+  condition: "> 0.8 for 5m",
+  severity: "SEV2",
+  notify: "page primary on-call",
+  runbook: "Engineering/Runbooks/Payment service runbook",
+  added: "5 Oct 2026",
+};
 
-export function alertRules(withPoolRule = true): string {
-  const pool = {
-    name: "pool_saturation",
-    description: "Pages the primary on-call when the pay-db-1 connection pool is more than 80% in use for 5 minutes.",
-    metric: "db.pool.in_use_ratio",
-    database: "pay-db-1",
-    condition: "> 0.8 for 5m",
-    severity: "SEV2",
-    notify: "page primary on-call",
-    runbook: "Engineering/Runbooks/Payment service runbook",
-    added: "5 Oct 2026",
-  };
-  const rules = [
-    {
-      name: "payment_api_latency",
-      description: "Pages the primary on-call when payment API p99 latency is above 2 seconds for 5 minutes.",
-      metric: "http.p99_latency_ms",
-      condition: "> 2000 for 5m",
-      severity: "SEV2",
-      notify: "page primary on-call",
-    },
-    {
-      name: "checkout_success_rate",
-      description: "Pages the incident commander when fewer than 90% of checkouts succeed for 5 minutes.",
-      metric: "checkout.success_ratio",
-      condition: "< 0.9 for 5m",
-      severity: "SEV1",
-      notify: "page incident commander",
-    },
-  ];
-  return `${JSON.stringify({ service: "checkout-api", owner: "payments team", rules: withPoolRule ? [pool, ...rules] : rules }, null, 2)}\n`;
-}
+const ALERT_RULES = `${JSON.stringify(
+  {
+    service: "checkout-api",
+    owner: "payments team",
+    rules: [
+      POOL_RULE,
+      {
+        name: "payment_api_latency",
+        description: "Pages the primary on-call when payment API p99 latency is above 2 seconds for 5 minutes.",
+        metric: "http.p99_latency_ms",
+        condition: "> 2000 for 5m",
+        severity: "SEV2",
+        notify: "page primary on-call",
+      },
+      {
+        name: "checkout_success_rate",
+        description: "Pages the incident commander when fewer than 90% of checkouts succeed for 5 minutes.",
+        metric: "checkout.success_ratio",
+        condition: "< 0.9 for 5m",
+        severity: "SEV1",
+        notify: "page incident commander",
+      },
+    ],
+  },
+  null,
+  2,
+)}\n`;
 
 const ROTA = `Week,Dates,Primary,Secondary,Notes
 2026-W39,21-27 Sep,Marcus,Priya,
@@ -295,11 +273,8 @@ Deploys go out on Tuesday and Thursday. Payment changes need two reviewers.
 Bugs and follow-ups go in the PAY Jira project.
 `;
 
-// Proposed until the #eng-auth thread decides it (story day 3).
-export const ADR_NAME = "ADR-012 Auth service tokens";
-
-export const adr = (accepted = true) => `<h1>ADR-012: Short-lived tokens for the auth service</h1>
-<p>${accepted ? "Status: Accepted on 6 Oct 2026" : "Status: Proposed (draft)"}. Authors: Alice, Bob. Reviewers: Carol (security), Marcus. Discussion: ${accepted ? "the thread in #eng-auth" : "#eng-auth"}.</p>
+const ADR = `<h1>ADR-012: Short-lived tokens for the auth service</h1>
+<p>Status: Accepted on 6 Oct 2026. Authors: Alice, Bob. Reviewers: Carol (security), Marcus. Discussion: the thread in #eng-auth.</p>
 <h2>Context</h2>
 <p>Merchants call the payments API with static API keys that never expire. Long-lived keys are hard to rotate and dangerous if one leaks: whoever has the key can take payments until someone notices.</p>
 <h2>Decision</h2>
@@ -460,26 +435,20 @@ export const FILES: SeedFile[] = [
   { folder: ["Engineering"], name: "README.md", kind: "markdown", readers: ENG, body: README },
   { folder: ["Engineering"], name: "On-call rota", kind: "sheet", readers: ENG, body: ROTA },
   { folder: ["Engineering"], name: MIGRATION_NAME, kind: "doc", readers: ENG, body: migrationPlan() },
-  { folder: ["Engineering"], name: ALERT_RULES_NAME, kind: "json", readers: ENG, body: alertRules() },
-  { folder: ["Engineering", "Architecture"], name: ADR_NAME, kind: "doc", body: adr() },
+  { folder: ["Engineering"], name: "Payment alert rules.json", kind: "json", readers: ENG, body: ALERT_RULES },
+  { folder: ["Engineering", "Architecture"], name: "ADR-012 Auth service tokens", kind: "doc", body: ADR },
   { folder: ["Engineering", "Runbooks"], name: RUNBOOK_NAME, kind: "doc", body: runbook() },
   { folder: ["Engineering", "Runbooks"], name: "Incident response handbook", kind: "doc", body: HANDBOOK }, // several chunks
-  { folder: ["Engineering", "Runbooks"], name: HANDOVER_NAME, kind: "text", body: HANDOVER, day: 2 },
+  { folder: ["Engineering", "Runbooks"], name: "On-call handover W41.txt", kind: "text", body: HANDOVER },
   // Postmortems: incident team, plus Dave on the postmortem only (shared for the vendor timeline; removed in S4)
-  { folder: ["Engineering", "Postmortems"], name: POSTMORTEM_NAME, kind: "doc", readers: ["dave"], body: POSTMORTEM, day: 2 },
-  { folder: ["Engineering", "Postmortems"], name: FAILED_CHECKOUTS_NAME, kind: "csv", body: FAILED_CHECKOUTS, day: 2 },
+  { folder: ["Engineering", "Postmortems"], name: POSTMORTEM_NAME, kind: "doc", readers: ["dave"], body: POSTMORTEM },
+  { folder: ["Engineering", "Postmortems"], name: "Failed checkouts 3 Oct.csv", kind: "csv", body: FAILED_CHECKOUTS },
   // Security: Carol only
   { folder: ["Security"], name: "Q3 breach report", kind: "doc", body: BREACH },
   { folder: ["Security"], name: "Vulnerability register", kind: "sheet", body: VULNS },
   // Vendors: Carol; Shared with Acme adds Dave
-  { folder: ["Vendors"], name: RENEWAL_NAME, kind: "doc", body: RENEWAL, day: 2 },
+  { folder: ["Vendors"], name: "Acme renewal notes", kind: "doc", body: RENEWAL },
   { folder: ["Vendors", "Shared with Acme"], name: "Vendor SLA agreement.pdf", kind: "pdf", body: SLA },
   { folder: ["Vendors", "Shared with Acme"], name: "Vendor onboarding guide", kind: "doc", body: ONBOARDING },
-  { folder: ["Vendors", "Shared with Acme"], name: ACME_REPORT_NAME, kind: "pdf", body: ACME_REPORT, day: 2 },
-];
-
-// Files from the first (25 Sep) version of the story, trashed by seed:story day 1.
-export const RETIRED: { folder: string[]; name: string }[] = [
-  { folder: ["Engineering", "Postmortems"], name: "Failed checkouts 25 Sep.csv" },
-  { folder: ["Vendors", "Shared with Acme"], name: "Acme SLA report - September.pdf" },
+  { folder: ["Vendors", "Shared with Acme"], name: "Acme incident report - 3 Oct.pdf", kind: "pdf", body: ACME_REPORT },
 ];

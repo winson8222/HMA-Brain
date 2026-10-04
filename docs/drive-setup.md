@@ -41,18 +41,18 @@ npm run drive:poll -- --watch   # or set DRIVE_SYNC=on and run `npm run dev`
 
 `seed:drive` writes only to Drive. It shares with `ALICE_EMAIL`, `BOB_EMAIL`, `CAROL_EMAIL` and `DAVE_EMAIL` (without notification emails), and skips unset emails and the admin itself. The content is in `src/connectors/drive/cli/seedContent.ts`: one payment-outage story (the checkout outage of Sat 3 Oct 2026, see [demo-data.md](demo-data.md)), 19 files in 8 formats.
 
-The story is played out day by day with `npm run seed:story` (Slack and Drive together). Files marked *day 2* below only appear on that day, and some files change on their day (the runbook gets the replica's name the night of the outage, the migration plan pauses and resumes, ADR-012 is accepted on day 3). `seed:drive` on its own skips files whose day hasn't come yet, and writes the **latest** version of each file.
+`npm run seed:story` runs this and also posts the Slack side of the story ([demo-data.md](demo-data.md)).
 
 | Folder | Files (format) | Shared with | Story |
 |---|---|---|---|
 | Company | Employee handbook (Doc), **Q3 business review (Slides)**, IT helpdesk SLA (Doc) | Alice, Bob, Carol (all staff) | Background, the "31% of the week searching" survey, a decoy "SLA" |
 | Engineering | README.md (**Markdown**), On-call rota (**Sheet**), DB migration plan (Doc), Payment alert rules.json (**JSON**) | Alice, Bob, Carol, file by file | Alice on call during the outage, Bob from 5 Oct; migration blockers; the pool alert added after the outage |
 | Engineering/Architecture | ADR-012 Auth service tokens (Doc) | Alice, Bob, Carol | The auth design; never mentions the breach |
-| Engineering/Runbooks | Payment service runbook (Doc), Incident response handbook (Doc, several chunks), On-call handover W41.txt (**text**, day 2) | Alice (editor), Bob, Carol | The live runbook edit (S2) |
-| Engineering/Postmortems | Payment outage postmortem (Doc, day 2), Failed checkouts 3 Oct.csv (**CSV**, day 2) | Alice, Carol; **plus Dave on the postmortem** | Over-shared to the vendor, then revoked (S4) |
+| Engineering/Runbooks | Payment service runbook (Doc), Incident response handbook (Doc, several chunks), On-call handover W41.txt (**text**) | Alice (editor), Bob, Carol | The live runbook edit (S2) |
+| Engineering/Postmortems | Payment outage postmortem (Doc), Failed checkouts 3 Oct.csv (**CSV**) | Alice, Carol; **plus Dave on the postmortem** | Over-shared to the vendor, then revoked (S4) |
 | Security | Q3 breach report (Doc), Vulnerability register (Sheet) | Carol | Restricted (S3) |
-| Vendors | Acme renewal notes (Doc, day 2) | Carol | The USD 40,000 credit, kept from Acme |
-| Vendors/Shared with Acme | Vendor SLA agreement.pdf (**PDF**), Vendor onboarding guide (Doc), Acme incident report - 3 Oct.pdf (PDF, day 2) | Carol, Dave (editor) | The external folder. The vendor's report contains a prompt-injection line. |
+| Vendors | Acme renewal notes (Doc) | Carol | The USD 40,000 credit, kept from Acme |
+| Vendors/Shared with Acme | Vendor SLA agreement.pdf (**PDF**), Vendor onboarding guide (Doc), Acme incident report - 3 Oct.pdf (PDF) | Carol, Dave (editor) | The external folder. The vendor's report contains a prompt-injection line. |
 
 Engineering itself isn't shared: in My Drive a folder's shares pass down to everything inside, so sharing it would open Postmortems to everyone. The Google Slides API must be enabled in the Cloud project (APIs & Services → Library) for the slide deck.
 
@@ -61,8 +61,8 @@ Engineering itself isn't shared: in My Drive a folder's shares pass down to ever
 | `seed:drive -- --edit-runbook` | S2: the runbook owner's update (pay-db-2 retired, promote pay-db-3, pool at least 400) |
 | `seed:drive -- --close-vendor-access` | S4: removes Dave from the postmortem |
 | `seed:drive -- --reset` | Between rehearsals: runbook back to its pre-S2 version (pay-db-2), every share restored |
-| `seed:drive -- --batch 0\|1\|2\|4` | Sets the DB migration plan's status: 0 before the outage, 1 paused, 2 resumed (day 3), 4 late October |
-| `seed:drive -- --rewrite` | Rewrites every file from `seedContent.ts` (latest versions) after you edit it. Not before day 3 is done |
+| `seed:drive -- --batch 1\|2\|4` | Sets the DB migration plan's status: 1 paused after the outage, 2 resumed (the default), 4 late October |
+| `seed:drive -- --rewrite` | Rewrites every file from `seedContent.ts` after you edit it |
 
 ## 4. Search and Ask
 

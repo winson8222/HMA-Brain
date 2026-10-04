@@ -4,4 +4,3 @@ fixtures/captured
 .DS_Store
 slack-tokens.json
 .secrets
-story-state.json

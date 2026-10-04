@@ -1,50 +1,29 @@
-// npm run seed:story -- --day N [--dry-run] [--live] [--any-date]
-// Plays one day of the demo story (timeline.ts) into Slack and Drive. Steps whose time has passed are done now,
-// a few seconds apart; with --live the run then waits and does each later step at its time, so Slack's
-// timestamps match the story. Without --live it stops at the first future step (run again later to continue).
-// Safe to re-run: a message already in its channel or thread is skipped, and Drive steps are recorded in
-// story-state.json. Elasticsearch picks everything up through the normal sync (or npm run backfill / drive:poll).
-//   --dry-run    print the day's steps and change nothing
-//   --any-date   run a day on a date other than its planned one (timestamps won't match the story)
-//   --fast       post overdue steps back to back instead of a few seconds apart
+// npm run seed:story [-- --dry-run] [--rewrite]
+// Builds the whole demo story at once: the "Company A" folder in Drive (seed:drive's content) and every Slack
+// message and DM in timeline.ts. Writes only to Slack and Drive; then run `npm run backfill` and
+// `npm run drive:backfill` (or keep the server running with sync on) to index it.
+// Safe to re-run: existing files, channels, members and messages are skipped.
+//   --dry-run   print what would be posted and change nothing
+//   --rewrite   also rewrite every Drive file from seedContent.ts (after editing the content)
 import { WebClient } from "@slack/web-api";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { requireEnv } from "../config.js";
-import { accountEmail } from "../connectors/drive/client.js";
+import { accountEmail, explain } from "../connectors/drive/client.js";
+import { seed } from "../connectors/drive/cli/seedOps.js";
 import { personIdOfToken } from "../dms.js";
 import { workspaceByKey, type Workspace } from "../slack.js";
 import { userTokens } from "../tokens.js";
-import { CHANNELS, DAYS, STORY_DAYS, type ChannelDef, type Dm, type DriveStep, type Post, type Step, type Who, type WsKey } from "./timeline.js";
+import { CHANNELS, STORY, type ChannelDef, type Dm, type Post, type Step, type Who, type WsKey } from "./timeline.js";
 
 const PEOPLE: Record<Who, { name: string; emoji: string; email: string }> = {
   carol: { name: "Carol", emoji: ":female-detective:", email: requireEnv("CAROL_EMAIL").toLowerCase() },
-  alice: { name: "Alice", emoji: ":woman-technologist:", email: requireEnv("ALICE_EMAIL").toLowerCase() },
-  bob: { name: "Bob", emoji: ":man-technologist:", email: requireEnv("BOB_EMAIL").toLowerCase() },
+  alice: { name: "Alice", emoji: ":female-technologist:", email: requireEnv("ALICE_EMAIL").toLowerCase() },
+  bob: { name: "Bob", emoji: ":male-technologist:", email: requireEnv("BOB_EMAIL").toLowerCase() },
   dave: { name: "Dave", emoji: ":construction_worker:", email: requireEnv("DAVE_EMAIL").toLowerCase() },
 };
 const WS_NAMES: Record<WsKey, string> = { main: "Company A", vendors: "Vendors" };
 
-const isDrive = (s: Step): s is DriveStep => "drive" in s;
 const isDm = (s: Step): s is Dm => "to" in s;
-
-// ---- time ----
-
-const due = (day: number, at: string) => new Date(`${STORY_DAYS[day]}T${at}:00+08:00`);
-const todaySgt = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-const clock = (d = new Date()) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
-const between = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
-
-// ---- state (Drive steps done) ----
-
-const STATE_FILE = "story-state.json";
-const state: { done: Record<string, string> } = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, "utf8")) : { done: {} };
-const markDone = (id: string) => {
-  state.done[id] = new Date().toISOString();
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + "\n");
-};
-
-// ---- printing ----
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const def = (ws: WsKey, name: string) => {
   const c = CHANNELS[ws].find((x) => x.name === name);
@@ -57,11 +36,8 @@ const channelLabel = (ws: WsKey, name: string) => {
 };
 
 function describe(s: Step): string {
-  if (isDrive(s)) return `Drive        ${s.drive}`;
-  const where = isDm(s)
-    ? `DM ${[s.as, ...s.to].map((p) => PEOPLE[p].name).join(", ")}`
-    : `${channelLabel(s.ws, s.channel)}${s.thread ? " ↳" : ""}`;
-  return `${WS_NAMES[s.ws].padEnd(9)} ${where.padEnd(26)} ${PEOPLE[s.as].name.padEnd(6)} ${s.text}`;
+  const where = isDm(s) ? `DM ${[s.as, ...s.to].map((p) => PEOPLE[p].name).join(", ")}` : `${channelLabel(s.ws, s.channel)}${s.thread ? " ↳" : ""}`;
+  return `${WS_NAMES[s.ws].padEnd(9)} ${where.padEnd(24)} ${PEOPLE[s.as].name.padEnd(5)}  ${s.text}`;
 }
 
 // ---- Slack ----
@@ -148,10 +124,10 @@ class SlackSide {
     const channel = await this.channel(s.ws, def(s.ws, s.channel));
     let threadTs: string | undefined;
     if (s.thread) {
-      const root = Object.values(DAYS).flat().find((x): x is Post => !isDrive(x) && !isDm(x) && x.id === s.thread);
+      const root = STORY.find((x): x is Post => !isDm(x) && x.id === s.thread);
       if (!root) throw new Error(`timeline: no message with id "${s.thread}"`);
       threadTs = (await this.messages(ws.web, channel)).find((m) => m.text === root.text)?.ts;
-      if (!threadTs) throw new Error(`The thread "${s.thread}" hasn't been posted yet (${root.at} on its day)`);
+      if (!threadTs) throw new Error(`timeline: the thread "${s.thread}" must come before its replies`);
     }
     const seen = await this.messages(ws.web, channel, threadTs);
     if (seen.some((m) => m.text === s.text)) return "exists";
@@ -188,64 +164,38 @@ class SlackSide {
 // ---- main ----
 
 async function main() {
-  const args = process.argv.slice(2);
-  const has = (f: string) => args.includes(f);
-  const day = Number(args[args.indexOf("--day") + 1]);
-  if (!has("--day") || !DAYS[day]) throw new Error(`Usage: npm run seed:story -- --day ${Object.keys(DAYS).join("|")} [--dry-run] [--live]`);
-  const steps = [...DAYS[day]].sort((a, b) => a.at.localeCompare(b.at));
-  const date = STORY_DAYS[day];
-  const weekday = due(day, "12:00").toLocaleDateString("en-GB", { timeZone: "Asia/Singapore", weekday: "short", day: "numeric", month: "short" });
-
+  const has = (f: string) => process.argv.includes(f);
   if (has("--dry-run")) {
-    const n = (p: (s: Step) => boolean) => steps.filter(p).length;
-    console.log(`Day ${day}, ${weekday} (${date}), times in SGT: ${n((s) => !isDrive(s) && !isDm(s))} channel messages, ${n(isDm)} DMs, ${n(isDrive)} Drive steps\n`);
-    for (const s of steps) console.log(`${s.at}  ${describe(s)}`);
+    console.log(`${STORY.filter((s) => !isDm(s)).length} channel messages and ${STORY.filter(isDm).length} DMs, in story order:\n`);
+    STORY.forEach((s) => console.log(describe(s)));
+    console.log("\nDrive: the Company A folder from seedContent.ts (see npm run seed:drive).");
     return;
   }
-  if (date !== todaySgt() && !has("--any-date"))
-    throw new Error(`Day ${day} is planned for ${date}, and today is ${todaySgt()}. Slack stamps messages when they're posted; pass --any-date to run it anyway.`);
 
+  await seed((await accountEmail())?.toLowerCase() ?? "", has("--rewrite"));
+
+  console.log("\nSlack:");
   const slack = new SlackSide();
-  const admin = (await accountEmail())?.toLowerCase() ?? "";
-  let catchingUp = false;
-  for (const [i, s] of steps.entries()) {
-    const when = due(day, s.at);
-    if (when > new Date()) {
-      if (!has("--live")) {
-        console.log(`\n${steps.length - i} steps are later today (next at ${s.at}). Run again with --live to post them at their times.`);
-        break;
-      }
-      const at = new Date(when.getTime() + (isDrive(s) ? 0 : between(0, 40_000)));
-      console.log(`  … waiting until ${clock(at)}`);
-      await sleep(at.getTime() - Date.now());
-      catchingUp = false;
-    } else if (catchingUp && !has("--fast")) {
-      await sleep(between(8_000, 20_000)); // overdue steps go out a few seconds apart, not all in one second
+  let posted = 0;
+  for (const s of STORY) {
+    const result = isDm(s) ? await slack.dm(s) : await slack.post(s);
+    if (result === "posted") {
+      posted++;
+      await sleep(1200); // Slack allows about one message per second per channel
     }
-
-    let result: string;
-    if (isDrive(s)) {
-      if (state.done[s.id]) result = "done before";
-      else {
-        await s.run(admin);
-        markDone(s.id);
-        result = "done";
-      }
-    } else result = isDm(s) ? await slack.dm(s) : await slack.post(s);
-    catchingUp = result !== "exists" && result !== "done before";
-    console.log(`${clock()}  [${s.at} ${result}] ${describe(s)}`);
+    if (result !== "exists") console.log(`  [${result}] ${describe(s)}`);
   }
-
+  console.log(`\n${posted} posted, ${STORY.length - posted} already there or skipped.`);
   if (slack.needsConnect.size) {
-    console.log("\nSome DMs weren't posted: the sender hasn't connected. Open /connect in their browser, then run this day again:");
+    console.log("Some DMs weren't posted: the sender hasn't connected. Open /connect in their browser, then run this again:");
     slack.needsConnect.forEach((t) => console.log(`  - ${t}`));
   }
-  console.log("\nTo search it: npm run backfill (Slack) and npm run drive:poll (Drive), or keep the server running with sync on.");
+  console.log("To search it: npm run backfill (Slack) and npm run drive:backfill (Drive), or keep the server running with sync on.");
 }
 
 main()
   .then(() => process.exit(0))
   .catch((e) => {
-    console.error(e?.data?.error ? `Slack error: ${e.data.error}` : (e?.message ?? e));
+    console.error(e?.data?.error ? `Slack error: ${e.data.error}` : explain(e));
     process.exit(1);
   });
