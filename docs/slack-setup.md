@@ -6,10 +6,10 @@ The demo uses **two Slack workspaces** and people's **private messages (DMs)**:
 
 | Workspace | Key | People | Channels |
 |---|---|---|---|
-| **Company A** | `main` | Carol (owner), Alice, Bob | `#all-company-a`, `#payments`, `#db-migration`, `#eng-auth`, `#releases`, `#social`, 🔒 `#payments-incident`, 🔒 `#security` |
-| **Company A – Vendors** | `vendors` | Carol (owner), Dave | `#all-company-a-vendors`, 🔒 `#acme-escalation`, 🔒 `#vendor-contracts` |
+| **Company A** | `main` | Carol (owner), Alice, Bob | `#all-company-a`, `#payments`, `#engineering`, `#social`, 🔒 `#payments-incident`, 🔒 `#security` |
+| **Company A – Vendors** | `vendors` | Carol (owner), Dave | `#all-company-a-vendors`, `#acme-support` |
 
-Plus DMs: Carol → Alice and Bob, Alice ↔ Carol, Alice ↔ Bob (in `main`), and Carol ↔ Dave (in `vendors`). Both workspaces were created by Carol (`carolhmatest@gmail.com`), and only the four personas are in them. What's in them and when it was posted: [demo-data.md](demo-data.md).
+Plus DMs: Carol → Alice and Bob, Alice ↔ Carol (in `main`), and Carol ↔ Dave (in `vendors`). Both workspaces were created by Carol (`carolhmatest@gmail.com`), and only the four personas are in them. What's in them and when it was posted: [demo-data.md](demo-data.md).
 
 **What you do by hand:** create the workspaces, people and Slack apps (steps 1–4), and have personas click Connect (step 6).
 **What the script does:** channels, members and all messages (`npm run seed:story`, see [demo-data.md](demo-data.md#rebuilding)). `npm run seed:slack` is the earlier, smaller demo; don't run it against the story's workspaces.
@@ -152,9 +152,9 @@ Each persona opens **http://localhost:3000/connect** in **their own browser prof
 
 | Persona | Connect |
 |---|---|
-| **Alice** | Company A (needed: she sends demo DMs) |
+| **Alice**, **Bob** | Company A (every message is posted as its author) |
 | **Carol** | Company A **and** Company A – Vendors (needed: she sends demo DMs in both) |
-| Bob, Dave | Optional. Their DMs are already readable through Alice's and Carol's connections |
+| **Dave** | Company A – Vendors |
 
 Connecting also **signs that browser in**, which is what the main page's **Me** mode uses.
 

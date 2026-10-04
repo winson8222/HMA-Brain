@@ -10,10 +10,8 @@ import { textPdf } from "./minipdf.js";
 import {
   FILES,
   FOLDERS,
-  MIGRATION_NAME,
   POSTMORTEM_NAME,
   RUNBOOK_NAME,
-  migrationPlan,
   runbook,
   type Kind,
   type SeedFile,
@@ -174,10 +172,6 @@ export const sgtNow = () =>
 
 export async function setRunbook(editedAt?: string) {
   await rewrite(RUNBOOK_NAME, runbook(editedAt));
-}
-
-export async function setMigrationStage(stage: number) {
-  await rewrite(MIGRATION_NAME, migrationPlan(stage));
 }
 
 // S4: the postmortem was shared with Dave so Acme could confirm its part of the timeline; Carol takes it back.

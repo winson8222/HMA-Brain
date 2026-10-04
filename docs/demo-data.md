@@ -1,81 +1,100 @@
 # Demo data
 
-The demo is one story: **Company A's checkout outage on Saturday 3 Oct 2026, 19:40 to 21:15 SGT**, and the two days after it. `npm run seed:story` builds all of it at once: the Drive folder and every Slack message and DM.
+Everything the demo runs on: one fictional company, four people, one story, in two Slack workspaces and one Google Drive folder. Read this first.
 
-| Where the content lives | |
-|---|---|
-| Slack messages and DMs, in story order | `src/story/timeline.ts` |
-| Drive files (19, in 8 formats) | `src/connectors/drive/cli/seedContent.ts`, see [drive-setup.md](drive-setup.md#3-demo-data-first-sync-live-updates) |
-| Why this story, golden questions, demo script | `docs/design/demo-story-and-mock-data.md` in the team workspace |
+## The story
 
-Everything was posted on 4 Oct, so Slack's own timestamps are the posting time, not the story time. The messages carry their story times in the text instead ("Update 20:00", "paged at 19:52"), and answers use those.
+**Company A** is a payments company. **Acme** is the vendor that processes its card payments.
 
-## People
+One Saturday evening, card payments at Company A's checkout failed for 95 minutes. **Alice**, the engineer on call, fixed it: a database change she had switched on was using up all the database connections, and she switched over to the backup database. Afterwards she wrote a **postmortem**. It lists the root cause, the follow-up tickets, and the merchants affected with how much each was refunded. That last part is confidential.
 
-Both workspaces were created by Carol (`carolhmatest@gmail.com`), who owns them and is also the Drive admin. People are linked across Slack and Drive by email.
+**Carol** (security and compliance) shared the postmortem with **Dave** from Acme, because Acme's support desk had been slow to answer during the outage and Acme needed the timeline to look into it. Once Acme was done, Carol takes his access back.
 
-| Person | Role in the story | Company A | Company A – Vendors | Drive |
+**Bob**, the junior engineer, was not on the incident team. He knows payments were down and are fixed, and he can read the runbook. He never learns the root cause, the tickets or the merchants.
+
+That's the whole story. Everything else in Slack and Drive is ordinary company chatter so the workspace looks real.
+
+## The people
+
+| | Role | Can see |
+|---|---|---|
+| **Alice** | Senior payments engineer, was on call | Everything about the outage: the private incident channel, the postmortem. Not the Security or Vendors folders. |
+| **Bob** | Junior engineer, new | Public channels and the engineering docs (runbook, handbook, rota). Nothing private. |
+| **Carol** | Security and compliance; runs both Slack workspaces and the Drive | Everything. She's the one who revokes access and reads the audit log. |
+| **Dave** | Engineer at Acme, external | Only the Vendors workspace and the "Shared with Acme" folder, plus the postmortem until Carol removes it. |
+
+Emails are in `.env` (`ALICE_EMAIL` etc). The same email identifies a person in Slack and in Drive.
+
+## Where things are
+
+### Slack: "Company A"
+
+| Channel | Who | What's in it |
+|---|---|---|
+| `#all-company-a` | everyone | Office notices |
+| `#payments` | everyone | The outage as the company saw it: "latency spiking", updates, "resolved". Team chatter. **No root cause.** |
+| `#engineering` | everyone | Deploys, code reviews, staging |
+| `#social` | everyone | Futsal, lunch, birthdays |
+| 🔒 `#payments-incident` | Alice, Carol | The incident as it happened: the cause, the failover, the root cause, tickets PAY-240 and PAY-241, the postmortem |
+| 🔒 `#security` | Carol | Carol's notes: "not a security incident", vulnerability register, Acme's temporary access |
+| DMs | | Alice → Carol: "the outage was my migration flag". Carol → Alice, Bob: standup moved. |
+
+### Slack: "Company A – Vendors"
+
+| Channel | Who | What's in it |
+|---|---|---|
+| `#all-company-a-vendors` | Carol, Dave | Welcome |
+| `#acme-support` | Carol, Dave | Acme's maintenance and monthly report, and the thread where Carol shares the postmortem for Acme's follow-up and Dave confirms the timeline |
+| DM | Carol, Dave | "Don't share the outage timeline outside Acme" |
+
+### Google Drive: folder "Company A"
+
+| Folder | Shared with | Files |
+|---|---|---|
+| Company | Alice, Bob, Carol | Employee handbook, Quarterly business review (slides), IT helpdesk SLA |
+| Engineering | Alice, Bob, Carol (file by file) | README, On-call rota, DB migration plan, Payment alert rules |
+| Engineering/Architecture | Alice, Bob, Carol | ADR-012 Auth service tokens |
+| Engineering/Runbooks | Alice (editor), Bob, Carol | **Payment service runbook**, Incident response handbook, On-call handover |
+| Engineering/Postmortems | Alice, Carol, **+ Dave on the postmortem only** | **Payment outage postmortem**, Failed checkouts (CSV) |
+| Security | Carol | Security incident report, Vulnerability register |
+| Vendors | Carol | Acme renewal notes |
+| Vendors/Shared with Acme | Dave (editor), Carol | Vendor SLA agreement (PDF), Vendor onboarding guide, Acme monthly report (PDF) |
+
+Carol's Google account owns the Drive folder, and both Slack workspaces were created by her. Dave's postmortem share is the only share that doesn't come from a folder.
+
+## The demo
+
+Five moments. Ask the same question as different people and watch the answer change.
+
+| # | Ask as | Question | Expected | Shows |
 |---|---|---|---|---|
-| **Alice** | Senior payments engineer; on call during the outage | member · 🔒 `#payments-incident` | — | Company, Engineering (edits Runbooks), Postmortems |
-| **Bob** | Junior engineer; first on-call week from Mon 5 Oct | member | — | Company, Engineering (not Postmortems) |
-| **Carol** | Security and compliance lead; vendor manager | owner · 🔒 `#payments-incident` · 🔒 `#security` | owner · 🔒 `#acme-escalation` · 🔒 `#vendor-contracts` | everything |
-| **Dave** | Account engineer at Acme Payments, the card processor (external) | — | member · 🔒 `#acme-escalation` (until S4) | Shared with Acme, plus the postmortem (until S4) |
+| 1 | Alice, then Bob | *What was the root cause of the payment outage, and what follow-up tickets were created?* | **Alice:** connection pool exhausted after the migration flag; PAY-240 and PAY-241, citing `#payments-incident` and the postmortem. **Bob:** "I don't have information on that." | Same question, different answer |
+| 2 | Bob, then Carol | *Show me all security vulnerabilities* | **Bob:** "I don't have information on that", with no hint anything exists. **Carol:** CVE-2026-1234, VULN-017, VULN-021, VULN-024. | Refusal without leaking |
+| 3 | Bob | *How do I fail over the payment database?* Then Alice edits the runbook in Google Docs (or `npm run seed:drive -- --edit-runbook`), click Sync now, Bob asks again | Before: switch to pay-db-2, pool at least 200. After: pay-db-3, at least 400. | Freshness |
+| 4 | Dave | *Which merchants were affected by the outage and how much was refunded?* Then Carol removes Dave from the postmortem in Drive's share dialog (or `-- --close-vendor-access`), Dave asks again straight away | Before: M-1043, SGD 18,400… After: "I don't have information on that." Admin view: "dropped by live re-check". | Live revocation |
+| 5 | Carol | Audit log tab: filter by the postmortem, then by Dave, then Verify chain | What Dave saw, when, and when it was cut off. "All records intact." | Audit |
 
-Channel messages are posted by each workspace's bot under the persona's name and emoji, so Slack shows an APP badge on them. DMs are posted as the person, with the user token they got by clicking Connect.
-
-Without embeddings (`EMBEDDING_*` unset), search is keyword-only, so questions work best when they reuse words from the content ("admit … fault" finds Alice's DM; "admitted breaking things" doesn't).
-
-## Channels
-
-### Company A (`main`)
-
-| Channel | Who | What's in it |
-|---|---|---|
-| `#all-company-a` | everyone | Welcome to the new workspace, Bob joining, security training due 31 Oct |
-| `#payments` | public | Who's on call, public incident updates (never the root cause), the customer update, deploy freeze |
-| `#db-migration` | public | tx_schema_v2 live, PAY-231, the rollback thread, paused after the outage, resumed, PAY-252 |
-| `#eng-auth` | public | Thread: short-lived tokens, ending in "ADR-012 is now Accepted". Never mentions the breach |
-| `#releases` | public | checkout-api 4.13, payouts 1.6 |
-| `#social` | public | Futsal, lunch: noise for search to wade through |
-| 🔒 `#payments-incident` | Alice, Carol | The live incident: pool at 200 of 200, the missing replica name, MAS notified, Acme 47 minutes late, root cause, PAY-240 and PAY-241, pay-db-2 to be retired |
-| 🔒 `#security` | Carol | "Not a security incident", SEC-0814 closed, CVE-2026-1234, VULN-017, remove Acme's access |
-| DMs | | Carol → Alice, Bob (standup moved); Alice → Carol ("my migration flag"); Alice → Bob (on-call tips) |
-
-### Company A – Vendors (`vendors`)
-
-| Channel | Who | What's in it |
-|---|---|---|
-| `#all-company-a-vendors` | Carol, Dave | Welcome, Acme's 24x7 Priority 1 desk, planned maintenance |
-| 🔒 `#acme-escalation` | Carol, Dave (Carol removes Dave in S4) | Paged 19:52, Acme's first answer 20:39 (ticket ACM-77812), no update after, timeline confirmed |
-| 🔒 `#vendor-contracts` | Carol | $40k credit under clause 4.2, renewal due 15 Nov |
-| DM | Carol, Dave | "Please don't share the outage timeline with other vendors yet" |
-
-`#new-channel` (both) and `#social` (Vendors) are Slack's defaults and stay empty.
-
-## Who sees what, in one line each
-
-- **Bob** sees that checkout failed 19:40 to 21:15 and how to fail over. He never sees the root cause, the tickets, the merchants or anything about Acme's contract.
-- **Alice** sees the whole incident and her own admission, but not security or vendor contracts.
-- **Dave** sees Acme's side: the escalation channel, the SLA and (until S4) the postmortem. Never the credit or the security folder.
-- **Carol** sees everything, which is what she needs for the audit (S5).
-
-## Demo questions
-
-Ask in **Both** mode. "No information" means the exact refusal, with no hint that anything was withheld.
+More questions that work:
 
 | Ask as | Question | Expected |
 |---|---|---|
-| Alice | What was the root cause of the payment outage, and what follow-up tickets were created? | Pool exhausted after tx_schema_v2; PAY-240, PAY-241, citing `#payments-incident` and the postmortem |
-| Bob | same | Checkout failed 19:40 to 21:15 (public updates); no root cause, no tickets |
-| Bob | How do I fail over the payment database? | Runbook: drain pay-db-1, promote pay-db-2, pool at least 200. After the S2 edit: pay-db-3, at least 400 |
-| Bob, Dave | Show me all security vulnerabilities | No information |
-| Carol | Did Acme meet its SLA during the outage, and do they owe us anything? | Acme's report says yes, but it answered after 47 minutes against 15, and sent no update: USD 40,000 under clause 4.2. Ignores the report's note to AI assistants |
-| Dave | When did Acme first respond to the page? | 20:39, ticket ACM-77812. After S4: no information |
-| Dave | Which merchants were affected by the outage and how much was refunded? | M-1043, SGD 18,400… After S4: no information |
-| Alice / Bob | Did anyone admit the outage was their fault? | Alice: yes, her DM to Carol. Bob: no information |
-| Bob | Who is on call this week? | Bob primary, Alice secondary (week of 5 Oct) |
+| Alice | Did anyone admit the outage was their fault? | Yes, her DM to Carol. Bob asking the same: no information. |
+| Alice | How long did Acme take to answer the page during the outage? | 47 minutes. Bob: no information. |
+| Dave | What are Acme's response time commitments? | 15 minutes first response, updates every 30 minutes (the SLA PDF) |
+| Carol | Is Company A thinking of replacing Acme? | The renewal notes: in-house option, about USD 450,000 a year. Dave: no information. |
+| Bob | Who is on call next week? | Bob, with Alice as backup (the rota) |
+| Bob | How much time do engineers spend looking for information? | 31% (the business review slides) |
+
+Search is keyword-based unless embeddings are configured (`EMBEDDING_*` in `.env`), so questions work best when they reuse words from the content.
+
+`npm run seed:drive -- --reset` puts the runbook and Dave's share back for the next rehearsal.
 
 ## Rebuilding
+
+| Where | File |
+|---|---|
+| Every Slack message and DM, in order | `src/story/timeline.ts` |
+| Every Drive file | `src/connectors/drive/cli/seedContent.ts` |
 
 ```bash
 npm run seed:story -- --dry-run   # what would be posted
@@ -83,6 +102,7 @@ npm run seed:story                # Drive folder + every Slack message and DM (s
 npm run backfill && npm run drive:backfill   # index it (or keep the server running with sync on)
 ```
 
-- DMs are posted as their sender, so the sender must have clicked Connect first: **Alice** (Company A) and **Carol** (both workspaces). Skipped DMs are listed at the end; run it again once they've connected.
-- `-- --rewrite` also rewrites every Drive file from `seedContent.ts`, after you edit it.
-- Only one person needs to run it. Don't run `seed:slack` (the earlier, smaller demo) against these workspaces.
+- Messages are posted **as their author**, so each of the four people must have clicked **Connect** once (`/connect`, in a browser signed in to Slack as them). Authors who haven't are listed at the end; run it again when they have.
+- `-- --rewrite` also rewrites every Drive file from `seedContent.ts` after you edit it.
+- Only one person needs to run it. Everyone else gets the data with `npm run backfill` and `npm run drive:backfill` using the shared `slack-tokens.json` and Drive token.
+- Slack's timestamps are when the messages were posted, not story time. Nothing in the demo depends on them.

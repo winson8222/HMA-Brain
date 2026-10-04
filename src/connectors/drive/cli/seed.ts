@@ -4,11 +4,9 @@
 //   --edit-runbook          S2: the runbook owner's update (pay-db-2 retired, promote pay-db-3, pool at least 400)
 //   --close-vendor-access   S4: remove Dave's share on the postmortem
 //   --reset                 between rehearsals: runbook back to the original, every share restored
-//   --batch 1|2|4           set the DB migration plan's status (1 paused after the outage, 2 resumed, 4 late Oct)
 //   --rewrite               rewrite every file from seedContent.ts (after editing the content)
 import { accountEmail, explain } from "../client.js";
-import { closeVendorAccess, seed, setMigrationStage, setRunbook, sgtNow } from "./seedOps.js";
-import { MIGRATION_STAGES } from "./seedContent.js";
+import { closeVendorAccess, seed, setRunbook, sgtNow } from "./seedOps.js";
 
 async function main() {
   const has = (flag: string) => process.argv.includes(flag);
@@ -17,13 +15,6 @@ async function main() {
     return console.log("Runbook updated: pay-db-2 retired, failover to pay-db-3, pool at least 400.");
   }
   if (has("--close-vendor-access")) return closeVendorAccess();
-  const b = process.argv.indexOf("--batch");
-  if (b >= 0) {
-    const stage = Number(process.argv[b + 1]);
-    if (!MIGRATION_STAGES.includes(stage)) throw new Error(`--batch needs one of: ${MIGRATION_STAGES.join(", ")}`);
-    await setMigrationStage(stage);
-    return console.log(`DB migration plan status set to stage ${stage}.`);
-  }
   await seed((await accountEmail())?.toLowerCase() ?? "", has("--rewrite"));
   if (has("--reset")) {
     await setRunbook();
