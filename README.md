@@ -224,7 +224,7 @@ Use **Demo** mode with the compare view for 1–6, and **Me** mode for 7.
 
 | # | Do | Expect |
 |---|---|---|
-| 1 | **Ask**, Carol vs Alice: `What do we know about the payment outage?` | **Union:** Carol's answer draws on both workspaces (the vendor contract penalty in 🔒 `#vendor-contracts`) and her DMs. **Isolation:** Alice gets workspace A and her own DMs, nothing from the Vendors workspace. |
+| 1 | **Ask**, Carol vs Alice: `What do we know about the payment outage?` | **Union:** Carol's answer draws on both workspaces (Acme's follow-up in `#acme-support`) and her DMs. **Isolation:** Alice gets workspace A and her own DMs, nothing from the Vendors workspace. |
 | 2 | **Ask**, Alice vs Bob: `What caused the payment outage?` | Alice gets the root cause from 🔒 `#payments-incident` and her DM with Carol. Bob gets "I don't have information on that" plus only public hints and the group DM he's in. |
 | 3 | **Search**, Bob vs Carol: `migration flag` | Carol sees the Alice ↔ Carol DM; Bob, who isn't in it, gets nothing from it. |
 | 4 | **Search** as Dave: `outage`, then `vulnerability` | Dave sees `#acme-support`, the postmortem and his DM with Carol, but never 🔒 `#payments-incident` or the Security folder. |
