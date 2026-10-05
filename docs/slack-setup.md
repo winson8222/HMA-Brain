@@ -6,13 +6,13 @@ The demo uses **two Slack workspaces** and people's **private messages (DMs)**:
 
 | Workspace | Key | People | Channels |
 |---|---|---|---|
-| **Company A Demo** | `main` | Carol, Alice, Bob, Dave | `#payments`, `#db-migration`, `#vendor-support`, 🔒 `#payments-incident`, 🔒 `#security` |
-| **Company A – Vendors** | `vendors` | Carol, Dave | `#vendor-general`, 🔒 `#vendor-contracts` |
+| **Company A** | `main` | Carol (owner), Alice, Bob | `#all-company-a`, `#payments`, `#engineering`, `#social`, 🔒 `#payments-incident`, 🔒 `#security` |
+| **Company A – Vendors** | `vendors` | Carol (owner), Dave | `#all-company-a-vendors`, `#acme-support` |
 
-Plus three DMs: Alice ↔ Carol and a group DM Alice/Bob/Carol (in `main`), and Carol ↔ Dave (in `vendors`).
+Plus DMs: Carol → Alice and Bob, Alice ↔ Carol (in `main`), and Carol ↔ Dave (in `vendors`). Both workspaces were created by Carol (`carolhmatest@gmail.com`), and only the four personas are in them. What's in them and when it was posted: [demo-data.md](demo-data.md).
 
 **What you do by hand:** create the workspaces, people and Slack apps (steps 1–4), and have personas click Connect (step 6).
-**What the script does:** channels, members and all messages (`npm run seed:slack`).
+**What the script does:** channels, members and all messages (`npm run seed:story`, see [demo-data.md](demo-data.md#rebuilding)). `npm run seed:slack` is the earlier, smaller demo; don't run it against the story's workspaces.
 
 Already set up and just joining as a teammate? Go to [step 8](#8-teammates-joining-an-existing-setup).
 
@@ -21,7 +21,7 @@ Already set up and just joining as a teammate? Go to [step 8](#8-teammates-joini
 ## 1. Create workspace A (skip if it exists)
 
 1. Go to https://slack.com/get-started#/createnew and sign up with your own email. You become the owner, and you'll play **Carol**.
-2. Name it `Company A Demo`. Stay on the **Free** plan.
+2. Name it `Company A`. Stay on the **Free** plan.
 
 ## 2. Create the demo people
 
@@ -32,7 +32,7 @@ Each persona needs its own email (separate Gmail accounts work best). Invite the
 | **Carol** (you, the owner) | `CAROL_EMAIL` | Security team, in both workspaces, sees the most |
 | **Alice** | `ALICE_EMAIL` | Backend engineer on the payments incident |
 | **Bob** | `BOB_EMAIL` | Junior engineer, public channels only |
-| **Dave** | `DAVE_EMAIL` | "Contractor": in `#vendor-support` in A, and in workspace B |
+| **Dave** | `DAVE_EMAIL` | "Contractor" from Acme: in workspace B only |
 
 Put the four emails in `.env`. The seed script uses them to find each person in each workspace, so the email **must be the same** in both workspaces.
 
@@ -152,9 +152,9 @@ Each persona opens **http://localhost:3000/connect** in **their own browser prof
 
 | Persona | Connect |
 |---|---|
-| **Alice** | Company A Demo (needed: she sends a demo DM) |
-| **Carol** | Company A Demo **and** Company A – Vendors (needed: she sends demo DMs in both) |
-| Bob, Dave | Optional. Their DMs are already readable through Alice's and Carol's connections |
+| **Alice**, **Bob** | Company A (every message is posted as its author) |
+| **Carol** | Company A **and** Company A – Vendors (needed: she sends demo DMs in both) |
+| **Dave** | Company A – Vendors |
 
 Connecting also **signs that browser in**, which is what the main page's **Me** mode uses.
 

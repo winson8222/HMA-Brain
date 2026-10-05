@@ -1,6 +1,7 @@
 // Slack as a connector: wraps the permission-aware retrieval in src/search.ts.
 import type { AuditDoc } from "../../audit/chain.js";
 import { retrieve, toResult, type LoggedDoc } from "../../search.js";
+import { localDateTime } from "../../time.js";
 import type { Connector, Evidence } from "../types.js";
 
 const where = (d: { kind: string; channel: string }) => (d.kind === "channel" ? `#${d.channel}` : d.channel);
@@ -46,5 +47,5 @@ export const slack: Connector = {
     };
   },
 
-  describe: (e) => `${e.location} · ${e.title} · ${e.author ?? "unknown"} · ${(e.time ?? "").slice(0, 16).replace("T", " ")}`,
+  describe: (e) => `${e.location} · ${e.title} · ${e.author ?? "unknown"} · ${localDateTime(e.time)}`,
 };

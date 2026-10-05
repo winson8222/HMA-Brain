@@ -19,6 +19,8 @@ export const config = {
   sessionSecret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
   sessionSecretIsRandom: !process.env.SESSION_SECRET,
   tokensFile: process.env.SLACK_TOKENS_FILE ?? "slack-tokens.json",
+  // The company's time zone: times in the model's prompt (and "today") are given in it, with the zone named.
+  timeZone: process.env.TIME_ZONE || "Asia/Singapore",
 
   // Hybrid retrieval knobs (see src/hybrid.ts; mode itself is resolved there, lazily from env)
   hybridCandidates: Number(process.env.HYBRID_CANDIDATES ?? 50),

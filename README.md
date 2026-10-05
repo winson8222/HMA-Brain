@@ -125,6 +125,7 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run verify` | Per channel and DM: messages in Slack vs Elasticsearch, plus label correctness. Exits 1 on mismatch |
 | `npm run drive:connect` | One time: sign in as the Drive admin and save the token ([Drive setup](docs/drive-setup.md)) |
 | `npm run seed:drive` | Create the demo "Company A" folder **in Drive**: 19 files, 8 formats (`-- --edit-runbook`, `--close-vendor-access`, `--reset`: see docs/drive-setup.md) |
+| `npm run seed:story` | Build the whole demo story: the Drive folder plus every Slack message and DM (`-- --dry-run` to preview): see docs/demo-data.md |
 | `npm run drive:backfill` | Index everything under the Drive folder; unchanged files are skipped (`-- --reset` rebuilds the Drive indexes only) |
 | `npm run drive:poll` | Apply Drive changes since the last run (`-- --watch` to keep polling) |
 | `npm run drive:verify` | Drive vs Elasticsearch: files, labels, content. Exits 1 on mismatch |
@@ -258,7 +259,7 @@ The demo personas reuse `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL` and `DAVE_EMAI
 2. **Tokens and `.env`.** Carol's classic token goes in `JIRA_ADMIN_*`. Set `JIRA_BASE_URL`, `JIRA_EMAIL` (the crawler's address) and `JIRA_PROJECTS`.
 3. **`npm run seed:jira`.** The first run invites Alice, Bob, Dave and the crawler, then stops. Each accepts the invite email with that exact address.
 4. **Crawler token.** Signed in as the crawler, create its classic token and set `JIRA_API_TOKEN`. Optionally add the persona tokens too.
-5. **`npm run seed:jira` again.** It builds everything: groups, PAY/SEC/VEND, Task/Bug work types, the Approvers and Owning team fields, permission and security schemes, and the 14 issues with comments.
+5. **`npm run seed:jira` again.** It builds everything: groups, PAY/SEC/VEND, Task/Bug work types, the Approvers and Owning team fields, permission and security schemes, and the 15 issues with comments. After `seedData.ts` changes, run **`npm run seed:jira -- --update`** instead: a plain run leaves existing issues alone, and `--update` rewrites their fields, security level, status and comments. Never delete an issue to redo it: Jira doesn't reuse issue numbers, so its key is gone for good.
 6. **Make the crawler a Jira admin.** admin.atlassian.com → Directory → Users → the crawler → **Apps** → Jira → Roles: tick **User** and **User access admin**. The Global permissions page in Jira doesn't offer "Administer Jira" any more.
 7. **Connect Jira OAuth app, created once.** developer.atlassian.com/console/myapps, preferably as the crawler → **Create** → **OAuth 2.0 integration**. Then:
    - **Permissions:** User identity API (`read:me`), at account level.
@@ -268,7 +269,7 @@ The demo personas reuse `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL` and `DAVE_EMAI
 8. **Check and index:**
    ```bash
    npm run jira:doctor      # every line ok, then "nobody has connected Jira yet"
-   npm run jira:backfill    # 14 issues; right after seeding, Jira's search can lag, so re-run after a minute if it finds fewer
+   npm run jira:backfill    # 15 issues; right after seeding, Jira's search can lag, so re-run after a minute if it finds fewer
    ```
 9. **Start the app and link each persona.** Start with `npm run dev`, or `SLACK_SYNC=off npm run dev` if Slack's live connection hangs. Then, for each of Alice, Bob, Carol and Dave:
    - In their own browser profile, open `http://localhost:3000/connect.html` (localhost, not 127.0.0.1).
@@ -298,10 +299,10 @@ Use **Demo** mode with the compare view for 1–6, and **Me** mode for 7.
 
 | # | Do | Expect |
 |---|---|---|
-| 1 | **Ask**, Carol vs Alice: `What do we know about the payment outage?` | **Union:** Carol's answer draws on both workspaces (the vendor contract penalty in 🔒 `#vendor-contracts`) and her DMs. **Isolation:** Alice gets workspace A and her own DMs, nothing from the Vendors workspace. |
+| 1 | **Ask**, Carol vs Alice: `What do we know about the payment outage?` | **Union:** Carol's answer draws on both workspaces (Acme's follow-up in `#acme-support`) and her DMs. **Isolation:** Alice gets workspace A and her own DMs, nothing from the Vendors workspace. |
 | 2 | **Ask**, Alice vs Bob: `What caused the payment outage?` | Alice gets the root cause from 🔒 `#payments-incident` and her DM with Carol. Bob gets "I don't have information on that" plus only public hints and the group DM he's in. |
 | 3 | **Search**, Bob vs Carol: `migration flag` | Carol sees the Alice ↔ Carol DM; Bob, who isn't in it, gets nothing from it. |
-| 4 | **Search** as Dave: `outage`, then `contract` | Dave sees `#vendor-general` and his DM with Carol, but never 🔒 `#vendor-contracts`. |
+| 4 | **Search** as Dave: `outage`, then `vulnerability` | Dave sees `#acme-support`, the postmortem and his DM with Carol, but never 🔒 `#payments-incident` or the Security folder. |
 | 5 | Remove Alice from `#payments-incident` in Slack, then Alice asks again | Root cause from the channel is gone. Add her back and it returns. |
 | 6 | Post a new DM or channel message in Slack (with `SLACK_SYNC=on`) | Appears within seconds (the status bar shows the event) |
 | 7 | Switch to **Me** in a persona's signed-in browser and ask | Answers as that person only. On `/connect`, **Disconnect** removes their DMs unless another participant is still connected. |

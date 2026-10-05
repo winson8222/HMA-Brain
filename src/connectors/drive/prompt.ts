@@ -1,6 +1,7 @@
 // What the LLM is told, and how its answer is read back. Pure functions, unit-tested.
 // Only chunks that passed both permission checks ever reach buildContext().
 import type { DriveDoc } from "./docs.js";
+import { localDateOf } from "../../time.js";
 
 export const NO_INFO = "I don't have information on that.";
 
@@ -28,7 +29,7 @@ export function bodyOf(d: Pick<DriveDoc, "title" | "path" | "text">): string {
 export function buildContext(docs: Excerpt[]): string {
   return docs
     .map((d, i) => {
-      const where = [`"${d.title}"`, d.path, d.heading ? `section: ${d.heading}` : "", `updated ${d.modified_at?.slice(0, 10) ?? "unknown"}`];
+      const where = [`"${d.title}"`, d.path, d.heading ? `section: ${d.heading}` : "", `updated ${localDateOf(d.modified_at)}`];
       return `[${i + 1}] ${where.filter(Boolean).join(" · ")}\n${bodyOf(d) || "(title only, no text)"}`;
     })
     .join("\n\n");
