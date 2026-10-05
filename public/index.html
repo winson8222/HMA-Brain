@@ -63,15 +63,13 @@
   .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .topbar { position: sticky; top: 0; z-index: 5; height: 73px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--panel); }
   .topbar .mlogo { display: none; margin-right: auto; }
-  #status { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--secondary); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
-  #status.down::before { background: var(--deny); }
   .who { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
   .who b { color: var(--text); font-weight: 600; }
+  .who #signout { margin-left: 10px; padding-left: 16px; border-left: 1px solid var(--border); border-radius: 0; }
   .who a, .linkbtn { color: var(--accent-text); background: none; border: 0; padding: 0; font: 500 12px var(--font); cursor: pointer; text-decoration: none; }
   .who a:hover, .linkbtn:hover { background: none; text-decoration: underline; }
   .avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--accent); color: var(--accent-text); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
-  .vsep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  .avatar.off { background: var(--secondary); color: var(--muted); border-color: var(--border); }
 
   .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 32px 32px 0; }
 
@@ -107,8 +105,17 @@
   button.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
   button.ghost:hover { background: var(--secondary); }
 
-  .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
-  .sources .lbl2 { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; margin-right: 4px; }
+  .setbtn { padding: 7px 10px; gap: 7px; background: var(--panel); color: var(--secondary-text); border: 1px solid var(--border); font-size: 12px; min-width: 0; }
+  .setbtn:hover, .setbtn[aria-expanded="true"] { background: var(--secondary); color: var(--text); }
+  .setbtn .ico { width: 14px; height: 14px; }
+  .setbtn .setsum { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .setbtn .setsum:not(:empty)::before { content: "· "; }
+  .setbtn .chev { transition: transform .15s; }
+  .setbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .settings { border-top: 1px solid var(--border); background: #fbfcfb; border-radius: 0 0 14px 14px; }
+  .setrow, .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; font-size: 11px; color: var(--muted); }
+  .setrow + .sources { border-top: 1px dashed var(--border); }
+  .lbl2 { width: 76px; flex-shrink: 0; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); }
   .sources label { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--secondary-text); font-size: 12px; cursor: pointer; }
   .sources label:has(input:checked) { border-color: var(--border-strong); background: var(--mint-soft); color: var(--text); }
   .sources .pi { width: 14px; height: 14px; }
@@ -119,8 +126,6 @@
   .tries button { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--secondary-text); font-size: 12px; font-weight: 400; }
   .tries button:hover { border-color: var(--border-strong); background: var(--mint-soft); color: var(--text); }
   .tries button .ico { width: 13px; height: 13px; color: var(--muted); }
-  .secnote { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0 0; font-size: 12px; color: var(--muted); }
-  .secnote .ico { width: 13px; height: 13px; }
 
   /* ---- Result panes ---- */
   main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 28px 0 32px; }
@@ -133,7 +138,24 @@
   .melabel { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--mint-soft); font-weight: 600; font-size: 13px; }
   .chips { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 14px; }
   .wsgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .wslabel { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-right: 2px; }
+  .wslabel { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-right: 2px; }
+  .wslabel .pi { width: 12px; height: 12px; }
+  .chip.off { background: var(--secondary); color: var(--muted); }
+  .wsgroup .more { display: contents; }
+  .wsgroup .more[hidden] { display: none; }
+  .morebtn { padding: 3px 9px; font-size: 11px; font-weight: 500; background: var(--panel); color: var(--accent-text); border: 1px dashed var(--border-strong); }
+  .morebtn:hover { background: var(--mint-soft); }
+  .accx { display: contents; }
+  .accessbox { margin: 8px 0 0; }
+  .accessbox summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .accessbox summary::-webkit-details-marker { display: none; }
+  .accessbox summary:hover { color: var(--accent-text); }
+  .accessbox summary .ico { width: 12px; height: 12px; }
+  .accessbox summary .chev { transition: transform .15s; }
+  .accessbox[open] summary .chev { transform: rotate(180deg); }
+  .accessbox .chips { margin: 0; padding: 8px 0 4px; gap: 6px; }
+  .accessbox .chip { font-size: 10px; padding: 2px 7px; }
+  .accessbox .wsgroup { gap: 4px; }
   .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
   .chip.priv, .badge.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
   .result { border-top: 1px solid var(--border); padding: 14px 0; }
@@ -153,7 +175,18 @@
   .answer a.cite:hover { background: var(--accent); border-color: var(--border-strong); }
   .kw { font-size: 11px; color: var(--muted); padding-bottom: 8px; }
   .srclbl { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
-  .result:target { background: var(--mint-soft); margin: 0 -10px; padding: 14px 10px; border-radius: 10px; }
+  .result.hit { background: var(--mint-soft); margin: 0 -10px; padding: 14px 10px; border-radius: 10px; transition: background .3s; }
+  .srcgroup { border: 1px solid var(--border); border-radius: 10px; margin-top: 8px; padding: 0 12px; }
+  .srcgroup summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 0; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); }
+  .srcgroup summary::-webkit-details-marker { display: none; }
+  .srcgroup summary .pi { width: 14px; height: 14px; }
+  .srcgroup summary .count { padding: 0 7px; border-radius: 999px; background: var(--secondary); color: var(--muted); font-size: 10px; font-weight: 500; line-height: 18px; }
+  .srcgroup summary .chev { width: 14px; height: 14px; margin-left: auto; color: var(--muted); transition: transform .15s; }
+  .srcgroup[open] summary .chev { transform: rotate(180deg); }
+  .srcgroup summary:hover { color: var(--accent-text); }
+  .srcgroup .result:first-of-type { border-top: 1px solid var(--border); }
+  .srcgroup .result { padding: 12px 0; }
+  .srcgroup .result .badge.src { display: none; }
 
   /* ---- Pages ---- */
   .pagehead { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
@@ -163,25 +196,6 @@
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
   .sechead { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); margin: 0 0 12px; }
 
-  /* Sources page */
-  .srcgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px; }
-  .srccard { display: flex; flex-direction: column; gap: 14px; }
-  .srccard .top { display: flex; align-items: center; gap: 12px; }
-  .srccard .plogo { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .srccard .plogo .pi { width: 22px; height: 22px; }
-  .srccard h3 { margin: 0; font: 600 16px var(--display); }
-  .srccard .sub { font-size: 11px; color: var(--muted); }
-  .pill { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .pill.on { background: var(--mint-soft); color: var(--ok); }
-  .pill.warn { background: var(--priv-bg); color: var(--priv); }
-  .pill.off { background: var(--secondary); color: var(--muted); }
-  .facts { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
-  .facts li { display: flex; justify-content: space-between; gap: 12px; }
-  .facts li span:first-child { color: var(--muted); }
-  .facts li span:last-child { text-align: right; overflow-wrap: anywhere; }
-  .srccard .hint { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
-  .srccard .hint a { color: var(--accent-text); font-weight: 500; }
 
   /* Audit page */
   .lockcard { max-width: 440px; margin: 24px auto 48px; text-align: center; padding: 32px; }
@@ -192,6 +206,25 @@
   .field { flex: 1; min-width: 0; padding: 10px 12px; font: 14px var(--font); border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); outline: none; }
   .field:focus { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(76,149,103,.12); }
   .err { margin-top: 12px; font-size: 12px; color: var(--deny); min-height: 1em; }
+  .secsub { margin: -6px 0 12px; font-size: 12px; color: var(--muted); }
+  .srcgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .srccard { display: flex; flex-direction: column; gap: 14px; }
+  .srccard .top { display: flex; align-items: center; gap: 12px; }
+  .plogo { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .plogo .pi { width: 22px; height: 22px; }
+  .srccard .name { font: 600 15px var(--display); }
+  .srccard .sub { font-size: 12px; color: var(--muted); margin-top: -4px; }
+  .pill { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.on { background: var(--mint-soft); color: var(--ok); }
+  .pill.warn { background: var(--priv-bg); color: var(--priv); }
+  .pill.off { background: var(--secondary); color: var(--muted); }
+  .facts { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
+  .facts li { display: flex; justify-content: space-between; gap: 12px; }
+  .facts li span:first-child { color: var(--muted); }
+  .facts li span:last-child { text-align: right; overflow-wrap: anywhere; }
+  .srccard .hint { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .srccard .hint a { color: var(--accent-text); font-weight: 500; }
   .devnotes { margin-bottom: 20px; }
   .devnote { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--priv-bg); color: #6e4b10; font-size: 12px; overflow-wrap: anywhere; }
   .devnote + .devnote { margin-top: 8px; }
@@ -201,24 +234,46 @@
   .devnote code { font-size: 11px; background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 4px; }
 
   section.log { margin: 0 0 32px; }
-  #log > .logrow:first-child { border-top: 0; padding-top: 0; }
-  .logrow { border-top: 1px solid var(--border); padding: 16px 0; font-size: 13px; }
-  .loghead { margin-bottom: 8px; color: var(--secondary-text); }
   .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
+  .logrow { border: 1px solid var(--border); border-radius: 10px; font-size: 13px; }
+  .logrow + .logrow { margin-top: 8px; }
+  .logrow[open] { border-color: var(--border-strong); }
+  .logrow summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; color: var(--secondary-text); }
+  .logrow summary::-webkit-details-marker { display: none; }
+  .logrow summary:hover { background: var(--secondary); border-radius: 10px; }
+  .ltime { width: 64px; flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .lwho { flex-shrink: 0; white-space: nowrap; }
+  .lq { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lq b { color: var(--text); font-weight: 500; }
+  .lsrc { display: flex; gap: 4px; flex-shrink: 0; }
+  .lsrc .pi { width: 13px; height: 13px; }
+  .lcount { flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+  .lcount.allow { background: var(--mint-soft); }
+  .lcount.deny { background: var(--deny-bg, #fdeef0); }
+  .logrow summary .chev { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; transition: transform .15s; }
+  .logrow[open] summary .chev { transform: rotate(180deg); }
+  .lbody { padding: 4px 14px 14px; border-top: 1px solid var(--border); }
+  .lmeta { font-size: 11px; color: var(--muted); margin: 10px 0 8px; }
+  .docs { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 3px solid var(--border); font-size: 12px; }
+  .docs li { padding: 6px 0; overflow-wrap: anywhere; color: var(--secondary-text); }
+  .docs li + li { border-top: 1px dashed var(--border); }
+  .dhead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .dhead .pi { width: 13px; height: 13px; }
+  .dhead b { color: var(--text); font-weight: 600; }
+  .dloc { font-size: 10px; color: var(--muted); }
+  .dtext { margin-top: 2px; font-size: 11px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .logans { margin: 4px 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--secondary); border: 1px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
   .lbl { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
-  .docs { list-style: none; margin: 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--border); font-size: 12px; }
   .docs.allow { border-color: var(--ok); } .docs.deny { border-color: var(--deny); }
-  .docs li { padding: 4px 0; overflow-wrap: anywhere; color: var(--secondary-text); }
   .none { color: var(--muted); font-size: 11px; padding-left: 13px; }
   .allow { color: var(--ok); } .deny { color: var(--deny); }
 
-  footer { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; padding: 16px 32px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); }
+  footer { margin-top: auto; display: flex; justify-content: flex-end; gap: 12px; padding: 16px 32px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); }
   footer span { display: flex; align-items: center; gap: 6px; }
   footer .ico { width: 12px; height: 12px; }
 
-  @media (max-width: 1000px) { .shell:not(.collapsed) aside { width: 208px; } #status, .vsep { display: none; } }
+  @media (max-width: 1000px) { .shell:not(.collapsed) aside { width: 208px; } }
   @media (max-width: 768px) {
     aside { display: none; }
     .topbar { padding: 0 16px; gap: 10px; }
@@ -235,8 +290,11 @@
     .mark { display: none; }
     main { grid-template-columns: 1fr; }
     .formhint { display: none; }
+    .setbtn .setsum { display: none; }
+    .lbl2 { width: 100%; }
     form button { margin-left: auto; }
     .card { padding: 16px; }
+    .lsrc, .ltime { display: none; }
     .who .wname { display: none; }
   }
 </style>
@@ -247,9 +305,12 @@
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></symbol>
-  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></symbol>
   <symbol id="p-slack" viewBox="0 0 24 24"><rect x="2" y="9" width="10" height="4" rx="2" fill="#36C5F0"/><rect x="8" y="2" width="4" height="6" rx="2" fill="#36C5F0"/><rect x="13" y="2" width="4" height="10" rx="2" fill="#2EB67D"/><rect x="18" y="8" width="4" height="4" rx="2" fill="#2EB67D"/><rect x="12" y="13" width="10" height="4" rx="2" fill="#ECB22E"/><rect x="12" y="18" width="4" height="4" rx="2" fill="#ECB22E"/><rect x="7" y="12" width="4" height="10" rx="2" fill="#E01E5A"/><rect x="2" y="14" width="4" height="4" rx="2" fill="#E01E5A"/></symbol>
@@ -263,7 +324,7 @@
     <div class="navlbl">WORKSPACE</div>
     <nav>
       <a href="#ask" data-view="ask" class="active" title="Ask Aspire Atlas"><svg><use href="#i-spark"/></svg><span class="nt">Ask Aspire Atlas</span><span class="tag">AI</span></a>
-      <a href="#sources" data-view="sources" title="Sources"><svg><use href="#i-plug"/></svg><span class="nt">Sources</span></a>
+      <a href="/connect.html" title="Connections"><svg><use href="#i-link"/></svg><span class="nt">Connections</span></a>
       <a href="#audit" data-view="audit" title="Audit log"><svg><use href="#i-shield"/></svg><span class="nt">Audit log</span><span class="tag">Admin</span></a>
     </nav>
     <div class="trust">
@@ -276,8 +337,6 @@
   <div class="content">
     <div class="topbar">
       <a class="mlogo" href="#ask" aria-label="Aspire Atlas home"><img src="aspire-logo.png" alt="Aspire" /></a>
-      <div id="status">Connecting…</div>
-      <div class="vsep"></div>
       <div class="who" id="who"></div>
     </div>
 
@@ -300,35 +359,31 @@
               <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
               <label><input type="radio" name="mode" value="search" /> Search</label>
             </div>
-            <div class="modes" role="radiogroup" aria-label="Who is asking" id="asWho">
-              <label title="Act as anyone (demo)"><input type="radio" name="as" value="demo" checked /> Demo</label>
-              <label title="Ask as the person signed in on this browser"><input type="radio" name="as" value="me" /> Me</label>
-            </div>
-            <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two people</label>
+            <button type="button" class="setbtn" id="setbtn" aria-expanded="false" aria-controls="settings">
+              <svg class="ico"><use href="#i-sliders"/></svg><span class="setlbl">Settings</span><span class="setsum" id="setsum"></span><svg class="ico chev"><use href="#i-chev"/></svg>
+            </button>
             <span class="formhint">↵ to search</span>
             <button id="go"><svg class="ico" style="width:14px;height:14px"><use href="#i-spark"/></svg><span>Ask</span></button>
           </form>
-          <div class="sources" id="sources" aria-label="Sources to search"></div>
+          <div class="settings" id="settings" hidden>
+            <div class="setrow">
+              <span class="lbl2">ASKING AS</span>
+              <div class="modes" role="radiogroup" aria-label="Who is asking" id="asWho">
+                <label title="Act as anyone (demo)"><input type="radio" name="as" value="demo" checked /> Demo</label>
+                <label title="Ask as the person signed in on this browser"><input type="radio" name="as" value="me" /> Me</label>
+              </div>
+              <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two people</label>
+            </div>
+            <div class="sources" id="sources" aria-label="Sources to search"></div>
+          </div>
         </div>
 
         <div class="tries" id="tries"></div>
-        <div class="secnote"><svg class="ico"><use href="#i-lock"/></svg>Answers only use information each person has permission to access.</div>
 
         <main>
           <div class="pane" id="p0"></div>
           <div class="pane" id="p1"></div>
         </main>
-      </div>
-
-      <!-- Sources -->
-      <div class="view" id="view-sources" hidden>
-        <div class="pagehead">
-          <div>
-            <h1>Sources</h1>
-            <p>Where Atlas looks for answers. Connected sources can be searched; each person still only sees what they have access to there.</p>
-          </div>
-        </div>
-        <div class="srcgrid" id="srcgrid"></div>
       </div>
 
       <!-- Audit -->
@@ -353,6 +408,9 @@
         </div>
 
         <div id="auditUnlocked" hidden>
+          <div class="sechead">COMPANY SOURCES</div>
+          <p class="secsub">What Atlas itself is connected to. This is the same for everyone; each person still only sees what they can access.</p>
+          <div class="srcgrid" id="srcgrid"></div>
           <div class="card devnotes">
             <div class="sechead">SYSTEM MESSAGES</div>
             <div id="devnotes"></div>
@@ -366,7 +424,6 @@
     </div>
 
     <footer>
-      <span><svg class="ico"><use href="#i-refresh"/></svg><span id="footsync">Synced from your connected sources</span></span>
       <span class="tagline"><svg class="ico"><use href="#i-shield"/></svg>Grounded in your knowledge. Built on trust.</span>
     </footer>
   </div>
@@ -388,6 +445,28 @@
     try { localStorage.setItem("sidebarCollapsed", c ? "1" : "0"); } catch {}
   };
 })();
+// Ask settings (who's asking, compare, sources): collapsed by default, remembered per browser.
+(() => {
+  const btn = document.getElementById("setbtn"), panel = document.getElementById("settings");
+  const set = (open) => { panel.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
+  try { set(localStorage.getItem("askSettingsOpen") === "1"); } catch {}
+  btn.onclick = () => {
+    const open = panel.hidden;
+    set(open);
+    try { localStorage.setItem("askSettingsOpen", open ? "1" : "0"); } catch {}
+  };
+})();
+// One-line summary on the Settings button, e.g. "Demo · 2 people · All sources".
+function updateSettingsSummary() {
+  const q = (s) => document.querySelector(s);
+  const parts = [];
+  if (q("#asWho").style.display !== "none") parts.push(q('input[name="as"]:checked').value === "me" ? "Me" : "Demo");
+  if (q("#compare").parentElement.style.display !== "none") parts.push(q("#compare").checked ? "2 people" : "1 person");
+  const boxes = [...document.querySelectorAll("#sources input")], on = boxes.filter((b) => b.checked);
+  if (boxes.length) parts.push(on.length === boxes.length ? "All sources" : on.length ? on.map((b) => b.parentElement.textContent.trim()).join(", ") : "No sources");
+  q("#setsum").textContent = parts.join(" · ");
+}
+["change", "click"].forEach((t) => document.getElementById("settings").addEventListener(t, () => setTimeout(updateSettingsSummary)));
 </script>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -395,7 +474,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 let users = [], me = { signedIn: false }, cfg = { allowImpersonation: true }, connectorList = [];
 let lastStatus = null, driveHealth = null;
 
-// Every source Atlas knows about. The server registers only the ones configured in .env (GET /api/connectors).
+// Icons for the sources the server registers (GET /api/connectors).
 const CATALOG = [
   { name: "slack", label: "Slack", icon: "p-slack", about: "Channels, DMs and threads across workspaces" },
   { name: "drive", label: "Google Drive", icon: "p-drive", about: "Docs, Sheets, Slides and PDFs shared with each person" },
@@ -450,9 +529,39 @@ const mode = () => document.querySelector('input[name="mode"]:checked').value;
 const asWho = () => (cfg.allowImpersonation ? document.querySelector('input[name="as"]:checked').value : "me");
 
 const chip = (a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`;
-const chipsHtml = (u) => (u.workspaces || []).map((w) => `
-  <div class="wsgroup"><span class="wslabel">${esc(w.workspace)}${w.isGuest ? " (guest)" : ""}</span>${w.items.map(chip).join("")}</div>`).join("")
-  + `<div class="wsgroup"><span class="wslabel">DMs</span><span class="chip priv">🔒 their own DMs</span></div>`;
+// One labelled row of access chips; rows longer than 8 show the first 6 and "+N more" until expanded.
+const accRow = (icon, label, chipList) => `
+  <div class="wsgroup"><span class="wslabel">${pIcon(icon)}${esc(label)}</span>${chipList.length > 8
+    ? `${chipList.slice(0, 6).join("")}<span class="more" hidden>${chipList.slice(6).join("")}</span><button type="button" class="chip morebtn">+${chipList.length - 6} more</button>`
+    : chipList.join("")}</div>`;
+const chipsHtml = (u) => (u.workspaces || []).map((w) =>
+  accRow("slack", `Slack · ${w.workspace}${w.isGuest ? " (guest)" : ""}`, [...w.items.map(chip), `<span class="chip priv">🔒 their own DMs</span>`])).join("")
+  + `<div class="accx"></div>`;
+// The pane's access list, collapsed under "Accessible sources"; stays open/closed when the person changes.
+const accessBox = (pane, u) => `
+  <details class="accessbox" ${pane.dataset.accOpen === "1" ? "open" : ""} ontoggle="this.closest('.pane').dataset.accOpen = this.open ? '1' : ''">
+    <summary><svg class="ico"><use href="#i-lock"/></svg>Accessible sources<svg class="ico chev"><use href="#i-chev"/></svg></summary>
+    <div class="chips">${chipsHtml(u)}</div>
+  </details>`;
+// Drive files and Jira projects for the person in a pane (filled in after the Slack chips).
+async function loadAccess(pane, who) {
+  const box = pane.querySelector(".accx");
+  if (!box || !connectorList.some((c) => c.name !== "slack")) return;
+  let a;
+  try { a = await api("/api/access", who); } catch { return; }
+  if (pane.querySelector(".accx") !== box) return; // the pane was re-rendered meanwhile
+  box.innerHTML = accessRowsHtml(a);
+}
+const accessRowsHtml = (a) =>
+  (a.drive ? accRow("drive", "Google Drive", a.drive.files.length ? a.drive.files.map((f) => chip({ label: f })) : [`<span class="chip off">No files shared</span>`]) : "")
+  + (a.jira ? accRow("jira", "Jira", !a.jira.linked ? [`<span class="chip off">Jira not linked</span>`]
+      : a.jira.projects.length ? a.jira.projects.map((p) => `<span class="chip" title="${esc(p.name)}">${esc(p.key)} · ${esc(p.name)}</span>`) : [`<span class="chip off">No projects</span>`]) : "");
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".morebtn");
+  if (!b) return;
+  b.previousElementSibling.hidden = false;
+  b.remove();
+});
 
 // Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
 function renderPane(pane, selectedId) {
@@ -462,16 +571,18 @@ function renderPane(pane, selectedId) {
     u = me.signedIn ? me : null;
     pane.dataset.user = "";
     pane.innerHTML = u
-      ? `<div class="melabel">You: ${esc(u.name)}</div><div class="chips">${chipsHtml(u)}</div><div class="results"></div>`
+      ? `<div class="melabel">You: ${esc(u.name)}</div>${accessBox(pane, u)}<div class="results"></div>`
       : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results"></div>`;
+    if (u) loadAccess(pane, { asMe: true });
     return;
   }
   u = users.find((x) => x.id === selectedId) || users[0];
   pane.dataset.user = u?.id || "";
   pane.innerHTML = `
     <select aria-label="Person">${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-    <div class="chips">${u ? chipsHtml(u) : ""}</div>
+    ${u ? accessBox(pane, u) : ""}
     <div class="results"></div>`;
+  if (u) loadAccess(pane, { personId: u.id });
   pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
 }
 
@@ -503,7 +614,22 @@ const unavailableHtml = (data) => data.unavailable?.length
 function renderResults(pane, data) {
   const box = pane.querySelector(".results");
   if (!data.results.length) { box.innerHTML = unavailableHtml(data) + `<div class="empty">${esc(data.message)}</div>`; return; }
-  box.innerHTML = unavailableHtml(data) + data.results.map((r) => resultHtml(r)).join("");
+  box.innerHTML = unavailableHtml(data) + groupedHtml(data.results, (r) => resultHtml(r), true);
+}
+
+// Results grouped by platform (Slack, Google Drive, Jira…) in collapsible sections.
+function groupedHtml(items, render, open) {
+  const groups = new Map();
+  items.forEach((r) => {
+    const k = r.source || r.sourceLabel;
+    if (!groups.has(k)) groups.set(k, { label: r.sourceLabel || k, items: [] });
+    groups.get(k).items.push(r);
+  });
+  return [...groups].map(([k, g]) => `
+    <details class="srcgroup" ${open ? "open" : ""}>
+      <summary>${pIcon(k)}<span>${esc(g.label)}</span><span class="count">${g.items.length}</span><svg class="ico chev"><use href="#i-chev"/></svg></summary>
+      ${g.items.map(render).join("")}
+    </details>`).join("");
 }
 
 function renderAnswer(pane, data) {
@@ -516,8 +642,21 @@ function renderAnswer(pane, data) {
   box.innerHTML = unavailableHtml(data) + `
     <div class="answer">${answer}</div>
     <div class="kw">Searched for: ${esc(data.keywords)}</div>
-    ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => resultHtml(s, id(s.n))).join("")}` : ""}`;
+    ${data.sources.length ? `<div class="srclbl">Sources · ${data.sources.length}</div>${groupedHtml(data.sources, (s) => resultHtml(s, id(s.n)), false)}` : ""}`;
 }
+
+// Citation [n]: open its platform group and scroll to it (without touching the page address).
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a.cite");
+  if (!a) return;
+  e.preventDefault();
+  const el = document.getElementById(a.getAttribute("href").slice(1));
+  if (!el) return;
+  el.closest("details")?.setAttribute("open", "");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("hit");
+  setTimeout(() => el.classList.remove("hit"), 1600);
+});
 
 async function runSearch() {
   const q = $("#q").value.trim();
@@ -540,14 +679,8 @@ async function runSearch() {
 
 // ---- Try prompts ----
 const EXAMPLES = {
-  ask: [
-    "What do we know about the payment outage?",
-    "Why were there too many open database connections?",
-    "What's our plan if the payments database dies?",
-    "What compensation are we getting because of the outage?",
-    "Did the morning sync get rescheduled?",
-  ],
-  search: ["outage", "migration", "failover", "breach", "SLA"],
+  ask: ["What do we know about the payment outage?", "Why were there too many open database connections?"],
+  search: ["outage", "migration"],
 };
 function renderTries() {
   const m = mode();
@@ -562,8 +695,8 @@ function renderTries() {
 const label = (src) => connectorList.find((c) => c.name === src)?.label || src;
 const docList = (docs, cls) => docs.length
   ? `<ul class="docs ${cls}">${docs.map((d) => `
-      <li title="${esc(d.id)}"><span class="badge src">${esc(label(d.source))}</span> <span class="badge ws">${esc(d.location)}</span>
-        <b>${esc(d.title)}</b>${d.text ? `: ${esc(d.text.length > 240 ? d.text.slice(0, 240) + "…" : d.text)}` : ""}</li>`).join("")}</ul>`
+      <li title="${esc(d.id)}"><div class="dhead">${pIcon(d.source)}<b>${esc(d.title)}</b><span class="dloc">${esc(d.location)}</span></div>
+        ${d.text ? `<div class="dtext">${esc(d.text)}</div>` : ""}</li>`).join("")}</ul>`
   : `<div class="none">none</div>`;
 
 function showLocked(message) {
@@ -587,20 +720,33 @@ async function loadLog() {
   $("#lockbtn").hidden = false;
   renderDevNotes();
   const name = (id) => (me.id === id && me.name) || users.find((u) => u.id === id)?.name || id;
+  const rowId = (e) => `${e.at}|${e.personId}|${e.query}`;
   $("#log").innerHTML = log.slice(0, 20).map((e) => `
-    <div class="logrow">
-      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.personId))}</b>
-        <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span>
-        ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}" in ${esc(e.sources.map(label).join(" + "))}
-        ${e.keywords ? `<span class="kw">(keywords: ${esc(e.keywords)})</span>` : ""}</div>
+    <details class="logrow" data-id="${esc(rowId(e))}" ${openLogRows.has(rowId(e)) ? "open" : ""}>
+      <summary>
+        <span class="ltime">${new Date(e.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+        <span class="lwho"><b>${esc(name(e.personId))}</b> <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span></span>
+        <span class="lq">${e.kind === "ask" ? "asked" : "searched"} <b>“${esc(e.query)}”</b></span>
+        <span class="lsrc">${e.sources.map(pIcon).join("")}</span>
+        <span class="lcount allow" title="Shown">✓ ${e.allowed.length}</span>
+        <span class="lcount deny" title="Withheld">✕ ${e.denied.length}</span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </summary>
+      <div class="lbody">
+      <div class="lmeta">In ${esc(e.sources.map(label).join(" + "))}${e.keywords ? ` · Keywords: ${esc(e.keywords)}` : ""}</div>
       ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
       <div class="cols">
         <div><div class="lbl allow">✓ Shown to ${esc(name(e.personId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
         <div><div class="lbl deny">✕ Withheld (${e.denied.length})</div>${docList(e.denied, "deny")}</div>
       </div>
-      ${e.droppedByRecheck.length ? `<div class="lbl deny">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
-    </div>`).join("") || `<div class="empty">No searches yet.</div>`;
+      ${e.droppedByRecheck.length ? `<div class="lbl deny" style="margin-top:12px">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
+      </div>
+    </details>`).join("") || `<div class="empty">No searches yet.</div>`;
+  $("#log").querySelectorAll("details.logrow").forEach((d) => d.addEventListener("toggle", () => {
+    d.open ? openLogRows.add(d.dataset.id) : openLogRows.delete(d.dataset.id);
+  }));
 }
+const openLogRows = new Set(); // which audit rows are expanded, kept when the log refreshes
 
 $("#lockform").onsubmit = (e) => {
   e.preventDefault();
@@ -612,68 +758,10 @@ $("#lockform").onsubmit = (e) => {
 };
 $("#lockbtn").onclick = () => { store.set("adminToken", ""); showLocked(); };
 
-// ---- Source health: shared by the status pill, the Sources page and the audit page's system messages ----
+// ---- Source health: shared by the status pill and the audit page's system messages ----
 async function loadDriveHealth() {
   if (!connectorList.some((c) => c.name === "drive")) { driveHealth = null; return; }
   try { driveHealth = await api("/api/drive/status"); } catch { driveHealth = null; }
-}
-const ago = (iso) => {
-  if (!iso) return "never";
-  const s = Math.round((Date.now() - new Date(iso)) / 1000);
-  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(iso).toLocaleDateString();
-};
-
-function sourceState(name) {
-  const s = lastStatus || {};
-  const registered = connectorList.some((c) => c.name === name);
-  if (name === "slack") {
-    const ok = (s.workspaces || []).length > 0;
-    return {
-      state: ok ? "on" : "off", text: ok ? "Connected" : "Not connected",
-      facts: [["Workspaces", (s.workspaces || []).join(", ") || "none"], ["Messages indexed", s.indexedMessages ?? "–"], ["Live sync", s.liveSync ? "On" : "Off"],
-        ...(s.lastEvent ? [["Last event", ago(s.lastEvent.at)]] : [])],
-      hint: `People link their own Slack for DMs on <a href="/connect.html">Connections</a>.`,
-    };
-  }
-  if (!registered) return { state: "off", text: "Not set up", facts: [], hint: "Not set up on this server yet. Ask an admin to add it." };
-  if (name === "drive") {
-    const d = driveHealth || s.drive;
-    if (!d) return { state: "warn", text: "Unknown", facts: [], hint: "Couldn't read Drive's status." };
-    const ok = d.connected && !d.authError;
-    return {
-      state: ok ? "on" : "warn", text: ok ? "Connected" : d.connected ? "Needs reconnecting" : "Not connected",
-      facts: [["Account", d.account || "–"], ["Folder", d.rootFolder || "–"], ["Files indexed", d.files ?? 0], ["Sync", d.polling ? `Every ${d.pollSeconds}s` : "Off"], ["Last sync", ago(d.lastPollAt || d.lastBackfillAt)]],
-      hint: ok ? `Browse Drive on its own on the <a href="/drive.html">Drive page</a>.` : `An admin can connect Google Drive on the <a href="/drive.html">Drive page</a>.`,
-    };
-  }
-  if (name === "jira") {
-    const j = s.jira;
-    const bad = j && (j.authError || j.lastError);
-    return {
-      state: bad ? "warn" : "on", text: bad ? "Needs attention" : "Connected",
-      facts: j ? [["Site", j.site || "–"], ["Projects", (j.projects || []).join(", ") || "–"], ["Items indexed", j.chunks ?? 0], ["Sync", j.polling ? `Every ${j.pollSeconds}s` : "Off"], ["Last sync", ago(j.lastPollAt || j.lastBackfillAt)]]
-        : [["Sync", "Off"]],
-      hint: `People link their Jira account on <a href="/connect.html">Connections</a>.`,
-    };
-  }
-  return { state: "on", text: "Connected", facts: [], hint: "" };
-}
-
-function renderSourcesPage() {
-  const known = [...CATALOG, ...connectorList.filter((c) => !CATALOG.some((k) => k.name === c.name)).map((c) => ({ ...c, about: "" }))];
-  $("#srcgrid").innerHTML = known.map((c) => {
-    const st = sourceState(c.name);
-    return `
-      <div class="card srccard">
-        <div class="top">
-          <div class="plogo">${pIcon(c.name)}</div>
-          <div><h3>${esc(c.label)}</h3><div class="sub">${esc(c.about)}</div></div>
-          <span class="pill ${st.state}">${esc(st.text)}</span>
-        </div>
-        ${st.facts.length ? `<ul class="facts">${st.facts.map(([k, v]) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>` : ""}
-        ${st.hint ? `<p class="hint">${st.hint}</p>` : ""}
-      </div>`;
-  }).join("");
 }
 
 // Setup and sync messages for admins, kept off the pages everyone uses.
@@ -686,14 +774,71 @@ function devNotes() {
   if (!connectorList.some((c) => c.name === "drive")) notes.push("Google Drive isn't set up: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart.");
   if (!connectorList.some((c) => c.name === "jira")) notes.push("Jira isn't set up: set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN in .env and restart.");
   if (driveHealth) {
-    notes.push(...(driveHealth.warnings || []));
+    notes.push(...(driveHealth.warnings || []).map((w) => w.replace("at the bottom of this page", "on the Drive page (/drive.html)")));
     if (driveHealth.lastError) notes.push(`Last Drive sync error: ${driveHealth.lastError}`);
   }
   if (s.jira?.authError) notes.push("Jira rejected the service account's API token. Check JIRA_EMAIL / JIRA_API_TOKEN.");
   if (s.jira?.lastError) notes.push(`Last Jira sync error: ${s.jira.lastError}`);
   return notes;
 }
+const ago = (iso) => {
+  if (!iso) return "never";
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(iso).toLocaleDateString();
+};
+function sourceState(name) {
+  const s = lastStatus || {};
+  if (name === "slack") {
+    const on = (s.workspaces || []).length > 0;
+    return {
+      state: on ? "on" : "off", text: on ? "Active" : "Not set up",
+      facts: [["Workspaces", (s.workspaces || []).join(", ") || "none"], ["Messages indexed", s.indexedMessages ?? "–"], ["Live sync", s.liveSync ? "On" : "Off"],
+        ...(s.lastEvent ? [["Last event", ago(s.lastEvent.at)]] : [])],
+      hint: `People link their own Slack on <a href="/connect.html">Connections</a>.`,
+    };
+  }
+  if (!connectorList.some((c) => c.name === name)) return { state: "off", text: "Not set up", facts: [], hint: "Not configured on this server. See System messages below." };
+  if (name === "drive") {
+    const d = driveHealth || s.drive;
+    if (!d) return { state: "warn", text: "Unknown", facts: [], hint: "Couldn't read Drive's status." };
+    const on = d.connected && !d.authError;
+    return {
+      state: on ? "on" : "warn", text: on ? "Active" : d.connected ? "Needs reconnecting" : "Not connected yet",
+      facts: [["Account", d.account || "–"], ["Folder", d.rootFolder || "–"], ["Files indexed", d.files ?? 0], ["Sync", d.polling ? `Every ${d.pollSeconds}s` : "Off"], ["Last sync", ago(d.lastPollAt || d.lastBackfillAt)]],
+      hint: on ? `Manage Drive on the <a href="/drive.html">Drive page</a>.` : `Connect Google Drive on the <a href="/drive.html">Drive page</a>.`,
+    };
+  }
+  if (name === "jira") {
+    const j = s.jira;
+    const bad = j && (j.authError || j.lastError);
+    return {
+      state: bad ? "warn" : "on", text: bad ? "Needs attention" : "Active",
+      facts: j ? [["Site", j.site || "–"], ["Projects", (j.projects || []).join(", ") || "–"], ["Items indexed", j.chunks ?? 0], ["Sync", j.polling ? `Every ${j.pollSeconds}s` : "Off"], ["Last sync", ago(j.lastPollAt || j.lastBackfillAt)]]
+        : [["Sync", "Off"]],
+      hint: `People link their own Jira on <a href="/connect.html">Connections</a>.`,
+    };
+  }
+  return { state: "on", text: "Active", facts: [], hint: "" };
+}
+function renderCompanySources() {
+  const known = [...CATALOG, ...connectorList.filter((c) => !CATALOG.some((k) => k.name === c.name)).map((c) => ({ ...c, about: "" }))];
+  $("#srcgrid").innerHTML = known.map((c) => {
+    const st = sourceState(c.name);
+    return `
+      <div class="card srccard">
+        <div class="top">
+          ${c.icon ? `<div class="plogo"><svg class="pi"><use href="#${c.icon}"/></svg></div>` : ""}
+          <div class="name">${esc(c.label)}</div>
+          <span class="pill ${st.state}">${esc(st.text)}</span>
+        </div>
+        ${c.about ? `<div class="sub">${esc(c.about)}</div>` : ""}
+        ${st.facts.length ? `<ul class="facts">${st.facts.map(([k, v]) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>` : ""}
+        ${st.hint ? `<p class="hint">${st.hint}</p>` : ""}
+      </div>`;
+  }).join("");
+}
 function renderDevNotes() {
+  renderCompanySources();
   const notes = devNotes();
   const code = (t) => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>");
   $("#devnotes").innerHTML = notes.length
@@ -701,21 +846,11 @@ function renderDevNotes() {
     : `<div class="devnote okay"><svg class="ico"><use href="#i-check"/></svg><span>All sources are healthy.</span></div>`;
 }
 
+// Server and source status: admin information, so it's only fetched for the audit page.
 async function loadStatus() {
-  try {
-    const s = lastStatus = await api("/api/status");
-    const parts = [`Slack: ${s.indexedMessages} messages`];
-    const d = driveHealth || s.drive;
-    if (d) parts.push(d.connected ? `Drive: ${d.files} files` : "Drive: not connected");
-    if (s.jira) parts.push(`Jira: ${s.jira.chunks} items`);
-    parts.push(s.llm ? "Ask ready" : "Search only");
-    $("#status").textContent = parts.join(" · ");
-    $("#status").classList.remove("down");
-    $("#footsync").textContent = s.lastEvent ? `Last update from Slack ${ago(s.lastEvent.at)}` : "Synced from your connected sources";
-  } catch { lastStatus = null; $("#status").textContent = "Server not reachable"; $("#status").classList.add("down"); }
-  const v = currentView();
-  if (v === "sources") renderSourcesPage();
-  if (v === "audit" && !$("#auditUnlocked").hidden) renderDevNotes();
+  if (currentView() !== "audit") return;
+  try { lastStatus = await api("/api/status"); } catch { lastStatus = null; }
+  if (!$("#auditUnlocked").hidden) renderDevNotes();
 }
 
 function renderWho() {
@@ -723,8 +858,8 @@ function renderWho() {
   $("#who").innerHTML = me.signedIn
     ? `<span class="avatar" title="${esc(me.email || me.name)}">${esc(initials(me.name))}</span>
        <span class="wname">Signed in as <b>${esc(me.name)}</b></span>
-       <a href="/connect.html">Connections</a> <button class="linkbtn" id="signout">Sign out</button>`
-    : `<span class="wname">Not signed in.</span> <a href="/connect.html">Connect your Slack</a>`;
+       <button class="linkbtn" id="signout">Sign out</button>`
+    : `<span class="avatar off" title="Not signed in"><svg class="ico" style="width:15px;height:15px"><use href="#i-user"/></svg></span><span class="wname">Not signed in</span>`;
   $("#signout")?.addEventListener("click", async () => { await api("/api/signout", {}); await loadMe(); renderPanes(); });
 }
 
@@ -732,15 +867,15 @@ async function loadMe() { me = await api("/api/me"); renderWho(); }
 async function loadUsers() { users = await api("/api/users"); }
 
 // ---- Pages: #ask, #sources and #audit are views of this one page ----
-const currentView = () => ({ "#audit": "audit", "#sources": "sources" })[location.hash] || "ask";
+const currentView = () => (location.hash === "#audit" ? "audit" : "ask");
 async function showView() {
+  if (location.hash === "#sources") return location.replace("/connect.html"); // the old Sources page now lives on Connections
   const view = currentView();
-  ["ask", "sources", "audit"].forEach((v) => ($(`#view-${v}`).hidden = v !== view));
+  ["ask", "audit"].forEach((v) => ($(`#view-${v}`).hidden = v !== view));
   document.querySelectorAll("nav a[data-view]").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  document.title = { ask: "Aspire Atlas", sources: "Sources · Aspire Atlas", audit: "Audit log · Aspire Atlas" }[view];
+  document.title = { ask: "Aspire Atlas", audit: "Audit log · Aspire Atlas" }[view];
   window.scrollTo(0, 0);
-  if (view === "sources") { renderSourcesPage(); await loadDriveHealth(); renderSourcesPage(); }
-  if (view === "audit") { await loadDriveHealth(); loadLog(); }
+  if (view === "audit") { await Promise.all([loadDriveHealth(), loadStatus()]); loadLog(); }
 }
 window.addEventListener("hashchange", showView);
 
@@ -754,7 +889,7 @@ window.addEventListener("focus", async () => {
   panes.forEach((p) => {
     const u = p.id === "p0" && asWho() === "me" ? me : users.find((x) => x.id === p.dataset.user);
     const c = p.querySelector(".chips");
-    if (u && c) c.innerHTML = chipsHtml(u);
+    if (u && c) { c.innerHTML = chipsHtml(u); loadAccess(p, p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: u.id }); }
   });
 });
 
@@ -767,11 +902,12 @@ showView();
   await Promise.all([loadUsers(), loadMe(), loadDriveHealth()]);
   if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;
   renderPanes();
+  updateSettingsSummary();
   await loadStatus();
   showView();
 })();
 setInterval(loadStatus, 3000);
-setInterval(loadDriveHealth, 15000);
+setInterval(() => currentView() === "audit" && loadDriveHealth(), 15000);
 </script>
 </body>
 </html>
