@@ -1,0 +1,19 @@
+{
+  "workspaces": [
+    {
+      "key": "main",
+      "botToken": "xoxb-...",
+      "appToken": "xapp-...",
+      "clientId": "1234567890.1234567890",
+      "clientSecret": "your-client-secret"
+    },
+    {
+      "key": "vendors",
+      "botToken": "xoxb-...",
+      "appToken": "xapp-...",
+      "clientId": "1234567890.1234567890",
+      "clientSecret": "your-client-secret"
+    }
+  ],
+  "users": []
+}
