@@ -259,7 +259,7 @@ The demo personas reuse `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL` and `DAVE_EMAI
 2. **Tokens and `.env`.** Carol's classic token goes in `JIRA_ADMIN_*`. Set `JIRA_BASE_URL`, `JIRA_EMAIL` (the crawler's address) and `JIRA_PROJECTS`.
 3. **`npm run seed:jira`.** The first run invites Alice, Bob, Dave and the crawler, then stops. Each accepts the invite email with that exact address.
 4. **Crawler token.** Signed in as the crawler, create its classic token and set `JIRA_API_TOKEN`. Optionally add the persona tokens too.
-5. **`npm run seed:jira` again.** It builds everything: groups, PAY/SEC/VEND, Task/Bug work types, the Approvers and Owning team fields, permission and security schemes, and the 14 issues with comments.
+5. **`npm run seed:jira` again.** It builds everything: groups, PAY/SEC/VEND, Task/Bug work types, the Approvers and Owning team fields, permission and security schemes, and the 15 issues with comments. After `seedData.ts` changes, run **`npm run seed:jira -- --update`** instead: a plain run leaves existing issues alone, and `--update` rewrites their fields, security level, status and comments. Never delete an issue to redo it: Jira doesn't reuse issue numbers, so its key is gone for good.
 6. **Make the crawler a Jira admin.** admin.atlassian.com → Directory → Users → the crawler → **Apps** → Jira → Roles: tick **User** and **User access admin**. The Global permissions page in Jira doesn't offer "Administer Jira" any more.
 7. **Connect Jira OAuth app, created once.** developer.atlassian.com/console/myapps, preferably as the crawler → **Create** → **OAuth 2.0 integration**. Then:
    - **Permissions:** User identity API (`read:me`), at account level.
@@ -269,7 +269,7 @@ The demo personas reuse `CAROL_EMAIL`, `ALICE_EMAIL`, `BOB_EMAIL` and `DAVE_EMAI
 8. **Check and index:**
    ```bash
    npm run jira:doctor      # every line ok, then "nobody has connected Jira yet"
-   npm run jira:backfill    # 14 issues; right after seeding, Jira's search can lag, so re-run after a minute if it finds fewer
+   npm run jira:backfill    # 15 issues; right after seeding, Jira's search can lag, so re-run after a minute if it finds fewer
    ```
 9. **Start the app and link each persona.** Start with `npm run dev`, or `SLACK_SYNC=off npm run dev` if Slack's live connection hangs. Then, for each of Alice, Bob, Carol and Dave:
    - In their own browser profile, open `http://localhost:3000/connect.html` (localhost, not 127.0.0.1).

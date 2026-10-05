@@ -95,14 +95,20 @@ Search is keyword-based unless embeddings are configured (`EMBEDDING_*` in `.env
 |---|---|
 | Every Slack message and DM, in order | `src/story/timeline.ts` |
 | Every Drive file | `src/connectors/drive/cli/seedContent.ts` |
+| Every Jira issue and comment | `src/connectors/jira/cli/seedData.ts` (setup: [jira-mock-data-plan.md](jira-mock-data-plan.md)) |
 
 ```bash
 npm run seed:story -- --dry-run   # what would be posted
 npm run seed:story                # Drive folder + every Slack message and DM (skips what's already there)
 npm run backfill && npm run drive:backfill   # index it (or keep the server running with sync on)
+
+npm run seed:jira -- --update     # Jira: create missing issues, rewrite existing ones to match seedData.ts
+npm run jira:backfill             # index it
 ```
 
 - Messages are posted **as their author**, so each of the four people must have clicked **Connect** once (`/connect`, in a browser signed in to Slack as them). Authors who haven't are listed at the end; run it again when they have.
 - `-- --rewrite` also rewrites every Drive file from `seedContent.ts` after you edit it.
 - Only one person needs to run it. Everyone else gets the data with `npm run backfill` and `npm run drive:backfill` using the shared `slack-tokens.json` and Drive token.
-- Slack's timestamps are when the messages were posted, not story time. Nothing in the demo depends on them.
+- Slack's timestamps are when the messages were posted, not story time. Nothing in the demo depends on them. Jira's are when the seed ran; run `seed:jira -- --update` around the same time as `seed:story` so the two don't look far apart.
+- `seed:jira` without `--update` skips issues that already exist, so it won't pick up edits to `seedData.ts`. Don't delete an issue to redo it: Jira never reuses an issue number, so the key is lost.
+- On a machine that ran an older story: set `DRIVE_ROOT_FOLDER_NAME=Company A` in `.env` and connect Drive as Carol (`npm run drive:connect`, check it prints `Connected as` Carol's address) before `drive:backfill`. Don't run `seed:drive` while Drive is connected as anyone else: it builds a second copy of the folder in that person's Drive.
