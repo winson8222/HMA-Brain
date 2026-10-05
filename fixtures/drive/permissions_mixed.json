@@ -1,0 +1,9 @@
+[
+  { "id": "1", "type": "user", "role": "writer", "emailAddress": "Bob.HMATest@Gmail.com" },
+  { "id": "2", "type": "group", "role": "commenter", "emailAddress": "eng-team@companya.com" },
+  { "id": "3", "type": "domain", "role": "reader", "domain": "companya.com", "allowFileDiscovery": true },
+  { "id": "4", "type": "domain", "role": "reader", "domain": "partner.com", "allowFileDiscovery": false },
+  { "id": "5", "type": "anyone", "role": "reader", "allowFileDiscovery": true },
+  { "id": "6", "type": "user", "role": "reader", "emailAddress": "gone@companya.com", "deleted": true },
+  { "id": "7", "type": "user", "role": "owner", "emailAddress": "alicehmatest@gmail.com" }
+]

@@ -1,12 +1,15 @@
 // Pure functions that turn Slack messages/events into Elasticsearch docs.
 // Used by backfill, live events and verify, so every path indexes the same way.
-import { aclForChannel, type ChannelInfo } from "./acl.js";
+import { aclForChannel, type ChannelInfo, type ConvKind } from "./acl.js";
 
 export type BrainDoc = {
   doc_id: string;
   source: "slack";
+  team_id: string;
+  team_name: string;
   channel_id: string;
   channel_name: string;
+  kind: ConvKind;
   is_private: boolean;
   user_id: string | null;
   user_name: string;
@@ -20,6 +23,7 @@ export type BrainDoc = {
 
 export type Ctx = {
   teamId: string;
+  teamName: string;
   teamUrl: string; // e.g. https://companyademo.slack.com/
   userName: (id: string) => string | undefined;
 };
@@ -27,7 +31,7 @@ export type Ctx = {
 // Message subtypes that carry real content. Everything else (joins, topic changes...) is skipped.
 const CONTENT_SUBTYPES = new Set([undefined, "bot_message", "file_share", "thread_broadcast", "me_message"]);
 
-export const docId = (channelId: string, ts: string) => `slack:${channelId}:${ts}`;
+export const docId = (teamId: string, channelId: string, ts: string) => `slack:${teamId}:${channelId}:${ts}`;
 
 export function messageToDoc(msg: any, channel: ChannelInfo, ctx: Ctx): BrainDoc | null {
   if (!msg?.ts || !CONTENT_SUBTYPES.has(msg.subtype)) return null;
@@ -41,10 +45,13 @@ export function messageToDoc(msg: any, channel: ChannelInfo, ctx: Ctx): BrainDoc
   if (threadTs) permalink += `?thread_ts=${threadTs}&cid=${channel.id}`;
 
   return {
-    doc_id: docId(channel.id, msg.ts),
+    doc_id: docId(ctx.teamId, channel.id, msg.ts),
     source: "slack",
+    team_id: ctx.teamId,
+    team_name: ctx.teamName,
     channel_id: channel.id,
     channel_name: channel.name,
+    kind: channel.kind,
     is_private: channel.is_private,
     user_id: msg.user ?? null,
     user_name: msg.username ?? (msg.user && ctx.userName(msg.user)) ?? msg.user ?? "unknown",
@@ -74,4 +81,9 @@ export function classifyMessageEvent(event: any): MessageAction {
     default:
       return CONTENT_SUBTYPES.has(event.subtype) ? { action: "upsert", msg: event } : { action: "skip" };
   }
+}
+
+// "DM: Alice ↔ Carol" / "Group DM: Alice, Bob, Carol"
+export function dmName(kind: ConvKind, names: string[]): string {
+  return kind === "dm" ? `DM: ${names.join(" ↔ ")}` : `Group DM: ${names.join(", ")}`;
 }

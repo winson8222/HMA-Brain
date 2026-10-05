@@ -23,6 +23,7 @@
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
   ::selection { background: var(--mint); color: #161817; }
   * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  [hidden] { display: none !important; }
 
   /* ---- Shell ---- */
   .shell { display: flex; min-height: 100vh; }
@@ -37,6 +38,7 @@
   nav a.active { background: var(--accent); color: var(--accent-text); }
   nav a .tag { margin-left: auto; font-size: 9px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
   nav svg, .ico { width: 17px; height: 17px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .pi { width: 16px; height: 16px; flex-shrink: 0; stroke: none; }
   .trust { margin: auto 16px 16px; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .trust b { display: flex; align-items: center; gap: 8px; font-size: 11px; }
   .trust b .ico { color: var(--ok); width: 15px; height: 15px; }
@@ -59,10 +61,17 @@
   .shell.collapsed .collapse .ico { transform: scaleX(-1); }
 
   .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .topbar { position: sticky; top: 0; z-index: 5; height: 73px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  .topbar { position: sticky; top: 0; z-index: 5; height: 73px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--panel); }
   .topbar .mlogo { display: none; margin-right: auto; }
-  #status { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--secondary); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--secondary); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+  #status.down::before { background: var(--deny); }
+  .who { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .who b { color: var(--text); font-weight: 600; }
+  .who a, .linkbtn { color: var(--accent-text); background: none; border: 0; padding: 0; font: 500 12px var(--font); cursor: pointer; text-decoration: none; }
+  .who a:hover, .linkbtn:hover { background: none; text-decoration: underline; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--accent); color: var(--accent-text); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .vsep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
 
   .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 32px 32px 0; }
 
@@ -74,48 +83,71 @@
   .eyebrow { font-size: 12px; font-weight: 500; color: var(--accent-text); }
   h1 { margin: 10px 0 0; font: 700 40px/1.12 var(--display); letter-spacing: -1px; }
   h1 .dot { color: var(--ok); }
-  header.hero p { margin: 12px 0 0; font-size: 14px; color: var(--secondary-text); max-width: 520px; }
+  header.hero p { margin: 12px 0 0; font-size: 14px; color: var(--secondary-text); max-width: 560px; }
   .mark { width: 74px; height: 74px; margin-right: 20px; border-radius: 50%; background: #121412; color: #c2fbd5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .mark .ico { width: 38px; height: 38px; stroke-width: 1.4; }
 
-  /* ---- Query form ---- */
-  form { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 3px 12px rgba(22,24,23,.03); transition: border-color .15s, box-shadow .15s; }
-  form:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(76,149,103,.12); }
-  input[type=search] { flex: 1 1 260px; min-width: 0; order: -1; width: 100%; padding: 8px 4px; font: 15px/1.5 var(--font); border: 0; outline: none; background: transparent; color: var(--text); }
+  /* ---- Query card ---- */
+  .askcard { margin-top: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 3px 12px rgba(22,24,23,.03); transition: border-color .15s, box-shadow .15s; }
+  .askcard:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(76,149,103,.12); }
+  form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 12px; }
+  input[type=search] { flex: 1 1 100%; min-width: 0; width: 100%; padding: 6px 4px; font: 15px/1.5 var(--font); border: 0; outline: none; background: transparent; color: var(--text); }
   input[type=search]::placeholder { color: var(--muted); }
   .modes { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--secondary); border: 1px solid var(--border); }
-  .modes label { position: relative; display: flex; align-items: center; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .modes label { position: relative; display: flex; align-items: center; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--muted); }
   .modes input { position: absolute; opacity: 0; pointer-events: none; }
   .modes label:has(input:checked) { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(22,24,23,.08); }
   .modes label:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
   label.cmp { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
-  label.cmp input { accent-color: var(--primary); width: 15px; height: 15px; }
-  .formhint { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 10px; color: var(--muted); }
+  input[type=checkbox] { accent-color: var(--primary); width: 15px; height: 15px; margin: 0; }
+  .formhint { margin-left: auto; font-size: 10px; color: var(--muted); }
   button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font: 500 13px var(--font); border: 0; border-radius: 8px; background: var(--primary); color: var(--primary-text); cursor: pointer; transition: background .15s; }
   button:hover { background: var(--primary-hover); }
-  button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-  .secnote { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0 0; font-size: 12px; color: var(--muted); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  button.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  button.ghost:hover { background: var(--secondary); }
+
+  .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+  .sources .lbl2 { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; margin-right: 4px; }
+  .sources label { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--secondary-text); font-size: 12px; cursor: pointer; }
+  .sources label:has(input:checked) { border-color: var(--border-strong); background: var(--mint-soft); color: var(--text); }
+  .sources .pi { width: 14px; height: 14px; }
+  .sources .linkbtn { margin-left: auto; font-size: 11px; }
+
+  .tries { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .tries > span { font-size: 11px; font-weight: 500; color: var(--muted); margin-right: 2px; }
+  .tries button { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--secondary-text); font-size: 12px; font-weight: 400; }
+  .tries button:hover { border-color: var(--border-strong); background: var(--mint-soft); color: var(--text); }
+  .tries button .ico { width: 13px; height: 13px; color: var(--muted); }
+  .secnote { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0 0; font-size: 12px; color: var(--muted); }
   .secnote .ico { width: 13px; height: 13px; }
 
   /* ---- Result panes ---- */
-  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 28px; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 28px 0 32px; }
   .pane { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; min-width: 0; }
   .pane::before { content: "VIEWING AS"; display: block; margin-bottom: 8px; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); }
   .pane.hidden { display: none; }
   select { width: 100%; padding: 10px 36px 10px 12px; font: 500 13px var(--font); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; appearance: none;
     background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236d736e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; }
   select:focus { border-color: var(--ring); outline: none; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 14px; }
+  .melabel { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--mint-soft); font-weight: 600; font-size: 13px; }
+  .chips { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 14px; }
+  .wsgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .wslabel { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-right: 2px; }
   .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
   .chip.priv, .badge.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
   .result { border-top: 1px solid var(--border); padding: 14px 0; }
-  .meta { font-size: 11px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .meta { font-size: 11px; color: var(--muted); display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; }
   .badge { font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: var(--secondary-text); border: 1px solid var(--border); }
+  .badge.src { background: #121412; color: #c2fbd5; border-color: transparent; }
+  .badge.ws { background: transparent; color: var(--muted); }
   .result a { color: var(--accent-text); font-size: 11px; font-weight: 500; text-decoration: none; margin-left: auto; }
   .result a:hover { text-decoration: underline; }
   .text { margin-top: 6px; font-size: 13px; color: var(--secondary-text); overflow-wrap: anywhere; }
   mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2px; }
-  .empty { color: var(--muted); padding: 28px 12px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; font-size: 13px; }
+  .empty { color: var(--muted); padding: 24px 12px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; font-size: 13px; }
+  .empty a { color: var(--accent-text); font-weight: 500; }
+  .note { font-size: 12px; color: var(--priv); background: var(--priv-bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
   .answer { border-top: 1px solid var(--border); padding: 16px 0 8px; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
   .answer a.cite { display: inline-block; margin: 0 1px; padding: 0 5px; border-radius: 5px; border: 1px solid var(--border); background: var(--mint-soft); color: var(--accent-text); text-decoration: none; font-weight: 600; font-size: 10px; line-height: 16px; vertical-align: 1px; }
   .answer a.cite:hover { background: var(--accent); border-color: var(--border-strong); }
@@ -123,16 +155,56 @@
   .srclbl { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
   .result:target { background: var(--mint-soft); margin: 0 -10px; padding: 14px 10px; border-radius: 10px; }
 
-  /* ---- Audit log ---- */
-  section.log { margin: 0 0 32px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; scroll-margin-top: 90px; }
-  .view[hidden] { display: none; }
-  .pagehead { margin-bottom: 28px; }
+  /* ---- Pages ---- */
+  .pagehead { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
   .pagehead h1 { font-size: 32px; letter-spacing: -.7px; margin: 0; display: flex; align-items: center; gap: 10px; }
   .pagehead h1 small { font: 500 10px var(--font); padding: 3px 7px; border-radius: 5px; border: 1px solid var(--border); background: var(--accent); color: var(--accent-text); letter-spacing: 0; }
   .pagehead p { margin: 8px 0 0; max-width: 680px; font-size: 13px; color: var(--muted); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .sechead { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); margin: 0 0 12px; }
+
+  /* Sources page */
+  .srcgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .srccard { display: flex; flex-direction: column; gap: 14px; }
+  .srccard .top { display: flex; align-items: center; gap: 12px; }
+  .srccard .plogo { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .srccard .plogo .pi { width: 22px; height: 22px; }
+  .srccard h3 { margin: 0; font: 600 16px var(--display); }
+  .srccard .sub { font-size: 11px; color: var(--muted); }
+  .pill { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.on { background: var(--mint-soft); color: var(--ok); }
+  .pill.warn { background: var(--priv-bg); color: var(--priv); }
+  .pill.off { background: var(--secondary); color: var(--muted); }
+  .facts { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
+  .facts li { display: flex; justify-content: space-between; gap: 12px; }
+  .facts li span:first-child { color: var(--muted); }
+  .facts li span:last-child { text-align: right; overflow-wrap: anywhere; }
+  .srccard .hint { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .srccard .hint a { color: var(--accent-text); font-weight: 500; }
+
+  /* Audit page */
+  .lockcard { max-width: 440px; margin: 24px auto 48px; text-align: center; padding: 32px; }
+  .lockcard .lockicon { width: 48px; height: 48px; margin: 0 auto 14px; border-radius: 12px; background: var(--accent); color: var(--accent-text); display: flex; align-items: center; justify-content: center; }
+  .lockcard h2 { margin: 0; font: 700 20px var(--display); }
+  .lockcard p { margin: 8px 0 20px; font-size: 13px; color: var(--muted); }
+  .lockcard form { padding: 0; gap: 8px; flex-wrap: nowrap; }
+  .field { flex: 1; min-width: 0; padding: 10px 12px; font: 14px var(--font); border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); outline: none; }
+  .field:focus { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(76,149,103,.12); }
+  .err { margin-top: 12px; font-size: 12px; color: var(--deny); min-height: 1em; }
+  .devnotes { margin-bottom: 20px; }
+  .devnote { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--priv-bg); color: #6e4b10; font-size: 12px; overflow-wrap: anywhere; }
+  .devnote + .devnote { margin-top: 8px; }
+  .devnote .ico { width: 15px; height: 15px; margin-top: 1px; color: var(--priv); }
+  .devnote.okay { background: var(--mint-soft); color: var(--accent-text); }
+  .devnote.okay .ico { color: var(--ok); }
+  .devnote code { font-size: 11px; background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 4px; }
+
+  section.log { margin: 0 0 32px; }
   #log > .logrow:first-child { border-top: 0; padding-top: 0; }
   .logrow { border-top: 1px solid var(--border); padding: 16px 0; font-size: 13px; }
   .loghead { margin-bottom: 8px; color: var(--secondary-text); }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
   .logans { margin: 4px 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--secondary); border: 1px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
   .lbl { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
@@ -146,13 +218,12 @@
   footer span { display: flex; align-items: center; gap: 6px; }
   footer .ico { width: 12px; height: 12px; }
 
-  @media (max-width: 1000px) { .shell:not(.collapsed) aside { width: 208px; } }
+  @media (max-width: 1000px) { .shell:not(.collapsed) aside { width: 208px; } #status, .vsep { display: none; } }
   @media (max-width: 768px) {
     aside { display: none; }
     .topbar { padding: 0 16px; gap: 10px; }
     .topbar .mlogo { display: block; }
     .topbar .mlogo img { width: 84px; display: block; }
-    #status { min-width: 0; }
     .wrap { padding: 20px 16px 0; }
     footer { padding: 16px; }
     footer .tagline { display: none; }
@@ -160,12 +231,13 @@
   @media (max-width: 600px) {
     header.hero { padding: 22px 20px; }
     h1 { font-size: 30px; }
+    .pagehead h1 { font-size: 27px; }
     .mark { display: none; }
     main { grid-template-columns: 1fr; }
     .formhint { display: none; }
     form button { margin-left: auto; }
-    section.log { padding: 16px; }
-    .pagehead h1 { font-size: 27px; }
+    .card { padding: 16px; }
+    .who .wname { display: none; }
   }
 </style>
 </head>
@@ -175,8 +247,14 @@
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></symbol>
-  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="p-slack" viewBox="0 0 24 24"><rect x="2" y="9" width="10" height="4" rx="2" fill="#36C5F0"/><rect x="8" y="2" width="4" height="6" rx="2" fill="#36C5F0"/><rect x="13" y="2" width="4" height="10" rx="2" fill="#2EB67D"/><rect x="18" y="8" width="4" height="4" rx="2" fill="#2EB67D"/><rect x="12" y="13" width="10" height="4" rx="2" fill="#ECB22E"/><rect x="12" y="18" width="4" height="4" rx="2" fill="#ECB22E"/><rect x="7" y="12" width="4" height="10" rx="2" fill="#E01E5A"/><rect x="2" y="14" width="4" height="4" rx="2" fill="#E01E5A"/></symbol>
+  <symbol id="p-drive" viewBox="0 0 24 24"><path d="m9 2-8 14 4 6 8-14Z" fill="#0F9D58"/><path d="m9 2 8 14h7L16 2Z" fill="#F4B400"/><path d="M5 22h15l4-6H9Z" fill="#4285F4"/></symbol>
+  <symbol id="p-jira" viewBox="0 0 24 24"><path d="M12 2 22 12 12 22 2 12Z" fill="#2684FF"/><path d="m12 7 5 5-5 5-5-5Z" fill="white"/></symbol>
 </svg>
 
 <div class="shell" id="shell">
@@ -185,63 +263,110 @@
     <div class="navlbl">WORKSPACE</div>
     <nav>
       <a href="#ask" data-view="ask" class="active" title="Ask Aspire Atlas"><svg><use href="#i-spark"/></svg><span class="nt">Ask Aspire Atlas</span><span class="tag">AI</span></a>
+      <a href="#sources" data-view="sources" title="Sources"><svg><use href="#i-plug"/></svg><span class="nt">Sources</span></a>
       <a href="#audit" data-view="audit" title="Audit log"><svg><use href="#i-shield"/></svg><span class="nt">Audit log</span><span class="tag">Admin</span></a>
     </nav>
     <div class="trust">
       <b><svg class="ico"><use href="#i-shield"/></svg>Private by design</b>
-      <p>Each person only gets answers from channels they can see in Slack.</p>
+      <p>Answers only come from what each person can see in each source.</p>
     </div>
     <button type="button" class="collapse" id="sidebarToggle" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><svg class="ico"><use href="#i-panel"/></svg><span class="nt">Collapse</span></button>
   </aside>
 
-  <div class="content" id="top">
+  <div class="content">
     <div class="topbar">
       <a class="mlogo" href="#ask" aria-label="Aspire Atlas home"><img src="aspire-logo.png" alt="Aspire" /></a>
       <div id="status">Connecting…</div>
+      <div class="vsep"></div>
+      <div class="who" id="who"></div>
     </div>
 
     <div class="wrap">
+      <!-- Ask -->
       <div class="view" id="view-ask">
-      <header class="hero">
-        <div>
-          <div class="eyebrow">Where information can be found</div>
-          <h1>Aspire Atlas<span class="dot">.</span></h1>
-          <p>Each person only gets answers from channels they can see in Slack.</p>
-        </div>
-        <div class="mark"><svg class="ico"><use href="#i-compass"/></svg></div>
-      </header>
+        <header class="hero">
+          <div>
+            <div class="eyebrow">Where information can be found</div>
+            <h1>Aspire Atlas<span class="dot">.</span></h1>
+            <p>Ask across Slack, Google Drive and Jira. Answers only come from what each person can see in each source.</p>
+          </div>
+          <div class="mark"><svg class="ico"><use href="#i-compass"/></svg></div>
+        </header>
 
-      <form id="f">
-        <input type="search" id="q" placeholder="Ask a question, e.g. What caused the payment outage?" autocomplete="off" />
-        <div class="modes" role="radiogroup" aria-label="Mode">
-          <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
-          <label><input type="radio" name="mode" value="search" /> Search</label>
+        <div class="askcard">
+          <form id="f">
+            <input type="search" id="q" placeholder="Ask a question, e.g. What do we know about the payment outage?" autocomplete="off" />
+            <div class="modes" role="radiogroup" aria-label="Mode">
+              <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
+              <label><input type="radio" name="mode" value="search" /> Search</label>
+            </div>
+            <div class="modes" role="radiogroup" aria-label="Who is asking" id="asWho">
+              <label title="Act as anyone (demo)"><input type="radio" name="as" value="demo" checked /> Demo</label>
+              <label title="Ask as the person signed in on this browser"><input type="radio" name="as" value="me" /> Me</label>
+            </div>
+            <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two people</label>
+            <span class="formhint">↵ to search</span>
+            <button id="go"><svg class="ico" style="width:14px;height:14px"><use href="#i-spark"/></svg><span>Ask</span></button>
+          </form>
+          <div class="sources" id="sources" aria-label="Sources to search"></div>
         </div>
-        <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two users</label>
-        <span class="formhint">↵ to search</span>
-        <button><svg class="ico" style="width:14px;height:14px"><use href="#i-spark"/></svg>Search</button>
-      </form>
-      <div class="secnote"><svg class="ico"><use href="#i-lock"/></svg>Answers only use information each person has permission to access.</div>
 
-      <main>
-        <div class="pane" id="p0"></div>
-        <div class="pane" id="p1"></div>
-      </main>
+        <div class="tries" id="tries"></div>
+        <div class="secnote"><svg class="ico"><use href="#i-lock"/></svg>Answers only use information each person has permission to access.</div>
+
+        <main>
+          <div class="pane" id="p0"></div>
+          <div class="pane" id="p1"></div>
+        </main>
       </div>
 
+      <!-- Sources -->
+      <div class="view" id="view-sources" hidden>
+        <div class="pagehead">
+          <div>
+            <h1>Sources</h1>
+            <p>Where Atlas looks for answers. Connected sources can be searched; each person still only sees what they have access to there.</p>
+          </div>
+        </div>
+        <div class="srcgrid" id="srcgrid"></div>
+      </div>
+
+      <!-- Audit -->
       <div class="view" id="view-audit" hidden>
         <div class="pagehead">
-          <h1>Audit log <small>Admin view</small></h1>
-          <p>Server-side record of each search. The withheld column is for admins only and is never sent to the person searching. Hover a message to see its ID.</p>
+          <div>
+            <h1>Audit log <small>Admin view</small></h1>
+            <p>Server-side record of each search, across sources. The withheld column is for admins only and is never sent to the person asking; it shows only titles, never text. Hover an item to see its ID.</p>
+          </div>
+          <button type="button" class="ghost" id="lockbtn" hidden><svg class="ico" style="width:14px;height:14px"><use href="#i-lock"/></svg>Lock</button>
         </div>
-        <section class="log">
-          <div id="log"></div>
-        </section>
+
+        <div class="card lockcard" id="auditLocked">
+          <div class="lockicon"><svg class="ico" style="width:22px;height:22px"><use href="#i-lock"/></svg></div>
+          <h2>Admin access</h2>
+          <p>Enter the admin password to view the audit log and system messages.</p>
+          <form id="lockform">
+            <input class="field" type="password" id="adminpw" placeholder="Admin password" autocomplete="current-password" aria-label="Admin password" />
+            <button>Unlock</button>
+          </form>
+          <div class="err" id="lockerr" role="alert"></div>
+        </div>
+
+        <div id="auditUnlocked" hidden>
+          <div class="card devnotes">
+            <div class="sechead">SYSTEM MESSAGES</div>
+            <div id="devnotes"></div>
+          </div>
+          <section class="card log">
+            <div class="sechead">SEARCHES</div>
+            <div id="log"></div>
+          </section>
+        </div>
       </div>
     </div>
 
     <footer>
-      <span><svg class="ico"><use href="#i-refresh"/></svg>Synced live from Slack</span>
+      <span><svg class="ico"><use href="#i-refresh"/></svg><span id="footsync">Synced from your connected sources</span></span>
       <span class="tagline"><svg class="ico"><use href="#i-shield"/></svg>Grounded in your knowledge. Built on trust.</span>
     </footer>
   </div>
@@ -263,61 +388,123 @@
     try { localStorage.setItem("sidebarCollapsed", c ? "1" : "0"); } catch {}
   };
 })();
-// Pages (UI only): #ask and #audit are views of this one page, so the app script below is shared.
-const showView = () => {
-  const view = location.hash === "#audit" ? "audit" : "ask";
-  document.getElementById("view-ask").hidden = view !== "ask";
-  document.getElementById("view-audit").hidden = view !== "audit";
-  document.querySelectorAll("nav a[data-view]").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  document.title = view === "audit" ? "Audit log · Aspire Atlas" : "Aspire Atlas";
-  window.scrollTo(0, 0);
-  if (view === "audit" && typeof loadLog === "function") loadLog().catch(() => {});
-};
-window.addEventListener("hashchange", showView);
-window.addEventListener("DOMContentLoaded", showView);
 </script>
 <script>
 const $ = (s) => document.querySelector(s);
-let users = [];
-const panes = [$("#p0"), $("#p1")];
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let users = [], me = { signedIn: false }, cfg = { allowImpersonation: true }, connectorList = [];
+let lastStatus = null, driveHealth = null;
 
-async function api(path, body) {
-  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
-  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+// Every source Atlas knows about. The server registers only the ones configured in .env (GET /api/connectors).
+const CATALOG = [
+  { name: "slack", label: "Slack", icon: "p-slack", about: "Channels, DMs and threads across workspaces" },
+  { name: "drive", label: "Google Drive", icon: "p-drive", about: "Docs, Sheets, Slides and PDFs shared with each person" },
+  { name: "jira", label: "Jira", icon: "p-jira", about: "Issues and comments in the projects each person can browse" },
+];
+const iconOf = (name) => CATALOG.find((c) => c.name === name)?.icon;
+const pIcon = (name) => iconOf(name) ? `<svg class="pi"><use href="#${iconOf(name)}"/></svg>` : "";
+
+// Browser-session storage for the admin password (cleared when the tab closes). Shared with /drive.html.
+const store = {
+  get: (k) => { try { return sessionStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch {} },
+};
+const adminToken = () => store.get("adminToken");
+
+// Remember which sources this browser last searched (a convenience only; all sources if unset).
+const loadPicked = () => { try { return JSON.parse(localStorage.getItem("sources") || "null"); } catch { return null; } };
+const savePicked = (v) => { try { localStorage.setItem("sources", JSON.stringify(v)); } catch {} };
+const chosenSources = () => [...document.querySelectorAll('#sources input:checked')].map((i) => i.value);
+function renderSources() {
+  const saved = loadPicked();
+  $("#sources").innerHTML = `<span class="lbl2">SEARCH IN</span>` + connectorList.map((c) => `
+    <label><input type="checkbox" value="${esc(c.name)}" ${!saved || saved.includes(c.name) ? "checked" : ""} />${pIcon(c.name)}${esc(c.label)}</label>`).join("")
+    + (connectorList.length > 1 ? `<button type="button" class="linkbtn" id="allsrc"></button>` : "");
+  const syncAll = () => {
+    const b = $("#allsrc");
+    if (b) b.textContent = chosenSources().length === connectorList.length ? "Clear all" : "Select all";
+  };
+  $("#sources").querySelectorAll("input").forEach((i) => i.onchange = () => { savePicked(chosenSources()); syncAll(); runSearch(); });
+  $("#allsrc")?.addEventListener("click", () => {
+    const all = chosenSources().length !== connectorList.length;
+    $("#sources").querySelectorAll("input").forEach((i) => (i.checked = all));
+    savePicked(chosenSources()); syncAll(); runSearch();
+  });
+  syncAll();
+}
+const panes = [$("#p0"), $("#p1")];
+
+async function api(path, body, admin) {
+  const headers = body ? { "Content-Type": "application/json" } : {};
+  if (admin) headers["x-admin-token"] = adminToken();
+  const r = await fetch(path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  if (!r.ok) {
+    const err = new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    err.status = r.status;
+    throw err;
+  }
   return r.json();
 }
 
-const chipsHtml = (u) => u.access.map((a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`).join("");
+const mode = () => document.querySelector('input[name="mode"]:checked').value;
+const asWho = () => (cfg.allowImpersonation ? document.querySelector('input[name="as"]:checked').value : "me");
 
+const chip = (a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`;
+const chipsHtml = (u) => (u.workspaces || []).map((w) => `
+  <div class="wsgroup"><span class="wslabel">${esc(w.workspace)}${w.isGuest ? " (guest)" : ""}</span>${w.items.map(chip).join("")}</div>`).join("")
+  + `<div class="wsgroup"><span class="wslabel">DMs</span><span class="chip priv">🔒 their own DMs</span></div>`;
+
+// Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
 function renderPane(pane, selectedId) {
-  const u = users.find((x) => x.id === selectedId) || users[0];
+  const locked = pane.id === "p0" && asWho() === "me";
+  let u;
+  if (locked) {
+    u = me.signedIn ? me : null;
+    pane.dataset.user = "";
+    pane.innerHTML = u
+      ? `<div class="melabel">You: ${esc(u.name)}</div><div class="chips">${chipsHtml(u)}</div><div class="results"></div>`
+      : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results"></div>`;
+    return;
+  }
+  u = users.find((x) => x.id === selectedId) || users[0];
   pane.dataset.user = u?.id || "";
   pane.innerHTML = `
-    <select>${users.map((x) => `<option value="${x.id}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}${x.isGuest ? " (guest)" : ""}</option>`).join("")}</select>
+    <select aria-label="Person">${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
     <div class="chips">${u ? chipsHtml(u) : ""}</div>
     <div class="results"></div>`;
   pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
 }
 
-function renderResults(pane, data) {
-  const box = pane.querySelector(".results");
-  if (!data.results.length) { box.innerHTML = `<div class="empty">${esc(data.message)}</div>`; return; }
-  box.innerHTML = data.results.map((r) => resultHtml(r)).join("");
+function renderPanes() {
+  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
+  // The compare pane needs impersonation; with it off, only "Me" exists.
+  const canCompare = cfg.allowImpersonation && users.length > 0;
+  $("#compare").parentElement.style.display = canCompare ? "" : "none";
+  panes[1].classList.toggle("hidden", !canCompare || !$("#compare").checked);
 }
 
-const mode = () => document.querySelector('input[name="mode"]:checked').value;
-
+const openLabel = (r) => r.source === "slack" ? "Open in Slack" : `Open in ${r.sourceLabel}`;
 const resultHtml = (r, n) => `
     <div class="result" ${n ? `id="${n}"` : ""}>
       <div class="meta">
-        <span class="badge ${r.is_private ? "priv" : ""}">${r.is_private ? "🔒 " : ""}#${esc(r.channel)}</span>
-        <span>${esc(r.author)}</span>
-        <span>${new Date(r.time).toLocaleString()}</span>
-        <a href="${esc(r.permalink)}" target="_blank" rel="noopener">open in Slack</a>
+        <span class="badge src">${esc(r.sourceLabel)}</span>
+        <span class="badge ws">${esc(r.location)}</span>
+        <span class="badge ${r.private ? "priv" : ""}">${r.private ? "🔒 " : ""}${esc(r.title)}</span>
+        ${r.author ? `<span>${esc(r.author)}</span>` : ""}
+        ${r.time ? `<span>${new Date(r.time).toLocaleString()}</span>` : ""}
+        <a href="${esc(r.permalink)}" target="_blank" rel="noopener">${esc(openLabel(r))} ↗</a>
       </div>
       <div class="text">${n ? `<b>[${n.split("-").pop()}]</b> ` : ""}${r.snippet}</div>
     </div>`;
+
+const unavailableHtml = (data) => data.unavailable?.length
+  ? `<div class="note">Couldn't search ${esc(data.unavailable.join(", "))} right now, so results from it are missing.</div>` : "";
+
+function renderResults(pane, data) {
+  const box = pane.querySelector(".results");
+  if (!data.results.length) { box.innerHTML = unavailableHtml(data) + `<div class="empty">${esc(data.message)}</div>`; return; }
+  box.innerHTML = unavailableHtml(data) + data.results.map((r) => resultHtml(r)).join("");
+}
 
 function renderAnswer(pane, data) {
   const box = pane.querySelector(".results");
@@ -326,7 +513,7 @@ function renderAnswer(pane, data) {
   // Escape the model's text, then turn [n] into links to the cited message.
   const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) =>
     byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m);
-  box.innerHTML = `
+  box.innerHTML = unavailableHtml(data) + `
     <div class="answer">${answer}</div>
     <div class="kw">Searched for: ${esc(data.keywords)}</div>
     ${data.sources.length ? `<div class="srclbl">Sources</div>${data.sources.map((s) => resultHtml(s, id(s.n))).join("")}` : ""}`;
@@ -335,73 +522,256 @@ function renderAnswer(pane, data) {
 async function runSearch() {
   const q = $("#q").value.trim();
   if (!q) return;
+  const sources = chosenSources();
+  if (!sources.length) { panes.forEach((p) => { const b = p.querySelector(".results"); if (b) b.innerHTML = `<div class="empty">Pick at least one source to search.</div>`; }); return; }
   const m = mode();
   const active = panes.filter((p) => !p.classList.contains("hidden"));
   await Promise.all(active.map(async (p) => {
     const box = p.querySelector(".results");
+    const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
+    if (who.asMe && !me.signedIn) return;
     if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
     try {
-      if (m === "ask") renderAnswer(p, await api("/api/ask", { userId: p.dataset.user, q }));
-      else renderResults(p, await api("/api/search", { userId: p.dataset.user, q }));
+      if (m === "ask") renderAnswer(p, await api("/api/ask", { ...who, q, sources }));
+      else renderResults(p, await api("/api/search", { ...who, q, sources }));
     } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   }));
-  loadLog();
 }
 
+// ---- Try prompts ----
+const EXAMPLES = {
+  ask: [
+    "What do we know about the payment outage?",
+    "Why were there too many open database connections?",
+    "What's our plan if the payments database dies?",
+    "What compensation are we getting because of the outage?",
+    "Did the morning sync get rescheduled?",
+  ],
+  search: ["outage", "migration", "failover", "breach", "SLA"],
+};
+function renderTries() {
+  const m = mode();
+  $("#tries").innerHTML = `<span>Try:</span>` + EXAMPLES[m].map((e) =>
+    `<button type="button">${m === "ask" ? `<svg class="ico"><use href="#i-spark"/></svg>` : ""}${esc(e)}</button>`).join("");
+  $("#tries").querySelectorAll("button").forEach((b) => (b.onclick = () => { $("#q").value = b.textContent; runSearch(); }));
+  $("#q").placeholder = m === "ask" ? "Ask a question, e.g. What do we know about the payment outage?" : "Search everything, e.g. outage, breach, migration, rollback";
+  $("#go span").textContent = m === "ask" ? "Ask" : "Search";
+}
+
+// ---- Audit log (admin only) ----
+const label = (src) => connectorList.find((c) => c.name === src)?.label || src;
 const docList = (docs, cls) => docs.length
   ? `<ul class="docs ${cls}">${docs.map((d) => `
-      <li title="${esc(d.id)}"><span class="badge ${d.is_private ? "priv" : ""}">${d.is_private ? "🔒 " : ""}#${esc(d.channel)}</span>
-        <b>${esc(d.author)}:</b> ${esc(d.text)}</li>`).join("")}</ul>`
+      <li title="${esc(d.id)}"><span class="badge src">${esc(label(d.source))}</span> <span class="badge ws">${esc(d.location)}</span>
+        <b>${esc(d.title)}</b>${d.text ? `: ${esc(d.text.length > 240 ? d.text.slice(0, 240) + "…" : d.text)}` : ""}</li>`).join("")}</ul>`
   : `<div class="none">none</div>`;
 
+function showLocked(message) {
+  $("#auditLocked").hidden = false;
+  $("#auditUnlocked").hidden = true;
+  $("#lockbtn").hidden = true;
+  $("#lockerr").textContent = message || "";
+}
+
 async function loadLog() {
-  const log = await api("/api/log");
-  const name = (id) => users.find((u) => u.id === id)?.name || id;
+  if (!adminToken()) return showLocked();
+  let log;
+  try { log = await api("/api/log", null, true); }
+  catch (e) {
+    if (e.status === 401 || e.status === 403) { store.set("adminToken", ""); showLocked(e.status === 401 ? "That password isn't right." : e.message); }
+    else $("#lockerr").textContent = `Couldn't load the audit log: ${e.message}`;
+    return;
+  }
+  $("#auditLocked").hidden = true;
+  $("#auditUnlocked").hidden = false;
+  $("#lockbtn").hidden = false;
+  renderDevNotes();
+  const name = (id) => (me.id === id && me.name) || users.find((u) => u.id === id)?.name || id;
   $("#log").innerHTML = log.slice(0, 20).map((e) => `
     <div class="logrow">
-      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.userId))}</b> ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}"
+      <div class="loghead">${new Date(e.at).toLocaleTimeString()} · <b>${esc(name(e.personId))}</b>
+        <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span>
+        ${e.kind === "ask" ? "asked" : "searched"} "${esc(e.query)}" in ${esc(e.sources.map(label).join(" + "))}
         ${e.keywords ? `<span class="kw">(keywords: ${esc(e.keywords)})</span>` : ""}</div>
       ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
       <div class="cols">
-        <div><div class="lbl allow">✓ Shown to ${esc(name(e.userId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
+        <div><div class="lbl allow">✓ Shown to ${esc(name(e.personId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
         <div><div class="lbl deny">✕ Withheld (${e.denied.length})</div>${docList(e.denied, "deny")}</div>
       </div>
       ${e.droppedByRecheck.length ? `<div class="lbl deny">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
-    </div>`).join("") || `<div class="logrow">No searches yet.</div>`;
+    </div>`).join("") || `<div class="empty">No searches yet.</div>`;
+}
+
+$("#lockform").onsubmit = (e) => {
+  e.preventDefault();
+  const pw = $("#adminpw").value.trim();
+  if (!pw) return;
+  store.set("adminToken", pw);
+  $("#adminpw").value = "";
+  loadLog();
+};
+$("#lockbtn").onclick = () => { store.set("adminToken", ""); showLocked(); };
+
+// ---- Source health: shared by the status pill, the Sources page and the audit page's system messages ----
+async function loadDriveHealth() {
+  if (!connectorList.some((c) => c.name === "drive")) { driveHealth = null; return; }
+  try { driveHealth = await api("/api/drive/status"); } catch { driveHealth = null; }
+}
+const ago = (iso) => {
+  if (!iso) return "never";
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(iso).toLocaleDateString();
+};
+
+function sourceState(name) {
+  const s = lastStatus || {};
+  const registered = connectorList.some((c) => c.name === name);
+  if (name === "slack") {
+    const ok = (s.workspaces || []).length > 0;
+    return {
+      state: ok ? "on" : "off", text: ok ? "Connected" : "Not connected",
+      facts: [["Workspaces", (s.workspaces || []).join(", ") || "none"], ["Messages indexed", s.indexedMessages ?? "–"], ["Live sync", s.liveSync ? "On" : "Off"],
+        ...(s.lastEvent ? [["Last event", ago(s.lastEvent.at)]] : [])],
+      hint: `People link their own Slack for DMs on <a href="/connect.html">Connections</a>.`,
+    };
+  }
+  if (!registered) return { state: "off", text: "Not set up", facts: [], hint: "Not set up on this server yet. Ask an admin to add it." };
+  if (name === "drive") {
+    const d = driveHealth || s.drive;
+    if (!d) return { state: "warn", text: "Unknown", facts: [], hint: "Couldn't read Drive's status." };
+    const ok = d.connected && !d.authError;
+    return {
+      state: ok ? "on" : "warn", text: ok ? "Connected" : d.connected ? "Needs reconnecting" : "Not connected",
+      facts: [["Account", d.account || "–"], ["Folder", d.rootFolder || "–"], ["Files indexed", d.files ?? 0], ["Sync", d.polling ? `Every ${d.pollSeconds}s` : "Off"], ["Last sync", ago(d.lastPollAt || d.lastBackfillAt)]],
+      hint: ok ? `Browse Drive on its own on the <a href="/drive.html">Drive page</a>.` : `An admin can connect Google Drive on the <a href="/drive.html">Drive page</a>.`,
+    };
+  }
+  if (name === "jira") {
+    const j = s.jira;
+    const bad = j && (j.authError || j.lastError);
+    return {
+      state: bad ? "warn" : "on", text: bad ? "Needs attention" : "Connected",
+      facts: j ? [["Site", j.site || "–"], ["Projects", (j.projects || []).join(", ") || "–"], ["Items indexed", j.chunks ?? 0], ["Sync", j.polling ? `Every ${j.pollSeconds}s` : "Off"], ["Last sync", ago(j.lastPollAt || j.lastBackfillAt)]]
+        : [["Sync", "Off"]],
+      hint: `People link their Jira account on <a href="/connect.html">Connections</a>.`,
+    };
+  }
+  return { state: "on", text: "Connected", facts: [], hint: "" };
+}
+
+function renderSourcesPage() {
+  const known = [...CATALOG, ...connectorList.filter((c) => !CATALOG.some((k) => k.name === c.name)).map((c) => ({ ...c, about: "" }))];
+  $("#srcgrid").innerHTML = known.map((c) => {
+    const st = sourceState(c.name);
+    return `
+      <div class="card srccard">
+        <div class="top">
+          <div class="plogo">${pIcon(c.name)}</div>
+          <div><h3>${esc(c.label)}</h3><div class="sub">${esc(c.about)}</div></div>
+          <span class="pill ${st.state}">${esc(st.text)}</span>
+        </div>
+        ${st.facts.length ? `<ul class="facts">${st.facts.map(([k, v]) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>` : ""}
+        ${st.hint ? `<p class="hint">${st.hint}</p>` : ""}
+      </div>`;
+  }).join("");
+}
+
+// Setup and sync messages for admins, kept off the pages everyone uses.
+function devNotes() {
+  const s = lastStatus;
+  if (!s) return ["Server not reachable."];
+  const notes = [];
+  if (!s.llm) notes.push("Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env.");
+  if (!s.liveSync) notes.push("Live Slack sync is off (SLACK_SYNC=off): run `npm run backfill` for new messages.");
+  if (!connectorList.some((c) => c.name === "drive")) notes.push("Google Drive isn't set up: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart.");
+  if (!connectorList.some((c) => c.name === "jira")) notes.push("Jira isn't set up: set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN in .env and restart.");
+  if (driveHealth) {
+    notes.push(...(driveHealth.warnings || []));
+    if (driveHealth.lastError) notes.push(`Last Drive sync error: ${driveHealth.lastError}`);
+  }
+  if (s.jira?.authError) notes.push("Jira rejected the service account's API token. Check JIRA_EMAIL / JIRA_API_TOKEN.");
+  if (s.jira?.lastError) notes.push(`Last Jira sync error: ${s.jira.lastError}`);
+  return notes;
+}
+function renderDevNotes() {
+  const notes = devNotes();
+  const code = (t) => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>");
+  $("#devnotes").innerHTML = notes.length
+    ? notes.map((n) => `<div class="devnote"><svg class="ico"><use href="#i-alert"/></svg><span>${code(n)}</span></div>`).join("")
+    : `<div class="devnote okay"><svg class="ico"><use href="#i-check"/></svg><span>All sources are healthy.</span></div>`;
 }
 
 async function loadStatus() {
   try {
-    const s = await api("/api/status");
-    $("#status").textContent = `${s.indexedMessages} messages indexed · ${s.eventsReceived} Slack events received` +
-      (s.lastEvent ? ` · last: ${s.lastEvent.type} at ${new Date(s.lastEvent.at).toLocaleTimeString()}` : "");
-    if (!s.llm) $("#status").textContent += " · Ask needs an LLM: set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in .env";
-    else $("#status").textContent += ` · LLM: ${s.llm}`;
-  } catch { $("#status").textContent = "Server not reachable"; }
+    const s = lastStatus = await api("/api/status");
+    const parts = [`Slack: ${s.indexedMessages} messages`];
+    const d = driveHealth || s.drive;
+    if (d) parts.push(d.connected ? `Drive: ${d.files} files` : "Drive: not connected");
+    if (s.jira) parts.push(`Jira: ${s.jira.chunks} items`);
+    parts.push(s.llm ? "Ask ready" : "Search only");
+    $("#status").textContent = parts.join(" · ");
+    $("#status").classList.remove("down");
+    $("#footsync").textContent = s.lastEvent ? `Last update from Slack ${ago(s.lastEvent.at)}` : "Synced from your connected sources";
+  } catch { lastStatus = null; $("#status").textContent = "Server not reachable"; $("#status").classList.add("down"); }
+  const v = currentView();
+  if (v === "sources") renderSourcesPage();
+  if (v === "audit" && !$("#auditUnlocked").hidden) renderDevNotes();
 }
 
-async function loadUsers() {
-  users = await api("/api/users");
-  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
+function renderWho() {
+  const initials = (n) => String(n || "?").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+  $("#who").innerHTML = me.signedIn
+    ? `<span class="avatar" title="${esc(me.email || me.name)}">${esc(initials(me.name))}</span>
+       <span class="wname">Signed in as <b>${esc(me.name)}</b></span>
+       <a href="/connect.html">Connections</a> <button class="linkbtn" id="signout">Sign out</button>`
+    : `<span class="wname">Not signed in.</span> <a href="/connect.html">Connect your Slack</a>`;
+  $("#signout")?.addEventListener("click", async () => { await api("/api/signout", {}); await loadMe(); renderPanes(); });
 }
 
-document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = () => {
-  $("#q").placeholder = mode() === "ask" ? "Ask a question, e.g. What caused the payment outage?" : "Search Slack, e.g. outage, breach, migration";
-});
+async function loadMe() { me = await api("/api/me"); renderWho(); }
+async function loadUsers() { users = await api("/api/users"); }
+
+// ---- Pages: #ask, #sources and #audit are views of this one page ----
+const currentView = () => ({ "#audit": "audit", "#sources": "sources" })[location.hash] || "ask";
+async function showView() {
+  const view = currentView();
+  ["ask", "sources", "audit"].forEach((v) => ($(`#view-${v}`).hidden = v !== view));
+  document.querySelectorAll("nav a[data-view]").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
+  document.title = { ask: "Aspire Atlas", sources: "Sources · Aspire Atlas", audit: "Audit log · Aspire Atlas" }[view];
+  window.scrollTo(0, 0);
+  if (view === "sources") { renderSourcesPage(); await loadDriveHealth(); renderSourcesPage(); }
+  if (view === "audit") { await loadDriveHealth(); loadLog(); }
+}
+window.addEventListener("hashchange", showView);
+
+document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = renderTries);
+document.querySelectorAll('input[name="as"]').forEach((r) => r.onchange = () => { renderPanes(); runSearch(); });
 $("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
 $("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); runSearch(); };
 // Refresh access chips when the page regains focus (e.g. after changing membership in Slack).
 window.addEventListener("focus", async () => {
-  users = await api("/api/users");
+  await Promise.all([loadUsers(), loadMe()]);
   panes.forEach((p) => {
-    const u = users.find((x) => x.id === p.dataset.user);
-    if (u) p.querySelector(".chips").innerHTML = chipsHtml(u);
+    const u = p.id === "p0" && asWho() === "me" ? me : users.find((x) => x.id === p.dataset.user);
+    const c = p.querySelector(".chips");
+    if (u && c) c.innerHTML = chipsHtml(u);
   });
 });
 
-loadUsers().then(loadLog);
-loadStatus();
+renderTries();
+showView();
+(async () => {
+  [cfg, connectorList] = await Promise.all([api("/api/config"), api("/api/connectors")]);
+  renderSources();
+  if (!cfg.allowImpersonation) $("#asWho").style.display = "none";
+  await Promise.all([loadUsers(), loadMe(), loadDriveHealth()]);
+  if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;
+  renderPanes();
+  await loadStatus();
+  showView();
+})();
 setInterval(loadStatus, 3000);
+setInterval(loadDriveHealth, 15000);
 </script>
 </body>
 </html>

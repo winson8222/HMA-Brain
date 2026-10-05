@@ -1,7 +1,11 @@
 import { aclForChannel, type ChannelInfo } from "./acl.js";
 import { es, INDEX } from "./es.js";
 import { docId, type BrainDoc } from "./slackDocs.js";
-import { getWorkspace } from "./slack.js";
+
+const inConversation = (teamId: string, channelId: string) => [
+  { term: { team_id: teamId } },
+  { term: { channel_id: channelId } },
+];
 
 export async function upsert(doc: BrainDoc) {
   await es.index({ index: INDEX, id: doc.doc_id, document: doc, refresh: true });
@@ -14,7 +18,7 @@ export async function bulkUpsert(docs: BrainDoc[]) {
   if (r.errors) throw new Error("Bulk index had errors: " + JSON.stringify(r.items.find((i) => i.index?.error)));
 }
 
-export async function deleteMessage(channelId: string, ts: string) {
+export async function deleteMessage(teamId: string, channelId: string, ts: string) {
   // Also remove replies if a thread parent is deleted.
   await es.deleteByQuery({
     index: INDEX,
@@ -22,8 +26,8 @@ export async function deleteMessage(channelId: string, ts: string) {
     query: {
       bool: {
         should: [
-          { term: { doc_id: docId(channelId, ts) } },
-          { bool: { filter: [{ term: { channel_id: channelId } }, { term: { thread_ts: ts } }] } },
+          { term: { doc_id: docId(teamId, channelId, ts) } },
+          { bool: { filter: [...inConversation(teamId, channelId), { term: { thread_ts: ts } }] } },
         ],
         minimum_should_match: 1,
       },
@@ -31,15 +35,19 @@ export async function deleteMessage(channelId: string, ts: string) {
   });
 }
 
+// Remove a whole conversation, e.g. a DM nobody has connected anymore.
+export async function deleteConversation(teamId: string, channelId: string) {
+  await es.deleteByQuery({ index: INDEX, refresh: true, query: { bool: { filter: inConversation(teamId, channelId) } } });
+}
+
 // Rewrite the name and permission label of every doc in a channel
 // (after a rename, or when a channel switches between public and private).
-export async function reaclChannel(ch: ChannelInfo, teamId?: string) {
-  teamId ??= (await getWorkspace()).teamId;
+export async function reaclChannel(teamId: string, ch: ChannelInfo) {
   await es.updateByQuery({
     index: INDEX,
     refresh: true,
     conflicts: "proceed",
-    query: { term: { channel_id: ch.id } },
+    query: { bool: { filter: inConversation(teamId, ch.id) } },
     script: {
       source:
         "ctx._source.acl_container = params.acl; ctx._source.channel_name = params.name; ctx._source.is_private = params.priv",
