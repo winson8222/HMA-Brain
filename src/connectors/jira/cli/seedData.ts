@@ -2,27 +2,30 @@
 //
 // ---- Scenario description ----
 //
-// Company A runs a payments platform. On 25 Sep, Alice enabled the `tx_schema_v2` migration flag for the
-// transactions database. During the dual-write phase, every request held two connections, so the pay-db-1
-// connection pool ran out and checkout failed for about 18% of customers between 09:40 and 11:15. The same
-// story is told in Slack (#payments, #payments-incident) and Drive (postmortem, runbooks). Jira holds the tickets:
+// Company A runs a payments platform. Alice enabled the `tx_schema_v2` migration flag for the transactions
+// database. While the migration runs, every payment holds two connections, so one Saturday evening the pay-db-1
+// connection pool ran out and 18% of checkouts failed between 19:40 and 21:15. Acme's support desk took 47 minutes
+// to answer the page. The same story is told in Slack (#payments, #payments-incident, #acme-support) and Drive
+// (postmortem, runbooks); see docs/demo-data.md. Jira holds the tickets:
 //
-//   PAY (Payments Engineering): the migration step that's blocked (PAY-231), the postmortem follow-ups
-//     (PAY-240 pool limits, PAY-241 alerting), a SEV4 near miss (PAY-242), the leadership-only estimate of the
-//     contract penalty the outage triggered (PAY-243, $40k credit), and the P1 webhook to Acme (PAY-244).
-//   SEC (Security): Carol's Q3 leaked API key (SEC-1) and CVE-2026-1234 patch (SEC-2), both restricted to the
+//   PAY (Payments Engineering): the migration step that's blocked (PAY-231), the postmortem follow-ups,
+//     restricted to the incident team (PAY-240 connection limit, PAY-241 alerting, PAY-245 runbook), a SEV4 near miss (PAY-242), the leadership-only cost estimate for
+//     bringing second-line support in-house instead of renewing Acme (PAY-243), and the P1 webhook to Acme (PAY-244).
+//   SEC (Security): Carol's leaked API key (SEC-1) and CVE-2026-1234 patch (SEC-2), both restricted to the
 //     security team, and a phishing email Bob reported (SEC-3).
-//   VEND (Vendor Requests): Acme's requests via Dave (outage timeline VEND-1, September SLA report VEND-2),
-//     the internal contract penalty review (VEND-3), a vendor-safe timeline Alice is writing (VEND-4), and
+//   VEND (Vendor Requests): Acme's requests via Dave (outage timeline VEND-1, monthly report VEND-2),
+//     the internal renewal review (VEND-3), Alice checking Acme's side of the timeline (VEND-4), and
 //     Acme's dashboard access request that Bob must approve (VEND-5).
 //
 // Who sees what, and which permission mechanism shows it:
-//   Alice (payments engineer): PAY through the Engineers role (via group payments-eng), except PAY-243
-//     (security level "Leadership only"). VEND-4 only, as its assignee. No SEC.
-//   Bob (engineer, on call): same PAY access as Alice. SEC-3 only, as its reporter. VEND-5 only, because he's
-//     named in its Approvers picker field. Never SEC-1/SEC-2 or the penalty tickets.
+//   Alice (payments engineer, led the incident): PAY through the Engineers role (via group payments-eng),
+//     including the follow-ups (member of security level "Incident team"), except PAY-243 (level "Leadership
+//     only"). VEND-4 only, as its assignee. No SEC.
+//   Bob (engineer, new, not on the incident team): PAY through the Engineers role, but not the follow-ups or
+//     PAY-243 (not in either level), so he never learns the root cause or the tickets. SEC-3 only, as its
+//     reporter. VEND-5 only, because he's named in its Approvers picker field. Never SEC-1/SEC-2.
 //   Carol (security lead, admin): everything. SEC and VEND through group security; PAY through the Engineers
-//     role as a single user; PAY-243 as the only person in "Leadership only".
+//     role as a single user; the follow-ups and PAY-243 as a member of both PAY levels.
 //   Dave (Acme contractor): VEND-1 and VEND-2 as their reporter, and PAY-244 because group vendors is its
 //     Owning team (group picker field). Being in group vendors grants nothing else. Never VEND-3 or anything internal.
 //   Nobody: Carol's comment on PAY-240, restricted to the Administrators role. The connector never indexes it.
@@ -113,9 +116,19 @@ export const PERMISSION_SCHEMES: Record<string, { name: string; grants: Record<s
 };
 
 export type Member = { user: PersonaKey } | { group: string };
-export const SECURITY_SCHEMES: Record<string, { name: string; level: string; description: string; members: Member[] }> = {
-  SEC: { name: "SEC security", level: "Security team only", description: "Carol and the security team", members: [{ group: "security" }, { group: "brain-crawler" }] },
-  PAY: { name: "PAY security", level: "Leadership only", description: "Leadership only", members: [{ user: "carol" }, { group: "brain-crawler" }] },
+export type LevelSpec = { level: string; description: string; members: Member[] };
+export const SECURITY_SCHEMES: Record<string, { name: string; levels: LevelSpec[] }> = {
+  SEC: {
+    name: "SEC security",
+    levels: [{ level: "Security team only", description: "Carol and the security team", members: [{ group: "security" }, { group: "brain-crawler" }] }],
+  },
+  PAY: {
+    name: "PAY security",
+    levels: [
+      { level: "Leadership only", description: "Leadership only", members: [{ user: "carol" }, { group: "brain-crawler" }] },
+      { level: "Incident team", description: "The people who worked the checkout outage", members: [{ user: "alice" }, { user: "carol" }, { group: "brain-crawler" }] },
+    ],
+  },
 };
 
 export type Comment = { by: PersonaKey; text: string; restrictedToRole?: string };
@@ -128,7 +141,7 @@ export type IssueSpec = {
   assignee: PersonaKey | null;
   reporter: PersonaKey;
   labels: string[];
-  secured?: boolean; // the project's security level
+  level?: string; // a security level of the project's scheme
   approvers?: PersonaKey[];
   owningTeam?: string; // group name
   comments: Comment[];
@@ -148,43 +161,45 @@ export const ISSUES: IssueSpec[] = [
     labels: ["blocked", "db-migration"],
     comments: [
       { by: "alice", text: "The lock is held by the dual-write job. Waiting for the Tuesday maintenance window to pause it and finish step 3." },
-      { by: "bob", text: "Is this the same migration that was running during the checkout outage?" },
-      { by: "alice", text: "Yes. Step 3 is on hold until PAY-240 is done." },
+      { by: "bob", text: "Is there anything I can pick up on this?" },
+      { by: "alice", text: "Not yet, the migration is paused for now. I'll ping you when step 3 is ready to run." },
     ],
   },
   {
     key: "PAY-240",
     type: "Task",
-    summary: "Raise DB connection pool limits and add back-pressure",
+    summary: "Raise the payment database connection limit from 200 to 400",
     description:
-      "Follow-up from the 25 Sep payment outage. Root cause: the database connection pool on pay-db-1 was exhausted after the migration flag `tx_schema_v2` was enabled, because each request held two connections during the dual-write phase.\n\nRaise the pool limit to at least 200 and add back-pressure so the payment API queues requests instead of opening new connections.",
-    status: "In Progress",
+      "Follow-up from the checkout outage. Root cause: the database connection pool on pay-db-1 was exhausted after the migration flag `tx_schema_v2` was enabled. While the migration runs, every payment uses two connections instead of one, so the pool limit of 200 was reached at the dinner peak.\n\nRaise the connection limit on pay-db-1 from 200 to 400.",
+    status: "Done",
     assignee: "alice",
-    reporter: "carol",
-    labels: ["postmortem", "outage-2026-09-25"],
+    reporter: "alice",
+    labels: ["postmortem", "checkout-outage"],
+    level: "Incident team",
     comments: [
-      { by: "alice", text: "Pool raised from 100 to 200 on pay-db-1 in staging. Back-pressure middleware PR is open, needs two reviewers (payment change)." },
-      { by: "carol", text: "Keep the flag owner's name out of the vendor timeline and the public postmortem.", restrictedToRole: ROLES.admins },
+      { by: "alice", text: "Done: connection limit on pay-db-1 raised from 200 to 400. The migration stays off until it's tested." },
+      { by: "carol", text: "The postmortem is blameless: keep the name of whoever switched the flag on out of it before it goes to Acme.", restrictedToRole: ROLES.admins },
     ],
   },
   {
     key: "PAY-241",
     type: "Task",
-    summary: "Alert on connection pool saturation above 80%",
+    summary: "Alert when the connection pool is more than 80% full",
     description:
-      "Follow-up from the 25 Sep payment outage. Add an alert when connection pool saturation on pay-db-1 goes above 80% for 5 minutes. Page the payments on-call engineer. Link the alert to the Payment service runbook.",
-    status: "To Do",
-    assignee: "bob",
-    reporter: "carol",
-    labels: ["postmortem", "outage-2026-09-25"],
-    comments: [{ by: "bob", text: "Draft alert: pool saturation > 80% for 5 min pages payments on-call. Testing in staging this week." }],
+      "Follow-up from the checkout outage. There was no alert for the pool filling up; the first alert was about latency, about 20 minutes later. Add an alert when the pay-db-1 connection pool is more than 80% full for 5 minutes. Page the payments on-call engineer. Link the alert to the Payment service runbook.",
+    status: "Done",
+    assignee: "alice",
+    reporter: "alice",
+    labels: ["postmortem", "checkout-outage"],
+    level: "Incident team",
+    comments: [{ by: "alice", text: "Alert is live: pool_saturation pages the on-call engineer when pay-db-1 is more than 80% full for 5 minutes." }],
   },
   {
     key: "PAY-242",
     type: "Bug",
     summary: 'SEV4: checkout error page shows raw "503 Service Unavailable" text',
     description:
-      'During the 25 Sep outage, customers saw a plain "503 Service Unavailable" page at checkout instead of our branded error page with a retry button. Near miss, cosmetic: SEV4 per the incident response handbook.',
+      'During the checkout outage, customers saw a plain "503 Service Unavailable" page at checkout instead of our branded error page with a retry button. Near miss, cosmetic: SEV4 per the incident response handbook.',
     status: "To Do",
     assignee: "bob",
     reporter: "bob",
@@ -194,15 +209,15 @@ export const ISSUES: IssueSpec[] = [
   {
     key: "PAY-243",
     type: "Task",
-    summary: "Estimate contract penalty exposure from the 25 Sep payment outage",
+    summary: "Estimate the cost of bringing second-line payment support in-house",
     description:
-      "The payment processor contract renewal has a penalty clause that the 25 Sep outage triggered. Expected outcome: a $40k credit. Confirm the amount with finance and decide what to tell the vendor before the SLA review on Friday. Restricted to leadership.",
+      "Input for the Acme renewal decision, due 45 days before the end of the term. Option: replace Acme's second-line support with our own team. Estimate headcount and yearly cost, and what we lose (Acme's round-the-clock desk). Restricted to leadership; Acme must not see this. Notes: Drive → Vendors → Acme renewal notes.",
     status: "In Progress",
     assignee: "carol",
     reporter: "carol",
-    labels: ["outage-2026-09-25"],
-    secured: true,
-    comments: [{ by: "carol", text: "Penalty clause confirmed with the processor: $40k credit. Waiting on finance before the SLA review." }],
+    labels: ["acme-renewal"],
+    level: "Leadership only",
+    comments: [{ by: "carol", text: "First estimate: about 3 engineers, roughly USD 450,000 a year. No service credit to offset it: Acme's availability was 99.98%, above the 99.95% in the agreement." }],
   },
   {
     key: "PAY-244",
@@ -217,20 +232,33 @@ export const ISSUES: IssueSpec[] = [
     owningTeam: "vendors",
     comments: [{ by: "bob", text: "Webhook payload agreed: incident ID, severity and start time only. No customer data or internal hostnames." }],
   },
+  {
+    key: "PAY-245",
+    type: "Task",
+    summary: "Name the backup database in the Payment service runbook",
+    description:
+      "Follow-up from the checkout outage. Finding the name of the backup database took 25 minutes because the runbook said \"switch to the backup\" without naming it. Update the failover step to name the backup database, pay-db-2.",
+    status: "Done",
+    assignee: "alice",
+    reporter: "alice",
+    labels: ["postmortem", "checkout-outage"],
+    level: "Incident team",
+    comments: [{ by: "alice", text: "Done: the failover step in the Payment service runbook now names pay-db-2." }],
+  },
 
   // ---- SEC ----
   {
     key: "SEC-1",
     type: "Task",
-    summary: "Q3 incident: payment gateway API key leaked in a public repository",
+    summary: "Payment gateway API key leaked in a public repository",
     description:
-      "An API key for the payment gateway was committed to a public repository and found by an external scanner. The key was rotated on 14 Aug. No fraudulent transactions were found. Report: Drive → Security → Q3 breach report.",
+      "A live API key for the payment gateway was committed to the public repository payments-sdk-examples. An outside security researcher reported it the next morning. The key was revoked within the hour and every merchant key was re-issued. No fraudulent transactions were found. Report: Drive → Security → Security incident report.",
     status: "Done",
     assignee: "carol",
     reporter: "carol",
-    labels: ["incident", "q3"],
-    secured: true,
-    comments: [{ by: "carol", text: "Key rotated 14 Aug. Scanner alerts now go to #security. Closing." }],
+    labels: ["incident"],
+    level: "Security team only",
+    comments: [{ by: "carol", text: "Key revoked and all merchant keys re-issued. Secret scanning is now on for every repository. Closing." }],
   },
   {
     key: "SEC-2",
@@ -241,7 +269,7 @@ export const ISSUES: IssueSpec[] = [
     assignee: "carol",
     reporter: "carol",
     labels: ["cve"],
-    secured: true,
+    level: "Security team only",
     comments: [{ by: "carol", text: "Patch is in staging. Missed the 30 Sep due date; new target 9 Oct." }],
   },
   {
@@ -264,62 +292,65 @@ export const ISSUES: IssueSpec[] = [
   {
     key: "VEND-1",
     type: "Task",
-    summary: "Share the payment outage timeline for the September SLA report",
-    description: "From Acme: please share the 25 Sep payment outage timeline so we can include it in our SLA report. Start and end times and customer impact are enough.",
+    summary: "Share the checkout outage timeline so Acme can look into its page response",
+    description:
+      "From Acme: Company A says our support desk took 47 minutes to answer its page during the checkout outage; the agreement says 15. Please share the timeline so I can look into it with our support lead.",
     status: "In Progress",
     assignee: "carol",
     reporter: "dave",
-    labels: ["sla"],
+    labels: ["outage-follow-up"],
     comments: [
-      { by: "carol", text: "Incident window 09:40 to 11:15, 18% of checkouts failed. Please don't share this with other vendors yet." },
-      { by: "dave", text: "Thanks, that's enough for the report." },
+      { by: "carol", text: "I've shared the postmortem with you in Drive, it has the full timeline: paged 19:52, answered 20:39. Please keep it within Acme, it has merchant details. I'll remove your access once you're done." },
+      { by: "dave", text: "Got it, thanks. I'll confirm our side of the timeline by Friday." },
     ],
   },
   {
     key: "VEND-2",
     type: "Task",
-    summary: "September SLA report: Acme support availability and P1 incidents",
+    summary: "Monthly report: Acme availability, response times and P1 incidents",
     description:
-      "Acme's monthly SLA report for September is due by the 5th working day of October (7 Oct). It covers support availability against the 99.9% target, response times, and every Priority 1 incident. Agreement: Drive → Vendors → Vendor SLA agreement.",
-    status: "To Do",
+      "Acme's monthly report goes in the Shared with Acme folder by the 5th working day of the following month. It covers availability against the 99.95% commitment, response times, and every Priority 1 incident. Agreement: Drive → Vendors → Shared with Acme → Vendor SLA agreement.",
+    status: "Done",
     assignee: null,
     reporter: "dave",
     labels: ["sla"],
-    comments: [{ by: "dave", text: "I'll send the draft to vendor-support by 7 Oct." }],
+    comments: [{ by: "dave", text: "Uploaded to the Shared with Acme folder. Availability 99.98%; one Priority 1 incident, the checkout outage, where our desk answered later than the 15 minutes we commit to." }],
   },
   {
     key: "VEND-3",
     type: "Task",
-    summary: "Payment processor contract renewal: penalty clause review",
-    description: "The outage triggered the penalty clause in the payment processor contract renewal. Review the credit with finance. Internal only; not for vendors.",
+    summary: "Acme renewal: points for the renewal meeting",
+    description:
+      "Acme's contract renews yearly; the decision is due 45 days before the end of the term. Raise the 47-minute page response during the checkout outage (the agreement says 15) and ask for monthly reporting on page response times, not just availability. Internal only; not for vendors.",
     status: "In Progress",
     assignee: "carol",
     reporter: "carol",
-    labels: ["contract"],
-    comments: [{ by: "carol", text: "Penalty clause triggered by the outage. Finance reviewing before the vendor SLA review on Friday." }],
+    labels: ["acme-renewal"],
+    comments: [{ by: "carol", text: "Acme has added a second person to the night shift since. Still asking for response-time reporting before we renew." }],
   },
   {
     key: "VEND-4",
     type: "Task",
-    summary: "Prepare a vendor-safe outage timeline (no internal hostnames)",
-    description: "Turn the postmortem timeline into a version we can give Acme: incident window and impact only. Remove internal hostnames, database names and who made the change.",
+    summary: "Check Acme's side of the outage timeline against the postmortem",
+    description:
+      "Dave is confirming Acme's side of the checkout outage timeline (VEND-1). Check it against the postmortem so I can close the follow-up and remove Acme's access to the postmortem.",
     status: "To Do",
     assignee: "alice",
     reporter: "carol",
-    labels: ["sla"],
-    comments: [{ by: "alice", text: "Will do. I'll base it on the postmortem and strip pay-db-1 and the flag name." }],
+    labels: ["outage-follow-up"],
+    comments: [{ by: "alice", text: "Matches the postmortem: paged at 19:52, Acme answered at 20:39, 47 minutes against the 15 in the agreement." }],
   },
   {
     key: "VEND-5",
     type: "Task",
     summary: "Approve Acme read-only access to the payments status dashboard",
     description:
-      "Acme asked for read-only access to the payments status dashboard, so their 24x7 support team sees Priority 1 incidents sooner. This needs approval from the payments on-call engineer for the week of the request (Bob, primary in 2026-W40 per the on-call rota). The dashboard must not show internal hostnames or customer data.",
+      "Acme asked for read-only access to the payments status dashboard, so their 24x7 support team sees Priority 1 incidents sooner. This needs approval from the payments on-call engineer for the week the access starts: next week, when Bob is primary per the on-call rota. The dashboard must not show internal hostnames or customer data.",
     status: "To Do",
     assignee: "carol",
     reporter: "carol",
     labels: ["access-request"],
     approvers: ["bob"],
-    comments: [{ by: "carol", text: "Bob, you were on call when Acme asked. Please approve or reject by Wednesday; a read-only viewer role is enough." }],
+    comments: [{ by: "carol", text: "Bob, you're on call next week when Acme's access would start, so it's your call. Please approve or reject by Wednesday; a read-only viewer role is enough." }],
   },
 ];

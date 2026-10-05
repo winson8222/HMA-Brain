@@ -35,7 +35,12 @@ function aclFor(key: string, permission = "BROWSE_PROJECTS"): ProjectAcl {
     key,
     name: key,
     browse: toRule(SITE, PERMISSION_SCHEMES[key].grants[permission].map(holder), roles, acct("carol")),
-    levels: sec ? { L: toRule(SITE, sec.members.map((m) => ("user" in m ? { type: "user", parameter: acct(m.user) } : { type: "group", value: gid(m.group) })), roles, null) } : {},
+    levels: Object.fromEntries(
+      (sec?.levels ?? []).map((l) => [
+        l.level,
+        toRule(SITE, l.members.map((m) => ("user" in m ? { type: "user", parameter: acct(m.user) } : { type: "group", value: gid(m.group) })), roles, null),
+      ]),
+    ),
     hash: "",
   };
 }
@@ -47,7 +52,7 @@ const raw = (s: IssueSpec): RawIssue => ({
     summary: s.summary,
     reporter: { accountId: acct(s.reporter) },
     assignee: s.assignee ? { accountId: acct(s.assignee) } : null,
-    security: s.secured ? { id: "L" } : null,
+    security: s.level ? { id: s.level } : null,
     ...(s.approvers ? { [fid.approvers]: s.approvers.map((p) => ({ accountId: acct(p) })) } : {}),
     ...(s.owningTeam ? { [fid.owningTeam]: { groupId: gid(s.owningTeam), name: s.owningTeam } } : {}),
   },
@@ -65,8 +70,9 @@ const visible = (p: PersonaKey) => ISSUES.filter((s) => allowed(p, s, "BROWSE_PR
 
 describe("seeded who-sees-what", () => {
   it("matches the plan's matrix", () => {
-    expect(visible("alice")).toEqual(["PAY-231", "PAY-240", "PAY-241", "PAY-242", "PAY-244", "VEND-4"]);
-    expect(visible("bob")).toEqual(["PAY-231", "PAY-240", "PAY-241", "PAY-242", "PAY-244", "SEC-3", "VEND-5"]);
+    expect(visible("alice")).toEqual(["PAY-231", "PAY-240", "PAY-241", "PAY-242", "PAY-244", "PAY-245", "VEND-4"]);
+    // Bob wasn't on the incident team: no follow-up tickets, so no root cause (demo moment 1).
+    expect(visible("bob")).toEqual(["PAY-231", "PAY-242", "PAY-244", "SEC-3", "VEND-5"]);
     expect(visible("carol")).toHaveLength(ISSUES.length);
     expect(visible("dave")).toEqual(["PAY-244", "VEND-1", "VEND-2"]);
     expect(visible("crawler")).toHaveLength(ISSUES.length); // or the connector couldn't index it

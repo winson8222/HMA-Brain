@@ -3,11 +3,15 @@
 // Writes only to Jira; the app picks everything up through `npm run jira:backfill`. Safe to re-run: things
 // are found by name and brought in line, and issues that already exist (by key) are left alone.
 //
+// `-- --update` also brings existing issues in line with seedData.ts: fields, security level and status,
+// and their comments are replaced when they differ (deleting the issue instead would lose its key for good).
+//
 // Runs as a site admin (JIRA_ADMIN_EMAIL / JIRA_ADMIN_API_TOKEN, normally Carol), never as the crawler.
 // Finding people by email here is only for building demo data; the app itself links people with Connect Jira.
 // Can't be done by API (see docs/jira-mock-data-plan.md, "After seeding"): the Administer Jira global
 // permission for brain-crawler, the crawler's time zone, the Connect Jira OAuth app, and backdated dates.
 import "../../../config.js"; // loads .env
+import { adfToText } from "../adf.js";
 import { call, JiraError, type Creds } from "../client.js";
 import { jiraConfig } from "../config.js";
 import {
@@ -35,6 +39,8 @@ const need = (name: string) => {
   }
   return v.trim();
 };
+
+const UPDATE = process.argv.includes("--update");
 
 if (!jiraConfig.baseUrl) need("JIRA_BASE_URL");
 const admin: Creds = { email: need("JIRA_ADMIN_EMAIL"), apiToken: need("JIRA_ADMIN_API_TOKEN") };
@@ -314,9 +320,10 @@ async function permissionSchemes(...ctx: [Record<PersonaKey, string>, Record<str
 
 type Level = { id: string; name: string };
 
-async function securitySchemes(projectsByKey: Record<string, Project>, ids: Record<PersonaKey, string>, groupIds: Record<string, string>): Promise<Record<string, Level>> {
+// Returns each project's levels by name.
+async function securitySchemes(projectsByKey: Record<string, Project>, ids: Record<PersonaKey, string>, groupIds: Record<string, string>): Promise<Record<string, Record<string, Level>>> {
   step("Issue security");
-  const out: Record<string, Level> = {};
+  const out: Record<string, Record<string, Level>> = {};
   // Security level members take the group NAME (Jira rejects the ID here: "The group <id> isn't a valid parameter").
   const member = (m: Member) => ("user" in m ? { type: "user", parameter: ids[m.user] } : { type: "group", parameter: m.group });
   const existing = (await get<{ issueSecuritySchemes: { id: number; name: string }[] }>("/rest/api/3/issuesecurityschemes")).issueSecuritySchemes;
@@ -328,26 +335,32 @@ async function securitySchemes(projectsByKey: Record<string, Project>, ids: Reco
           await post<{ id: string | number }>("/rest/api/3/issuesecurityschemes", {
             name: s.name,
             description: "Created by npm run seed:jira (HMA Brain demo).",
-            levels: [{ name: s.level, description: s.description, isDefault: false, members: s.members.map(member) }],
+            levels: s.levels.map((l) => ({ name: l.level, description: l.description, isDefault: false, members: l.members.map(member) })),
           })
         ).id,
       );
     }
-    let level = (await get<{ levels?: { id: string | number; name: string }[] }>(`/rest/api/3/issuesecurityschemes/${schemeId}`)).levels?.find((l) => l.name === s.level);
-    if (!level) {
-      await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level`, { levels: [{ name: s.level, description: s.description, isDefault: false, members: s.members.map(member) }] });
-      level = (await get<{ levels?: { id: string | number; name: string }[] }>(`/rest/api/3/issuesecurityschemes/${schemeId}`)).levels?.find((l) => l.name === s.level);
-    }
-    if (!level) throw new Error(`Couldn't create level "${s.level}" in ${s.name}`);
-    const levelId = String(level.id);
+    const levels: Record<string, Level> = {};
+    for (const l of s.levels) {
+      const find = async () => (await get<{ levels?: { id: string | number; name: string }[] }>(`/rest/api/3/issuesecurityschemes/${schemeId}`)).levels?.find((x) => x.name === l.level);
+      let level = await find();
+      if (!level) {
+        await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level`, { levels: [{ name: l.level, description: l.description, isDefault: false, members: l.members.map(member) }] });
+        level = await find();
+      }
+      if (!level) throw new Error(`Couldn't create level "${l.level}" in ${s.name}`);
+      const levelId = String(level.id);
 
-    // Members: add what's missing. The crawler must be in every level, or restricted issues are never indexed.
-    const have = await pages<{ holder: { type: string; parameter?: string; value?: string } }>(`/rest/api/3/issuesecurityschemes/level/member?${qs({ schemeId, levelId })}`);
-    // Jira reports a group member by name (parameter) and ID (value); match either.
-    const isMember = (m: Member, h: { type: string; parameter?: string; value?: string }) =>
-      "user" in m ? h.type === "user" && (h.parameter === ids[m.user] || h.value === ids[m.user]) : h.type === "group" && (h.parameter === m.group || h.value === groupIds[m.group]);
-    const missing = s.members.filter((m) => !have.some((h) => isMember(m, h.holder))).map(member);
-    if (missing.length) await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level/${levelId}/member`, { members: missing });
+      // Members: add what's missing. The crawler must be in every level, or restricted issues are never indexed.
+      const have = await pages<{ holder: { type: string; parameter?: string; value?: string } }>(`/rest/api/3/issuesecurityschemes/level/member?${qs({ schemeId, levelId })}`);
+      // Jira reports a group member by name (parameter) and ID (value); match either.
+      const isMember = (m: Member, h: { type: string; parameter?: string; value?: string }) =>
+        "user" in m ? h.type === "user" && (h.parameter === ids[m.user] || h.value === ids[m.user]) : h.type === "group" && (h.parameter === m.group || h.value === groupIds[m.group]);
+      const missing = l.members.filter((m) => !have.some((h) => isMember(m, h.holder))).map(member);
+      if (missing.length) await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level/${levelId}/member`, { members: missing });
+      levels[l.level] = { id: levelId, name: l.level };
+    }
+    const levelId = levels[s.levels[0].level].id; // what old levels map to if the scheme has to be swapped
 
     // Attaching a scheme runs as a background task in Jira: wait for it, so issues can use the level.
     const project = projectsByKey[projectKey];
@@ -373,8 +386,8 @@ async function securitySchemes(projectsByKey: Record<string, Project>, ids: Reco
         if (i === 29) warn(`${s.name} is still being attached to ${projectKey}; if secured issues fail below, wait a minute and re-run`);
       }
     }
-    out[projectKey] = { id: levelId, name: s.level };
-    done(`${s.name} → ${projectKey} (level "${s.level}")`);
+    out[projectKey] = levels;
+    done(`${s.name} → ${projectKey} (levels ${s.levels.map((l) => `"${l.level}"`).join(", ")})`);
   }
   return out;
 }
@@ -425,19 +438,20 @@ async function createPlaceholders(project: string, type: string, n: number): Pro
   return out;
 }
 
-type Ctx = { ids: Record<PersonaKey, string>; groupIds: Record<string, string>; fieldIds: Record<FieldKey, string>; levels: Record<string, Level> };
+type Ctx = { ids: Record<PersonaKey, string>; groupIds: Record<string, string>; fieldIds: Record<FieldKey, string>; levels: Record<string, Record<string, Level>> };
 
 // Everything but project and type, which the placeholder that becomes the issue already has.
 function issueFields(spec: IssueSpec, c: Ctx) {
   const project = spec.key.split("-")[0];
-  if (spec.secured && !c.levels[project]) throw new Error(`${spec.key} needs a security level, but ${project} has none`);
+  const level = spec.level ? c.levels[project]?.[spec.level] : undefined;
+  if (spec.level && !level) throw new Error(`${spec.key} needs security level "${spec.level}", but ${project} has none`);
   return {
     summary: spec.summary,
     description: adf(spec.description),
     labels: spec.labels,
     reporter: { accountId: c.ids[spec.reporter] },
     ...(spec.assignee ? { assignee: { accountId: c.ids[spec.assignee] } } : {}),
-    ...(spec.secured ? { security: { id: c.levels[project].id } } : {}),
+    ...(level ? { security: { id: level.id } } : {}),
     ...(spec.approvers ? { [c.fieldIds.approvers]: spec.approvers.map((p) => ({ accountId: c.ids[p] })) } : {}),
     ...(spec.owningTeam ? { [c.fieldIds.owningTeam]: { name: spec.owningTeam } } : {}),
   };
@@ -474,6 +488,37 @@ async function comment(spec: IssueSpec) {
   }
 }
 
+// --update: an existing issue's fields, status and comments, brought in line with its spec.
+type Existing = { fields: { issuetype?: { name?: string }; security?: { id?: string } | null } };
+type ExistingComment = { id: string; body?: unknown; visibility?: { value?: string } | null };
+
+async function update(spec: IssueSpec, c: Ctx) {
+  const now = await get<Existing>(`/rest/api/3/issue/${spec.key}?fields=issuetype,security`);
+  if (now.fields.issuetype?.name !== spec.type) warn(`${spec.key}: is a ${now.fields.issuetype?.name}, not a ${spec.type}; work type left as is`);
+  await put(`/rest/api/3/issue/${spec.key}`, {
+    fields: {
+      ...issueFields(spec, c),
+      ...(spec.assignee ? {} : { assignee: null }),
+      ...(!spec.level && now.fields.security ? { security: null } : {}),
+    },
+  });
+  await moveTo(spec.key, spec.status);
+
+  // Comments match when the texts (ignoring the "On behalf of …" prefix) and restrictions match, in order.
+  const have = (await get<{ comments: ExistingComment[] }>(`/rest/api/3/issue/${spec.key}/comment?maxResults=100`)).comments;
+  const norm = (t: string) => t.replace(/^On behalf of \w+: /, "").replace(/`/g, "").replace(/\s+/g, " ").trim();
+  const same =
+    have.length === spec.comments.length &&
+    have.every((h, i) => norm(adfToText(h.body)) === norm(spec.comments[i].text) && (h.visibility?.value ?? undefined) === spec.comments[i].restrictedToRole);
+  if (same) {
+    done(`${spec.key}: updated (comments unchanged)`);
+    return;
+  }
+  for (const h of have) await del(`/rest/api/3/issue/${spec.key}/comment/${h.id}`);
+  await comment(spec);
+  done(`${spec.key}: updated, ${have.length} old comment(s) replaced by ${spec.comments.length}`);
+}
+
 async function finish(spec: IssueSpec) {
   await moveTo(spec.key, spec.status);
   await comment(spec);
@@ -493,6 +538,10 @@ async function issues(c: Ctx) {
     const specs = ISSUES.filter((i) => i.key.startsWith(`${project}-`)).sort((a, b) => keyNum(a.key) - keyNum(b.key));
     for (const spec of specs) {
       if (await exists(spec.key)) {
+        if (UPDATE) {
+          await update(spec, c);
+          continue;
+        }
         // Left as is, except an issue an earlier run created but didn't finish (no comments yet).
         const { total } = await get<{ total: number }>(`/rest/api/3/issue/${spec.key}/comment?maxResults=1`);
         if (!total && spec.comments.length) {
@@ -532,7 +581,7 @@ async function issues(c: Ctx) {
 
 // ---- run ----
 
-console.log(`Seeding Jira demo data on ${jiraConfig.site} as ${admin.email}`);
+console.log(`Seeding Jira demo data on ${jiraConfig.site} as ${admin.email}${UPDATE ? " (--update: existing issues are rewritten)" : ""}`);
 try {
   const perms = await get<{ permissions: Record<string, { havePermission: boolean }> }>(`/rest/api/3/mypermissions?${qs({ permissions: "ADMINISTER" })}`);
   if (!perms.permissions?.ADMINISTER?.havePermission) throw new Error(`${admin.email} isn't a Jira admin on ${jiraConfig.site}. JIRA_ADMIN_* must be a site admin (Carol).`);
