@@ -345,14 +345,22 @@ async function securitySchemes(projectsByKey: Record<string, Project>, ids: Reco
       const find = async () => (await get<{ levels?: { id: string | number; name: string }[] }>(`/rest/api/3/issuesecurityschemes/${schemeId}`)).levels?.find((x) => x.name === l.level);
       let level = await find();
       if (!level) {
-        await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level`, { levels: [{ name: l.level, description: l.description, isDefault: false, members: l.members.map(member) }] });
+        // Without members: users sent here are stored with no account ID. The sync below adds them.
+        await put(`/rest/api/3/issuesecurityschemes/${schemeId}/level`, { levels: [{ name: l.level, description: l.description, isDefault: false }] });
         level = await find();
       }
       if (!level) throw new Error(`Couldn't create level "${l.level}" in ${s.name}`);
       const levelId = String(level.id);
 
       // Members: add what's missing. The crawler must be in every level, or restricted issues are never indexed.
-      const have = await pages<{ holder: { type: string; parameter?: string; value?: string } }>(`/rest/api/3/issuesecurityschemes/level/member?${qs({ schemeId, levelId })}`);
+      // This endpoint ignores levelId and lists the whole scheme, so filter by level.
+      type LevelMember = { id: string; issueSecurityLevelId: string; holder: { type: string; parameter?: string; value?: string } };
+      const all = await pages<LevelMember>(`/rest/api/3/issuesecurityschemes/level/member?${qs({ schemeId, levelId })}`);
+      const inLevel = all.filter((h) => String(h.issueSecurityLevelId) === levelId);
+      // A user member with no account ID (left by an older seed) grants nothing: remove it.
+      for (const h of inLevel.filter((h) => h.holder.type === "user" && !h.holder.parameter && !h.holder.value))
+        await del(`/rest/api/3/issuesecurityschemes/${schemeId}/level/${levelId}/member/${h.id}`);
+      const have = inLevel.filter((h) => !(h.holder.type === "user" && !h.holder.parameter && !h.holder.value));
       // Jira reports a group member by name (parameter) and ID (value); match either.
       const isMember = (m: Member, h: { type: string; parameter?: string; value?: string }) =>
         "user" in m ? h.type === "user" && (h.parameter === ids[m.user] || h.value === ids[m.user]) : h.type === "group" && (h.parameter === m.group || h.value === groupIds[m.group]);
@@ -413,15 +421,19 @@ async function jql(query: string): Promise<{ id: string; key: string }[]> {
   return out;
 }
 
-async function exists(key: string): Promise<boolean> {
+async function visibleTo(key: string, creds?: Creds): Promise<boolean> {
   try {
-    await get(`/rest/api/3/issue/${key}?fields=summary`);
+    await call("GET", `/rest/api/3/issue/${key}?fields=summary`, undefined, creds);
     return true;
   } catch (e) {
     if (is404(e)) return false;
     throw e;
   }
 }
+
+// Carol can miss an issue whose security level she isn't (yet) in; the crawler is in every level. Treating such an
+// issue as missing would burn a key on a placeholder, so ask both.
+const exists = async (key: string) => (await visibleTo(key, admin)) || (!!jiraConfig.apiToken && (await visibleTo(key)));
 
 async function deleteIssues(keys: string[]) {
   for (let i = 0; i < keys.length; i += 5) await Promise.all(keys.slice(i, i + 5).map((k) => del(`/rest/api/3/issue/${k}`).catch((e) => warn(`couldn't delete placeholder ${k}: ${e.message}`))));
@@ -492,6 +504,15 @@ async function comment(spec: IssueSpec) {
 type Existing = { fields: { issuetype?: { name?: string }; security?: { id?: string } | null } };
 type ExistingComment = { id: string; body?: unknown; visibility?: { value?: string } | null };
 
+// A level just created or joined applies with a short delay: until then even Carol gets "issue does not
+// exist" for an issue she has just moved into it. Wait for it to be readable again.
+async function readable(key: string) {
+  for (let attempt = 0; !(await visibleTo(key, admin)); attempt++) {
+    if (attempt >= 8) throw new Error(`${key}: not readable after setting its security level; check that Carol is a member of it (jira:doctor), then re-run with --update`);
+    await sleep(2000 * (attempt + 1));
+  }
+}
+
 async function update(spec: IssueSpec, c: Ctx) {
   const now = await get<Existing>(`/rest/api/3/issue/${spec.key}?fields=issuetype,security`);
   if (now.fields.issuetype?.name !== spec.type) warn(`${spec.key}: is a ${now.fields.issuetype?.name}, not a ${spec.type}; work type left as is`);
@@ -502,6 +523,7 @@ async function update(spec: IssueSpec, c: Ctx) {
       ...(!spec.level && now.fields.security ? { security: null } : {}),
     },
   });
+  await readable(spec.key);
   await moveTo(spec.key, spec.status);
 
   // Comments match when the texts (ignoring the "On behalf of …" prefix) and restrictions match, in order.
@@ -531,12 +553,21 @@ async function finish(spec: IssueSpec) {
 async function issues(c: Ctx) {
   step("Issues");
   for (const project of PROJECTS.map((p) => p.key)) {
+    // Placeholders from an earlier run that stopped halfway. One that holds a seeded key becomes that issue
+    // (deleting it would lose the key for good); the rest are deleted.
     const leftovers = await jql(`project = ${project} AND summary ~ "\\"seed placeholder\\""`);
-    await deleteIssues(leftovers.map((i) => i.key)); // from an earlier run that stopped halfway
+    const reuse = new Set(leftovers.map((i) => i.key).filter((k) => ISSUES.some((x) => x.key === k)));
+    await deleteIssues(leftovers.map((i) => i.key).filter((k) => !reuse.has(k)));
 
     const placeholders: string[] = [];
     const specs = ISSUES.filter((i) => i.key.startsWith(`${project}-`)).sort((a, b) => keyNum(a.key) - keyNum(b.key));
     for (const spec of specs) {
+      if (reuse.has(spec.key)) {
+        await put(`/rest/api/3/issue/${spec.key}`, { fields: issueFields(spec, c) });
+        await readable(spec.key);
+        await finish(spec);
+        continue;
+      }
       if (await exists(spec.key)) {
         if (UPDATE) {
           await update(spec, c);
