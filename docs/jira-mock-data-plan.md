@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · [Jira connector plan](jira-connector-plan.md) · [Demo data (Slack)](demo-data.md)
 
-This plan sets up a Jira Cloud site whose data continues the Slack and Drive demo story: the payment outage on 25 Sep, the follow-up tickets PAY-231, PAY-240 and PAY-241, Carol's security work, and Dave's vendor requests. Most of it is done by **`npm run seed:jira`** (`src/connectors/jira/cli/seed.ts`). The main path is three parts:
+This plan sets up a Jira Cloud site whose data continues the Slack and Drive demo story: the checkout outage, the follow-up tickets PAY-240, PAY-241 and PAY-245, Carol's security work, and Dave's vendor requests. Most of it is done by **`npm run seed:jira`** (`src/connectors/jira/cli/seed.ts`). The main path is three parts:
 
 1. **[Before seeding](#2-before-seeding-manual-15-min)** (manual, about 15 minutes): the site, the trial, the accounts and tokens the script can't create.
 2. **[Run the seed](#3-run-the-seed)**: groups, roles, projects, fields, schemes, security levels, issues and comments.
@@ -18,20 +18,20 @@ Written 2026-10-04. Atlassian renamed parts of the Jira UI during 2025–2026: *
 
 ## Scenario description
 
-Company A runs an online payment service. On **25 Sep** Alice enabled the migration flag `tx_schema_v2` for the transactions database. During the dual-write phase every request held two connections, the connection pool on `pay-db-1` ran out, and from 09:40 to 11:15 18% of checkouts failed. Slack and Drive already tell this story. Jira holds the tickets everyone refers to.
+Company A runs an online payment service. Alice enabled the migration flag `tx_schema_v2` for the transactions database. While the migration runs every payment holds two connections, so one Saturday evening the connection pool on `pay-db-1` ran out and from 19:40 to 21:15 18% of checkouts failed. Acme's support desk took 47 minutes to answer the page. Slack and Drive already tell this story ([demo-data.md](demo-data.md)). Jira holds the tickets everyone refers to.
 
-- **The engineering follow-ups** live in **PAY**. PAY-231 is the migration step blocked by a schema lock. PAY-240 raises the pool limits and adds back-pressure. PAY-241 adds an alert when the pool is over 80% full. PAY-242 is a small SEV4 found during the outage. PAY-243 estimates the contract penalty the outage triggered ($40k credit), and only leadership (Carol) may see it. PAY-244 sends P1 incident notifications to Acme, the support vendor. Acme's team follows that ticket because the `vendors` group is named in its **Owning team** field.
-- **Carol's security work** lives in **SEC**. SEC-1 is the Q3 leaked API key (rotated 14 Aug). SEC-2 is CVE-2026-1234 in the auth service, now overdue. Both are restricted to the security team. SEC-3 is a phishing email that **Bob reported**, so Bob can follow it even though he can't see the rest of SEC.
-- **Acme's requests** live in **VEND**. Dave filed VEND-1 (send us the outage timeline) and VEND-2 (the September SLA report), so he sees those. VEND-3 (the contract penalty review) is internal. VEND-4 asks **Alice** to write a vendor-safe timeline, so she sees it as the assignee. VEND-5 asks **Bob**, who was on call, to approve Acme's dashboard access. Bob sees it only because he's named in its **Approvers** field.
-- One comment on PAY-240, *restricted to Administrators*, asks to keep the flag owner's name out of the vendor timeline. It must never be indexed.
+- **The engineering follow-ups** live in **PAY**. PAY-231 is the migration step blocked by a schema lock. The outage follow-ups, PAY-240 (connection limit from 200 to 400), PAY-241 (alert when the pool is over 80% full) and PAY-245 (name the backup database in the runbook), are done and visible only to the incident team (Alice and Carol), so Bob never learns the root cause. PAY-242 is a small SEV4 found during the outage. PAY-243 estimates the cost of bringing second-line support in-house instead of renewing Acme, and only leadership (Carol) may see it. PAY-244 sends P1 incident notifications to Acme, the support vendor. Acme's team follows that ticket because the `vendors` group is named in its **Owning team** field.
+- **Carol's security work** lives in **SEC**. SEC-1 is the leaked payment gateway API key (revoked within the hour). SEC-2 is CVE-2026-1234 in the auth service, now overdue. Both are restricted to the security team. SEC-3 is a phishing email that **Bob reported**, so Bob can follow it even though he can't see the rest of SEC.
+- **Acme's requests** live in **VEND**. Dave filed VEND-1 (share the outage timeline so Acme can look into its 47-minute page response) and VEND-2 (Acme's monthly report), so he sees those. VEND-3 (points for the Acme renewal meeting) is internal. VEND-4 asks **Alice** to check Acme's side of the timeline against the postmortem, so she sees it as the assignee. VEND-5 asks **Bob**, on call next week, to approve Acme's dashboard access. Bob sees it only because he's named in its **Approvers** field.
+- One comment on PAY-240, *restricted to Administrators*, asks to keep the name of whoever switched the flag on out of the postmortem before it goes to Acme. It must never be indexed.
 
 What each person should find, and why:
 
 | Persona | Should find | Should not find |
 |---|---|---|
-| **Alice** (payments engineer) | All of PAY except PAY-243 (Engineers role, via `payments-eng`). VEND-4 (assignee). | PAY-243 (security level), all of SEC (no Browse), VEND-1/2/3/5 (not reporter, assignee or approver), the restricted comment |
-| **Bob** (engineer, on call) | All of PAY except PAY-243 (Engineers role). SEC-3 (reporter). VEND-5 (Approvers field). | PAY-243, SEC-1/2, VEND-1–4, the restricted comment |
-| **Carol** (security lead, admin) | Everything: PAY (Engineers role, as a user), SEC and VEND (`security` group), PAY-243 and SEC-1/2 (member of both security levels) | The restricted comment, in the app only. She can read it in Jira, but it's never indexed. |
+| **Alice** (payments engineer, led the incident) | All of PAY except PAY-243 (Engineers role, via `payments-eng`; the follow-ups through the "Incident team" level). VEND-4 (assignee). | PAY-243 (security level), all of SEC (no Browse), VEND-1/2/3/5 (not reporter, assignee or approver), the restricted comment |
+| **Bob** (engineer, new, not on the incident team) | PAY-231, PAY-242, PAY-244 (Engineers role). SEC-3 (reporter). VEND-5 (Approvers field). | PAY-240/241/245 ("Incident team" level), PAY-243, SEC-1/2, VEND-1–4, the restricted comment |
+| **Carol** (security lead, admin) | Everything: PAY (Engineers role, as a user), SEC and VEND (`security` group), PAY-240/241/243/245 and SEC-1/2 (member of every security level) | The restricted comment, in the app only. She can read it in Jira, but it's never indexed. |
 | **Dave** (Acme contractor) | VEND-1, VEND-2 (reporter). PAY-244 (`vendors` group in the Owning team field). | Everything else: no Browse in PAY, SEC or VEND otherwise |
 
 Which permission mechanism each part demonstrates:
@@ -44,7 +44,7 @@ Which permission mechanism each part demonstrates:
 | Assignee | VEND-4 (Alice) |
 | User picker field | VEND-5: Approvers = Bob |
 | Group picker field | PAY-244: Owning team = `vendors` (Dave) |
-| Issue security level | PAY-243 (Leadership only), SEC-1 and SEC-2 (Security team only) |
+| Issue security level | PAY-240, PAY-241, PAY-245 (Incident team), PAY-243 (Leadership only), SEC-1 and SEC-2 (Security team only) |
 | Restricted comment (never indexed) | PAY-240, Carol's comment restricted to Administrators |
 
 ## The people
@@ -119,7 +119,7 @@ Without the crawler there's nothing to search; without a person's link, that per
 |---|---|
 | Custom **permission schemes** | Each project must grant Browse Projects to different people. |
 | **Project (space) roles** you can fill per project | The connector expands role grants into users and groups. One grant must use a role. |
-| **Issue (work item) security levels** | The second permission layer: PAY-243, SEC-1 and SEC-2 are hidden from people who can otherwise browse the project. |
+| **Issue (work item) security levels** | The second permission layer: PAY-240/241/243/245, SEC-1 and SEC-2 are hidden from people who can otherwise browse the project. |
 | **Custom fields** (user picker, group picker) usable in permission grants | Browse granted to whoever is named in Approvers (VEND-5) or Owning team (PAY-244). |
 | **Administer Jira** global permission for the crawler | Without it the crawler can't read schemes or ask Jira "can this person see this issue?", and every Jira result is withheld. |
 | 5 users | Carol, Alice, Bob, Dave and the crawler. |
@@ -152,7 +152,7 @@ Only what the script can't do.
 
 1. In a private window, go to atlassian.com → Jira → **Get it free**. Atlassian shows **Create your account**: enter `CAROL_EMAIL` and a **Full name** (e.g. "Carol HMA"), then verify the email. The person who creates the site is its site admin, which the seed needs.
 2. Name the site, for example `hma-brain-demo`. The site URL becomes `https://hma-brain-demo.atlassian.net`. This is `JIRA_BASE_URL`.
-3. Skip the onboarding questions. Onboarding may create a **team-managed KAN project** anyway. Ignore it (`JIRA_PROJECTS=PAY,SEC,VEND` keeps it out of the index) or delete it. Don't create any issues by hand in a project called PAY, or the seed can't get the keys PAY-231 and PAY-240..244 (see troubleshooting).
+3. Skip the onboarding questions. Onboarding may create a **team-managed KAN project** anyway. Ignore it (`JIRA_PROJECTS=PAY,SEC,VEND` keeps it out of the index) or delete it. Don't create any issues by hand in a project called PAY, or the seed can't get the keys PAY-231 and PAY-240..245 (see troubleshooting).
 4. Start the paid-plan trial: ⚙ **Settings** (top right) → **Billing** → find Jira under your subscriptions → **Change plan** → **Standard** (or Premium) → **Start trial**. The exact wording varies; look for "Change plan", "Upgrade" or "Try Standard". You can also reach it from admin.atlassian.com → **Billing**.
 5. Check the plan: admin.atlassian.com → **Directory** → **Users** → Carol → the Jira app-access row shows the plan. On the real site it showed **Premium**, so the trial was active. You can also open `https://<site>.atlassian.net/secure/admin/ViewPermissionSchemes.jspa`: it should open without an "upgrade" message.
 
@@ -234,11 +234,21 @@ Run it again after everyone has accepted their invite. The output is grouped und
    - **Field IDs differ per site.** On the real site Owning team became `customfield_10043`. Use the IDs the seed and `jira:doctor` print, not the examples in this doc.
 7. **Permission schemes.** Creates or updates `PAY permission scheme`, `SEC permission scheme` and `VEND permission scheme` with exactly the grants in 5.5, and assigns each to its project.
 8. **Issue security.** Creates `PAY security` and `SEC security` with the levels and members in 5.6, and assigns them. Assignment is asynchronous in Jira; if a level isn't on the project yet, re-run.
-9. **Issue keys.** Gets the exact keys PAY-231 and PAY-240..244 by creating throwaway placeholder issues and deleting them at the end. If PAY's counter is already past a key (for example, issues were created by hand before), it **warns and skips that issue** instead of guessing.
+9. **Issue keys.** Gets the exact keys PAY-231 and PAY-240..245 by creating throwaway placeholder issues and deleting them at the end. If PAY's counter is already past a key (for example, issues were created by hand before), it **warns and skips that issue** instead of guessing.
 10. **Issues.** Creates every issue in 5.7, including PAY-244, with reporter, assignee, labels, security level and picker values. Then it moves each one to its status.
 11. **Comments.** Adds the comments in 5.7. A comment by Alice, Bob or Dave is posted **as that person** only if their `*_JIRA_API_TOKEN` is set. Otherwise Carol posts it, starting with "On behalf of <Name>:", and the script says so. The PAY-240 restricted comment is posted with visibility **role Administrators**.
 
-**Existing issues** (matched by key) are left alone, not edited, so manual edits made during the demo survive a re-run. Comments are only added when the issue is newly created. To reset an issue completely, delete it in Jira and re-run. For a PAY issue whose key is now taken, see the "counter already past" row in troubleshooting.
+**Existing issues** (matched by key) are left alone, not edited, so manual edits made during the demo survive a re-run. Comments are only added when the issue is newly created.
+
+**To bring existing issues in line with section 5.7** (after `seedData.ts` changes, or to undo demo edits), run:
+
+```bash
+npm run seed:jira -- --update
+```
+
+For every issue that already exists it rewrites summary, description, labels, reporter, assignee, picker values and security level, and moves it to its status. Its comments are compared with 5.7 (text and restriction, in order, ignoring the "On behalf of" prefix). If they differ, all of the issue's comments are deleted and the seeded ones are posted again, so they get today's date. Missing issues are created as usual. The work type isn't changed; the seed warns if it differs.
+
+**Don't delete an issue to reset it.** Jira never reuses an issue number, so a deleted PAY-240 can't be created again: the seed would warn that the counter is past it and skip it. Use `--update` instead.
 
 ### What it does not do
 
@@ -248,7 +258,7 @@ Run it again after everyone has accepted their invite. The output is grouped und
 | Set the crawler's time zone (optional) | 4.2 |
 | Create the Atlassian **OAuth app** for Connect Jira | 4.3 |
 | The Connect Jira clicks | 4.6 |
-| Backdate created dates: they show the seed date, and the text carries "25 Sep" | — |
+| Backdate created dates: they show the seed date (the story has no dates, so nothing contradicts it) | — |
 | Site creation, the trial, accepting invites, API tokens | 2 |
 
 ---
@@ -320,12 +330,12 @@ You can now revoke Carol's seed token (2.3) if you won't re-seed soon.
 ### 4.5 Doctor and backfill **[you, on the laptop]**
 
 ```bash
-npm run jira:doctor     # expect: Administer Jira ok; PAY, SEC, VEND with browse labels; PAY/SEC with 1 security level; Connect Jira set up
+npm run jira:doctor     # expect: Administer Jira ok; PAY, SEC, VEND with browse labels; PAY with 2 security levels, SEC with 1; Connect Jira set up
 npm run jira:backfill   # index every issue in PAY, SEC, VEND
 ```
 
 Expected doctor lines (roughly):
-- `PAY: 3 browse label(s) + group field customfield_MMMMM, 1 security level(s)`. The labels are the crawler group, plus the `payments-eng` group and Carol's user from the Engineers role. MMMMM is Owning team's field ID.
+- `PAY: 3 browse label(s) + group field customfield_MMMMM, 2 security level(s)`. The labels are the crawler group, plus the `payments-eng` group and Carol's user from the Engineers role. MMMMM is Owning team's field ID.
 - `SEC: 2 browse label(s) + reporter, 1 security level(s)`
 - `VEND: 2 browse label(s) + reporter + assignee + user field customfield_NNNNN`. NNNNN is the Approvers field ID.
 - There must be **no** "skipped grants we can't label yet (userCustomField / groupCustomField)" warning in the backfill output.
@@ -459,6 +469,7 @@ Other grants:
 | Scheme | Project | Level | Members | Default level? | Used on |
 |---|---|---|---|---|---|
 | PAY security | PAY | Leadership only | user Carol, group `brain-crawler` | No | PAY-243 |
+| PAY security | PAY | Incident team | users Alice and Carol, group `brain-crawler` | No | PAY-240, PAY-241, PAY-245 |
 | SEC security | SEC | Security team only | group `security`, group `brain-crawler` | No (SEC-3 has no level) | SEC-1, SEC-2 |
 
 **The crawler must be a member of every level.** Jira admins don't bypass issue security. If the crawler isn't in a level, JQL never returns those issues, so they're never indexed and nobody can find them through the app.
@@ -472,50 +483,53 @@ Reporter Carol and no picker value unless the table says otherwise.
 | Key | Type | Summary | Status | Assignee | Reporter | Owning team | Labels | Security level |
 |---|---|---|---|---|---|---|---|---|
 | PAY-231 | Task | Migration step 3 blocked: schema lock on transactions table | In Progress | Alice | Alice | (empty) | `blocked`, `db-migration` | None |
-| PAY-240 | Task | Raise DB connection pool limits and add back-pressure | In Progress | Alice | Carol | (empty) | `postmortem`, `outage-2026-09-25` | None |
-| PAY-241 | Task | Alert on connection pool saturation above 80% | To Do | Bob | Carol | (empty) | `postmortem`, `outage-2026-09-25` | None |
+| PAY-240 | Task | Raise the payment database connection limit from 200 to 400 | Done | Alice | Alice | (empty) | `postmortem`, `checkout-outage` | **Incident team** |
+| PAY-241 | Task | Alert when the connection pool is more than 80% full | Done | Alice | Alice | (empty) | `postmortem`, `checkout-outage` | **Incident team** |
 | PAY-242 | Bug | SEV4: checkout error page shows raw "503 Service Unavailable" text | To Do | Bob | Bob | (empty) | `sev4` | None |
-| PAY-243 | Task | Estimate contract penalty exposure from the 25 Sep payment outage | In Progress | Carol | Carol | (empty) | `outage-2026-09-25` | **Leadership only** |
+| PAY-243 | Task | Estimate the cost of bringing second-line payment support in-house | In Progress | Carol | Carol | (empty) | `acme-renewal` | **Leadership only** |
 | PAY-244 | Task | Send P1 incident notifications to Acme's support desk | To Do | Bob | Carol | **`vendors`** | `vendor-integration` | None |
+| PAY-245 | Task | Name the backup database in the Payment service runbook | Done | Alice | Alice | (empty) | `postmortem`, `checkout-outage` | **Incident team** |
 
 Descriptions:
 
 - **PAY-231** · Step 3 of the transactions DB migration (backfill historical rows) is blocked by a schema lock on the `transactions` table. Steps 1 and 2 are complete. The lock is held while dual-write behind the `tx_schema_v2` flag is running. Rollback: turn off `tx_schema_v2`; the old schema stays authoritative until step 4. Plan: Drive → Engineering → DB migration plan.
-- **PAY-240** · Follow-up from the 25 Sep payment outage. Root cause: the database connection pool on pay-db-1 was exhausted after the migration flag `tx_schema_v2` was enabled, because each request held two connections during the dual-write phase. Raise the pool limit to at least 200 and add back-pressure so the payment API queues requests instead of opening new connections.
-- **PAY-241** · Follow-up from the 25 Sep payment outage. Add an alert when connection pool saturation on pay-db-1 goes above 80% for 5 minutes. Page the payments on-call engineer. Link the alert to the Payment service runbook.
-- **PAY-242** · During the 25 Sep outage, customers saw a plain "503 Service Unavailable" page at checkout instead of our branded error page with a retry button. Near miss, cosmetic: SEV4 per the incident response handbook.
-- **PAY-243** · The payment processor contract renewal has a penalty clause that the 25 Sep outage triggered. Expected outcome: a $40k credit. Confirm the amount with finance and decide what to tell the vendor before the SLA review on Friday. Restricted to leadership.
+- **PAY-240** · Follow-up from the checkout outage. Root cause: the database connection pool on pay-db-1 was exhausted after the migration flag `tx_schema_v2` was enabled. While the migration runs, every payment uses two connections instead of one, so the pool limit of 200 was reached at the dinner peak. Raise the connection limit on pay-db-1 from 200 to 400.
+- **PAY-241** · Follow-up from the checkout outage. There was no alert for the pool filling up; the first alert was about latency, about 20 minutes later. Add an alert when the pay-db-1 connection pool is more than 80% full for 5 minutes. Page the payments on-call engineer. Link the alert to the Payment service runbook.
+- **PAY-242** · During the checkout outage, customers saw a plain "503 Service Unavailable" page at checkout instead of our branded error page with a retry button. Near miss, cosmetic: SEV4 per the incident response handbook.
+- **PAY-243** · Input for the Acme renewal decision, due 45 days before the end of the term. Option: replace Acme's second-line support with our own team. Estimate headcount and yearly cost, and what we lose (Acme's round-the-clock desk). Restricted to leadership; Acme must not see this. Notes: Drive → Vendors → Acme renewal notes.
 - **PAY-244** · The SLA agreement promises Acme a response within 15 minutes for Priority 1 incidents. Send a webhook to Acme's support desk when a SEV1 is declared, so their 24x7 team starts the clock. Acme builds the receiving end; Owning team is set to the vendors group so they can follow this ticket.
+- **PAY-245** · Follow-up from the checkout outage. Finding the name of the backup database took 25 minutes because the runbook said "switch to the backup" without naming it. Update the failover step to name the backup database, pay-db-2.
 
 | Key | Author | Comment |
 |---|---|---|
 | PAY-231 | Alice | The lock is held by the dual-write job. Waiting for the Tuesday maintenance window to pause it and finish step 3. |
-| PAY-231 | Bob | Is this the same migration that was running during the checkout outage? |
-| PAY-231 | Alice | Yes. Step 3 is on hold until PAY-240 is done. |
-| PAY-240 | Alice | Pool raised from 100 to 200 on pay-db-1 in staging. Back-pressure middleware PR is open, needs two reviewers (payment change). |
-| PAY-240 | Carol, **restricted to role Administrators** | Keep the flag owner's name out of the vendor timeline and the public postmortem. |
-| PAY-241 | Bob | Draft alert: pool saturation > 80% for 5 min pages payments on-call. Testing in staging this week. |
+| PAY-231 | Bob | Is there anything I can pick up on this? |
+| PAY-231 | Alice | Not yet, the migration is paused for now. I'll ping you when step 3 is ready to run. |
+| PAY-240 | Alice | Done: connection limit on pay-db-1 raised from 200 to 400. The migration stays off until it's tested. |
+| PAY-240 | Carol, **restricted to role Administrators** | The postmortem is blameless: keep the name of whoever switched the flag on out of it before it goes to Acme. |
+| PAY-241 | Alice | Alert is live: pool_saturation pages the on-call engineer when pay-db-1 is more than 80% full for 5 minutes. |
 | PAY-242 | Bob | Filed as SEV4 per the handbook. Low priority. |
-| PAY-243 | Carol | Penalty clause confirmed with the processor: $40k credit. Waiting on finance before the SLA review. |
+| PAY-243 | Carol | First estimate: about 3 engineers, roughly USD 450,000 a year. No service credit to offset it: Acme's availability was 99.98%, above the 99.95% in the agreement. |
 | PAY-244 | Bob | Webhook payload agreed: incident ID, severity and start time only. No customer data or internal hostnames. |
+| PAY-245 | Alice | Done: the failover step in the Payment service runbook now names pay-db-2. |
 
 #### SEC: Security
 
 | Key | Type | Summary | Status | Assignee | Reporter | Labels | Security level |
 |---|---|---|---|---|---|---|---|
-| SEC-1 | Task | Q3 incident: payment gateway API key leaked in a public repository | Done | Carol | Carol | `incident`, `q3` | **Security team only** |
+| SEC-1 | Task | Payment gateway API key leaked in a public repository | Done | Carol | Carol | `incident` | **Security team only** |
 | SEC-2 | Bug | Patch CVE-2026-1234 in the auth service | In Progress | Carol | Carol | `cve` | **Security team only** |
 | SEC-3 | Task | Phishing email pretending to be the payments on-call bot | In Progress | Carol | **Bob** | `phishing` | None |
 
 Descriptions:
 
-- **SEC-1** · An API key for the payment gateway was committed to a public repository and found by an external scanner. The key was rotated on 14 Aug. No fraudulent transactions were found. Report: Drive → Security → Q3 breach report.
+- **SEC-1** · A live API key for the payment gateway was committed to the public repository payments-sdk-examples. An outside security researcher reported it the next morning. The key was revoked within the hour and every merchant key was re-issued. No fraudulent transactions were found. Report: Drive → Security → Security incident report.
 - **SEC-2** · CVE-2026-1234 affects the auth service. Patch in progress, due 30 Sep.
 - **SEC-3** · Bob received an email that looked like a page from the payments on-call bot, asking him to "re-authenticate" at an outside link. He didn't click it. Forwarded to security.
 
 | Key | Author | Comment |
 |---|---|---|
-| SEC-1 | Carol | Key rotated 14 Aug. Scanner alerts now go to #security. Closing. |
+| SEC-1 | Carol | Key revoked and all merchant keys re-issued. Secret scanning is now on for every repository. Closing. |
 | SEC-2 | Carol | Patch is in staging. Missed the 30 Sep due date; new target 9 Oct. |
 | SEC-3 | Carol | Thanks Bob. Sender domain blocked, and a warning went to the engineering team. |
 | SEC-3 | Bob | Got two more of these on Friday, also blocked now. |
@@ -524,28 +538,28 @@ Descriptions:
 
 | Key | Type | Summary | Status | Assignee | Reporter | Approvers | Labels | Security level |
 |---|---|---|---|---|---|---|---|---|
-| VEND-1 | Task | Share the payment outage timeline for the September SLA report | In Progress | Carol | **Dave** | (empty) | `sla` | None |
-| VEND-2 | Task | September SLA report: Acme support availability and P1 incidents | To Do | Unassigned | **Dave** | (empty) | `sla` | None |
-| VEND-3 | Task | Payment processor contract renewal: penalty clause review | In Progress | Carol | Carol | (empty) | `contract` | None |
-| VEND-4 | Task | Prepare a vendor-safe outage timeline (no internal hostnames) | To Do | **Alice** | Carol | (empty) | `sla` | None |
+| VEND-1 | Task | Share the checkout outage timeline so Acme can look into its page response | In Progress | Carol | **Dave** | (empty) | `outage-follow-up` | None |
+| VEND-2 | Task | Monthly report: Acme availability, response times and P1 incidents | Done | Unassigned | **Dave** | (empty) | `sla` | None |
+| VEND-3 | Task | Acme renewal: points for the renewal meeting | In Progress | Carol | Carol | (empty) | `acme-renewal` | None |
+| VEND-4 | Task | Check Acme's side of the outage timeline against the postmortem | To Do | **Alice** | Carol | (empty) | `outage-follow-up` | None |
 | VEND-5 | Task | Approve Acme read-only access to the payments status dashboard | To Do | Carol | Carol | **Bob** | `access-request` | None |
 
 Descriptions:
 
-- **VEND-1** · From Acme: please share the 25 Sep payment outage timeline so we can include it in our SLA report. Start and end times and customer impact are enough.
-- **VEND-2** · Acme's monthly SLA report for September is due by the 5th working day of October (7 Oct). It covers support availability against the 99.9% target, response times, and every Priority 1 incident. Agreement: Drive → Vendors → Vendor SLA agreement.
-- **VEND-3** · The outage triggered the penalty clause in the payment processor contract renewal. Review the credit with finance. Internal only; not for vendors.
-- **VEND-4** · Turn the postmortem timeline into a version we can give Acme: incident window and impact only. Remove internal hostnames, database names and who made the change.
-- **VEND-5** · Acme asked for read-only access to the payments status dashboard, so their 24x7 support team sees Priority 1 incidents sooner. This needs approval from the payments on-call engineer for the week of the request (Bob, primary in 2026-W40 per the on-call rota). The dashboard must not show internal hostnames or customer data.
+- **VEND-1** · From Acme: Company A says our support desk took 47 minutes to answer its page during the checkout outage; the agreement says 15. Please share the timeline so I can look into it with our support lead.
+- **VEND-2** · Acme's monthly report goes in the Shared with Acme folder by the 5th working day of the following month. It covers availability against the 99.95% commitment, response times, and every Priority 1 incident. Agreement: Drive → Vendors → Shared with Acme → Vendor SLA agreement.
+- **VEND-3** · Acme's contract renews yearly; the decision is due 45 days before the end of the term. Raise the 47-minute page response during the checkout outage (the agreement says 15) and ask for monthly reporting on page response times, not just availability. Internal only; not for vendors.
+- **VEND-4** · Dave is confirming Acme's side of the checkout outage timeline (VEND-1). Check it against the postmortem so I can close the follow-up and remove Acme's access to the postmortem.
+- **VEND-5** · Acme asked for read-only access to the payments status dashboard, so their 24x7 support team sees Priority 1 incidents sooner. This needs approval from the payments on-call engineer for the week the access starts: next week, when Bob is primary per the on-call rota. The dashboard must not show internal hostnames or customer data.
 
 | Key | Author | Comment |
 |---|---|---|
-| VEND-1 | Carol | Incident window 09:40 to 11:15, 18% of checkouts failed. Please don't share this with other vendors yet. |
-| VEND-1 | Dave | Thanks, that's enough for the report. |
-| VEND-2 | Dave | I'll send the draft to vendor-support by 7 Oct. |
-| VEND-3 | Carol | Penalty clause triggered by the outage. Finance reviewing before the vendor SLA review on Friday. |
-| VEND-4 | Alice | Will do. I'll base it on the postmortem and strip pay-db-1 and the flag name. |
-| VEND-5 | Carol | Bob, you were on call when Acme asked. Please approve or reject by Wednesday; a read-only viewer role is enough. |
+| VEND-1 | Carol | I've shared the postmortem with you in Drive, it has the full timeline: paged 19:52, answered 20:39. Please keep it within Acme, it has merchant details. I'll remove your access once you're done. |
+| VEND-1 | Dave | Got it, thanks. I'll confirm our side of the timeline by Friday. |
+| VEND-2 | Dave | Uploaded to the Shared with Acme folder. Availability 99.98%; one Priority 1 incident, the checkout outage, where our desk answered later than the 15 minutes we commit to. |
+| VEND-3 | Carol | Acme has added a second person to the night shift since. Still asking for response-time reporting before we renew. |
+| VEND-4 | Alice | Matches the postmortem: paged at 19:52, Acme answered at 20:39, 47 minutes against the 15 in the agreement. |
+| VEND-5 | Carol | Bob, you're on call next week when Acme's access would start, so it's your call. Please approve or reject by Wednesday; a read-only viewer role is enough. |
 
 Bob doesn't comment on VEND-5: VEND's Add Comments doesn't include the Approvers field.
 
@@ -560,11 +574,12 @@ When a persona's token isn't set, their comments appear as Carol's, starting wit
 | Issue | Alice | Bob | Carol | Dave |
 |---|---|---|---|---|
 | PAY-231 | ✅ Engineers role (via `payments-eng`) | ✅ Engineers role (via `payments-eng`) | ✅ Engineers role (as a user) | ❌ no Browse in PAY |
-| PAY-240 | ✅ Engineers role | ✅ Engineers role | ✅ Engineers role | ❌ no Browse in PAY |
-| PAY-241 | ✅ Engineers role | ✅ Engineers role | ✅ Engineers role | ❌ no Browse in PAY |
+| PAY-240 | ✅ Engineers role + level member | ❌ not in "Incident team" | ✅ Engineers role + level member | ❌ no Browse in PAY |
+| PAY-241 | ✅ Engineers role + level member | ❌ not in "Incident team" | ✅ Engineers role + level member | ❌ no Browse in PAY |
 | PAY-242 | ✅ Engineers role | ✅ Engineers role | ✅ Engineers role | ❌ no Browse in PAY |
 | PAY-243 | ❌ not in "Leadership only" | ❌ not in "Leadership only" | ✅ Engineers role + level member | ❌ no Browse in PAY |
 | PAY-244 | ✅ Engineers role | ✅ Engineers role | ✅ Engineers role | ✅ **`vendors` group in Owning team field** (only reason) |
+| PAY-245 | ✅ Engineers role + level member | ❌ not in "Incident team" | ✅ Engineers role + level member | ❌ no Browse in PAY |
 | SEC-1 | ❌ no Browse in SEC | ❌ no Browse in SEC | ✅ `security` group + level member | ❌ no Browse in SEC |
 | SEC-2 | ❌ no Browse in SEC | ❌ no Browse in SEC | ✅ `security` group + level member | ❌ no Browse in SEC |
 | SEC-3 | ❌ no Browse in SEC | ✅ Reporter grant | ✅ `security` group | ❌ no Browse in SEC |
@@ -575,7 +590,7 @@ When a persona's token isn't set, their comments appear as Carol's, starting wit
 | VEND-5 | ❌ not reporter/assignee/approver | ✅ **in Approvers field** (only reason) | ✅ `security` group | ❌ not reporter/assignee/approver |
 | PAY-240's restricted comment | ❌ never indexed | ❌ never indexed | ❌ never indexed (even though Carol can read it in Jira) | ❌ never indexed |
 
-**Totals: Alice 6 issues, Bob 7, Carol 14, Dave 3.**
+**Totals: Alice 7 issues, Bob 5, Carol 15, Dave 3.**
 
 To check a row in Jira itself **[each persona]**: sign in and open `https://<site>.atlassian.net/browse/<KEY>`. ❌ shows "You don't have permission" or "This issue can't be found". Then check the same in the app (section 7).
 
@@ -587,20 +602,20 @@ Ask with the sources set to Jira plus Slack and Drive (or "all"). Expected answe
 
 | # | Question | Ask as | Expected answer | Ask as | Expected answer |
 |---|---|---|---|---|---|
-| 1 | what are we doing so the payment database doesn't run out of connections again? | Alice | PAY-240 (pool to 200, back-pressure, PR open) and PAY-241 (alert above 80%), plus the postmortem (Drive) and `#payments-incident` (Slack) | Dave | "I don't have information on that" |
+| 1 | what was the root cause of the payment outage, and what follow-up tickets were created? | Alice | Pool exhausted after the migration flag; PAY-240 (limit 200 → 400, done), PAY-241 (alert above 80%, live), PAY-245 (runbook names pay-db-2), plus the postmortem (Drive) and `#payments-incident` (Slack) | Bob | "I don't have information on that" (demo moment 1: Bob isn't in the "Incident team" level) |
 | 2 | why can't the migration move past step 3? | Bob | PAY-231: schema lock on `transactions` held by the dual-write job, waiting for Tuesday's window; also Slack `#db-migration` | Dave | Only the public Slack message (schema lock, PAY-231). Nothing from Jira: no window, no dual-write detail |
-| 3 | when is my SLA report due and what has to be in it? | Dave | VEND-2: by 7 Oct; covers availability vs 99.9%, response times and P1 incidents (Jira + the Vendor SLA agreement in Drive) | Alice | "I don't have information on that" |
-| 4 | what is the outage timeline I can give the vendor? | Dave | VEND-1: 09:40 to 11:15, 18% of checkouts failed; don't share with other vendors yet (Jira + Carol's DM in Slack) | Bob | "I don't have information on that" (Bob can't see VEND-1 or the postmortem) |
-| 5 | what do I need to prepare for Acme? | Alice | VEND-4: a vendor-safe timeline without hostnames or the flag name (assignee grant). May also mention PAY-244. | Bob | PAY-244 (the webhook he's assigned), not VEND-4 |
+| 3 | when is my monthly report due and what has to be in it? | Dave | VEND-2: by the 5th working day of the month, in the Shared with Acme folder; covers availability vs 99.95%, response times and P1 incidents (Jira + the Vendor SLA agreement in Drive) | Alice | "I don't have information on that" |
+| 4 | why did Company A ask about our page response during the outage? | Dave | VEND-1: paged 19:52, answered 20:39, 47 minutes against 15; the postmortem is shared for the timeline, keep it within Acme (Jira + `#acme-support` and Carol's DM in Slack) | Bob | "I don't have information on that" (Bob can't see VEND-1 or the postmortem) |
+| 5 | what do I need to do for Acme? | Alice | VEND-4: check Acme's side of the outage timeline against the postmortem (assignee grant). May also mention PAY-244. | Bob | PAY-244 (the webhook he's assigned), not VEND-4 |
 | 6 | has anyone looked at the suspicious email I forwarded? | Bob | SEC-3: Carol blocked the sender domain and warned engineering (reporter grant) | Alice | "I don't have information on that" |
-| 7 | is the auth service vulnerability fixed? | Carol | SEC-2: not yet, missed 30 Sep, new target 9 Oct; plus Slack `#security` and Drive's Q3 report | Alice | "I don't have information on that" |
-| 8 | how much money is the outage going to cost or save us with the processor? | Carol | PAY-243 / VEND-3: penalty clause, $40k credit (Jira + Slack `#vendor-contracts`) | Alice | "I don't have information on that", **even though Alice can browse PAY** (security level) |
-| 9 | whose name should stay out of the vendor timeline? | Carol | Nothing from Jira: the only text saying this is the restricted comment on PAY-240, which is never indexed | Alice | Nothing from Jira either. (Slack may surface Alice's DM about her flag; that's Slack's permission, not Jira's.) |
-| 10 | which postmortem action items are still open? | Bob | PAY-240 (In Progress, Alice) and PAY-241 (To Do, Bob) | Dave | "I don't have information on that" |
+| 7 | is the auth service vulnerability fixed? | Carol | SEC-2: not yet, missed 30 Sep, new target 9 Oct; plus Slack `#security` and Drive's vulnerability register | Alice | "I don't have information on that" |
+| 8 | what would it cost to replace Acme's support with our own team? | Carol | PAY-243: about 3 engineers, roughly USD 450,000 a year; no service credit to offset it (Jira + Drive's Acme renewal notes) | Alice | "I don't have information on that", **even though Alice can browse PAY** (security level) |
+| 9 | whose name should stay out of the postmortem? | Carol | Nothing from Jira: the only text saying this is the restricted comment on PAY-240, which is never indexed | Alice | Nothing from Jira either. (Slack may surface Alice's DM about her flag; that's Slack's permission, not Jira's.) |
+| 10 | are the postmortem action items done? | Alice | Yes: PAY-240, PAY-241 and PAY-245 are all Done | Bob | "I don't have information on that" |
 | 11 | is anything waiting on my approval? | Bob | VEND-5: Acme wants read-only access to the payments status dashboard; Carol asked for a decision by Wednesday (access only through the Approvers field) | Alice | "I don't have information on that". Dave also gets nothing, even though the request is about Acme |
 | 12 | how will Acme find out about P1 incidents? | Dave | PAY-244: a webhook with incident ID, severity and start time when a SEV1 is declared (access only through Owning team), plus the 15-minute P1 response time from the SLA agreement in Drive | Alice | PAY-244 only, through the Engineers role. No 15-minute figure: the SLA agreement in Drive is shared only with Carol and Dave |
 
-Same question, different answers for Alice and Dave: #1, #3 and #12. Jira combined with Slack or Drive: #1, #3, #4, #7, #8, #12. Security-level layer: #8. Restricted comment: #9. Picker-field grants: #11 (user) and #12 (group).
+Same question, different answers: #1 and #10 (Alice vs Bob), #3 and #12 (vs Dave). Jira combined with Slack or Drive: #1, #3, #4, #7, #8, #12. Security-level layer: #1, #8, #10. Restricted comment: #9. Picker-field grants: #11 (user) and #12 (group).
 
 ---
 
@@ -608,7 +623,7 @@ Same question, different answers for Alice and Dave: #1, #3 and #12. Jira combin
 
 ### Checklist **[you, with each persona]**
 
-- [ ] `npm run seed:jira` ends without warnings about skipped issues, and a second run changes nothing.
+- [ ] `npm run seed:jira` ends without warnings about skipped issues, and a second run changes nothing. A second `-- --update` run reports "comments unchanged" for every issue.
 - [ ] `npm run jira:doctor` ends with "All good." (or only the "nobody connected" warning before 4.6).
 - [ ] `npm run jira:backfill` finishes with "Index now has … chunks from PAY, SEC, VEND". Every issue fits in one chunk, so expect about 14 chunks (6 PAY, 3 SEC, 5 VEND), and no placeholder issues.
 - [ ] For each persona, the section 6 matrix holds in Jira (open each `/browse/KEY`).
@@ -633,7 +648,7 @@ Same question, different answers for Alice and Dave: #1, #3 and #12. Jira combin
 | Warning "PAY-231: PAY's numbering is already past 231 (next was …), so this issue can't get its key. Skipped." (or 240..244) | Issues were created in PAY before the seed, by hand or by an earlier partial run | Jira never reuses numbers and the seed can't go back. Either move the PAY project to trash, delete it permanently and re-run the seed, or accept different numbers and update `src/seedSlack.ts`, `src/connectors/drive/cli/seed.ts` and `docs/demo-data.md`. **Not verified:** whether a trashed project's key can be reused before it's permanently deleted |
 | Permission schemes step fails with "400 Custom field 'Approvers' is not indexed for searching - please add a Search Template to this Custom Field." ✔ *seen on the real site* | The site already had a Jira-created "Approvers" field with no search template (`customfield_10003` there), and the seed reused it. Jira won't accept an unsearchable field in a permission grant | Update to the fixed seed and **re-run; it's safe**. The PAY and SEC schemes had already been applied, and the seed now adds a search template or creates its own searchable "Approvers" field (with a warning). The leftover unsearchable field on VEND's screens is harmless |
 | Creating VEND-5 or PAY-244 fails with "Field 'customfield_…' cannot be set. It is not on the appropriate screen" | The project's screens don't start with `VEND:` / `PAY:`, so the seed didn't add the field to them | Add the field to that project's create and edit screens by hand (A.6, "Add it to the screens"), then re-run. The seed creates the missing issue |
-| Seed fails with "PAY-243 needs a security level, but PAY has none" (or SEC-1 / SEC-2), or setting the level fails | Assigning a security scheme to a project runs as a background task in Jira | Wait a minute and re-run. Check in **Space settings** → **Work item security** that the scheme is attached |
+| Seed fails with "PAY-243 needs security level "Leadership only", but PAY has none" (or another secured issue), or setting the level fails | Assigning a security scheme to a project runs as a background task in Jira | Wait a minute and re-run. Check in **Space settings** → **Work item security** that the scheme is attached |
 | Seed says "Comments by … were posted by <Carol's email> as \"On behalf of …\"" | `ALICE_/BOB_/DAVE_JIRA_API_TOKEN` not set | Fine for the demo. To have real authors, set the tokens, delete those issues and re-run (the PAY keys can't be recreated; see the "counter" row) |
 | A persona's own token fails when posting a comment (403) | That persona lacks Add Comments on that issue | Check 5.5 "Add Comments" (Reporter and Current assignee in SEC and VEND) |
 | Issue security fails with "400 The group <id> isn't a valid parameter." ✔ *seen on the real site* | Older seed sent group **IDs** as security level members; Jira wants group **names** there | Fixed in the seed; re-run |
@@ -659,7 +674,7 @@ Same question, different answers for Alice and Dave: #1, #3 and #12. Jira combin
 | doctor: "nobody would see its issues" | Browse row is empty or only has holder types the connector skips | Re-run the seed; compare with 5.5 |
 | doctor: "Connect Jira isn't set up" | `JIRA_OAUTH_CLIENT_*` missing | 4.3, 4.4 |
 | doctor/backfill warns "skipped grants we can't label yet (userCustomField / groupCustomField)" | The connector build you're running doesn't have picker support, or the field ID can't be read | Update to the build with picker support. Until then Bob misses VEND-5 and Dave misses PAY-244 in the app (safe, incomplete) |
-| Backfill misses PAY-243, SEC-1, SEC-2 | Crawler isn't a member of the security level | Re-run the seed (it syncs level members); check 5.6 |
+| Backfill misses PAY-240/241/243/245, SEC-1, SEC-2 | Crawler isn't a member of the security level | Re-run the seed (it syncs level members); check 5.6 |
 | A persona sees nothing from Jira | Not linked; no Jira product access; or Connect failed | doctor lists links; check product access (2.5 step 5); redo 4.6 |
 | Alice/Bob/Dave get an Atlassian error on Connect Jira | OAuth app sharing is off, or callback URL mismatch | 4.3 step 4 (Enable sharing) and step 3 (exact callback) |
 | Dave sees PAY or SEC issues in Jira (other than PAY-244) | Browse granted to "Any logged in user" / "Application access", e.g. after a manual edit | Re-run the seed (it resets grants to 5.5) |
@@ -763,10 +778,10 @@ The seed builds each scheme from scratch with only the rows in 5.5. By hand, cop
 1. Open **`https://<site>.atlassian.net/secure/admin/ViewIssueSecuritySchemes.jspa`** ✔ *verified* (the page is empty on a new site; that's expected, the seed creates the schemes) → **Add work item security scheme** (or "Add issue security scheme") ([Create a new work item security scheme and security levels](https://support.atlassian.com/jira-cloud-administration/docs/create-a-new-work-item-security-scheme-and-security-levels/)). Name it `SEC security` → **Add**.
 2. In its row, **Security levels** → under **Add security level**, name `Security team only` → **Add security level**. **Don't** mark it Default.
 3. In the level's row, **Add** → **Group: security** → **Add**; again **Group: brain-crawler** → **Add** ([Grant users access to security levels](https://support.atlassian.com/jira-cloud-administration/docs/grant-users-access-to-security-levels-in-a-work-item-security-scheme/)).
-4. Repeat for `PAY security` / `Leadership only` with **Single user: Carol** and **Group: brain-crawler** (5.6).
+4. Repeat for `PAY security` / `Leadership only` with **Single user: Carol** and **Group: brain-crawler**, and a second level `Incident team` with **Single user: Alice**, **Single user: Carol** and **Group: brain-crawler** (5.6).
 5. Attach: project → **•••** → **Space settings** → **Work item security** (older UI: **Issue security**) → **Select a scheme** / **Actions → Use a different scheme** → the scheme → **Next** → **Associate**. If asked about existing issues, choose **None**.
 
-### A.9 Getting the keys PAY-231 and PAY-240..244 by hand **[Carol]**
+### A.9 Getting the keys PAY-231 and PAY-240..245 by hand **[Carol]**
 
 The seed uses throwaway issues. By hand, use Jira's global CSV importer, which can move the counter: importing `PAY-230` makes the next new issue `PAY-231` ([Set Jira project issue key counter to a custom starting number](https://support.atlassian.com/jira/kb/set-jira-project-issue-key-counter-to-a-custom-starting-number/)). The project-level "Import from CSV" can't map Issue key.
 
@@ -778,7 +793,7 @@ The seed uses throwaway issues. By hand, use Jira's global CSV importer, which c
 2. ⚙ **Settings** → **System** → **Import and Export** → **External System Import** → **CSV** → the file → leave "Use an existing configuration file" unticked → **Next** → project **PAY** → **Next** → map each column to the same-named field (Issue Key → **Issue key**) → **Next** → **Begin Import**.
 3. Create **PAY-231** (A.10).
 4. Import `pay-239.csv` (same content, key `PAY-239`).
-5. Create **PAY-240** to **PAY-244**, in order.
+5. Create **PAY-240** to **PAY-245**, in order.
 6. Delete the placeholders: open PAY-230 → **•••** → **Delete** → confirm; same for PAY-239. The counter stays.
 
 The importer can't be undone, and you can't import a key below an existing issue. SEC and VEND start at 1.

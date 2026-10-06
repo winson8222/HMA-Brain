@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "seed:slack": "tsx src/seedSlack.ts",
+    "seed:story": "tsx src/story/seedStory.ts",
     "backfill": "tsx src/backfill.ts",
     "verify": "tsx src/verify.ts",
     "drive:connect": "tsx src/connectors/drive/cli/connect.ts",

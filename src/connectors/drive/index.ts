@@ -1,6 +1,7 @@
 // Google Drive as a connector: wraps the permission-aware retrieval in query.ts.
 // Loaded only when the Google app is configured (see ../index.ts).
 import type { Connector, Evidence } from "../types.js";
+import { localDateOf } from "../../time.js";
 import { isRealEmail } from "./people.js";
 import { bodyOf } from "./prompt.js";
 import { retrieve, toResult } from "./query.js";
@@ -35,6 +36,6 @@ export const drive: Connector = {
     };
   },
 
-  describe: (e) => `"${e.title}" · ${e.location} · updated ${e.time?.slice(0, 10) ?? "unknown"}`,
+  describe: (e) => `"${e.title}" · ${e.location} · updated ${localDateOf(e.time)}`,
   answerHint: "Document excerpts can be out of date: when two disagree, prefer the most recently updated one.",
 };

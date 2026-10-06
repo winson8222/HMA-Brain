@@ -15,6 +15,7 @@ import { resolveRerank, rrfFuse } from "./hybrid.js";
 import { chat } from "./llm.js";
 import { getPrompt } from "./prompts.js";
 import { applyRerankOrder, rerank } from "./rerank.js";
+import { localDate } from "./time.js";
 import type { AskMode } from "./search.js";
 import { withSpan, withTrace } from "./tracing.js";
 
@@ -168,7 +169,7 @@ export async function ask(personId: string, question: string, mode: AskMode, sou
         // Only evidence this person may see right now is ever put in the prompt.
         answer = await chat([
           { role: "system", content: rules },
-          { role: "user", content: `Today is ${new Date().toISOString().slice(0, 10)}.\n\nExcerpts:\n\n${buildContext(evidence)}\n\nQuestion: ${question}` },
+          { role: "user", content: `Today is ${localDate()}.\n\nExcerpts:\n\n${buildContext(evidence)}\n\nQuestion: ${question}` },
         ]);
       } catch (e: any) {
         failure = String(e?.message ?? e);
