@@ -661,6 +661,7 @@ document.addEventListener("click", (e) => {
 async function runSearch() {
   const q = $("#q").value.trim();
   if (!q) return;
+  await ready; // panes and sources don't exist until the first load finishes
   const sources = chosenSources();
   if (!sources.length) { panes.forEach((p) => { const b = p.querySelector(".results"); if (b) b.innerHTML = `<div class="empty">Pick at least one source to search.</div>`; }); return; }
   const m = mode();
@@ -895,7 +896,8 @@ window.addEventListener("focus", async () => {
 
 renderTries();
 showView();
-(async () => {
+// First load; runSearch waits on it so an early Ask/Search doesn't hit missing panes.
+const ready = (async () => {
   [cfg, connectorList] = await Promise.all([api("/api/config"), api("/api/connectors")]);
   renderSources();
   if (!cfg.allowImpersonation) $("#asWho").style.display = "none";
@@ -903,9 +905,8 @@ showView();
   if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;
   renderPanes();
   updateSettingsSummary();
-  await loadStatus();
-  showView();
 })();
+ready.then(loadStatus).then(showView);
 setInterval(loadStatus, 3000);
 setInterval(() => currentView() === "audit" && loadDriveHealth(), 15000);
 </script>
