@@ -7,6 +7,8 @@ import { registerEvents, status } from "./events.js";
 import { embeddingConfigured } from "./embeddings.js";
 import { resolveMultiQuery, resolveRetrievalMode, resolveRerank } from "./hybrid.js";
 import { auditRouter } from "./audit/routes.js";
+import { requireAdmin } from "./admin.js";
+import { accessSummary } from "./access.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
@@ -150,7 +152,17 @@ web.post(
   }),
 );
 
-web.get("/api/log", (_req, res) => {
+// Drive files and Jira projects a person can see, for the access chips. Same "who is asking" rules as Search.
+web.post(
+  "/api/access",
+  wrap(async (req, res) => {
+    const { personId } = asker(req);
+    res.json(await accessSummary(personId));
+  }),
+);
+
+// Withheld items are admin-only, so the whole log needs the admin password (ADMIN_TOKEN).
+web.get("/api/log", requireAdmin, (_req, res) => {
   res.json(auditLog);
 });
 
