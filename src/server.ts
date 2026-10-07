@@ -11,7 +11,7 @@ import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
 import { asker, HttpError, wrap } from "./http.js";
-import { connectors, driveConfigured, jiraConfigured } from "./connectors/index.js";
+import { confluenceConfigured, connectors, driveConfigured, jiraConfigured } from "./connectors/index.js";
 import { ask, auditLog, search, UnknownSourceError } from "./federated.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
@@ -45,6 +45,8 @@ const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import(
 // ---- Jira: searched through the connector registry; polled here when JIRA_SYNC=on ----
 const jiraRoutes = jiraConfigured ? await import("./connectors/jira/routes.js") : null;
 const jira = jiraConfigured && process.env.JIRA_SYNC === "on" ? await import("./connectors/jira/sync.js") : null;
+// ---- Confluence: same site and link as Jira; polled here when CONFLUENCE_SYNC=on ----
+const confluence = confluenceConfigured && process.env.CONFLUENCE_SYNC === "on" ? await import("./connectors/confluence/sync.js") : null;
 
 // ---- HTTP API + UI ----
 const web = express();
@@ -170,6 +172,7 @@ web.get(
       ...status,
       ...(drive ? { drive: drive.driveStatus } : {}),
       ...(jira ? { jira: jira.jiraStatus } : {}),
+      ...(confluence ? { confluence: confluence.confluenceStatus } : {}),
     });
   }),
 );
@@ -250,6 +253,10 @@ if (jira) {
   await jira.loadStatus();
   jira.startPolling();
 }
+if (confluence) {
+  await confluence.loadStatus();
+  confluence.startPolling();
+}
 if (config.sessionSecretIsRandom) console.warn("SESSION_SECRET not set: everyone is signed out when the server restarts.");
 web.listen(config.port, (err?: Error) => {
   if (err) {
@@ -262,7 +269,8 @@ web.listen(config.port, (err?: Error) => {
     : "live Slack sync OFF: run `npm run backfill` for new messages";
   const driveSync =
     (drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "") +
-    (jira ? `; Jira polling every ${process.env.JIRA_POLL_SECONDS || 60}s` : "");
+    (jira ? `; Jira polling every ${process.env.JIRA_POLL_SECONDS || 60}s` : "") +
+    (confluence ? `; Confluence polling every ${process.env.CONFLUENCE_POLL_SECONDS || 60}s` : "");
   if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
   console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });
