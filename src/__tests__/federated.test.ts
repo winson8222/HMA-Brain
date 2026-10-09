@@ -52,6 +52,7 @@ vi.mock("../tracing.js", () => ({ withTrace: (_n: string, _a: object, fn: () => 
 
 const { search, ask, pickConnectors, UnknownSourceError } = await import("../federated.js");
 const { appendAudit } = await import("../audit/store.js");
+type AccessEvent = import("../audit/chain.js").AccessEvent;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -95,7 +96,7 @@ describe("federated search", () => {
   it("writes one audit record covering every searched source", async () => {
     await search("alice@x.com", "rollback", "demo");
     expect(appendAudit).toHaveBeenCalledTimes(1);
-    const rec = vi.mocked(appendAudit).mock.calls[0][0];
+    const rec = (vi.mocked(appendAudit).mock.calls[0][0] as AccessEvent);
     expect(rec.sources).toEqual(["slack", "drive"]);
     expect(rec.docs.map((d) => d.source)).toEqual(["slack", "drive"]);
   });
@@ -109,7 +110,7 @@ describe("federated ask", () => {
     expect(prompt).toContain("[1] Slack · slack:1");
     expect(prompt).toContain("[2] Google Drive · drive:runbook:0");
     expect(a.sources.map((s) => [s.n, s.source])).toEqual([[2, "drive"]]);
-    const rec = vi.mocked(appendAudit).mock.calls[0][0];
+    const rec = (vi.mocked(appendAudit).mock.calls[0][0] as AccessEvent);
     expect(rec.docs.find((d) => d.doc_id === "drive:runbook:0")?.cited).toBe(true);
     expect(rec.docs.find((d) => d.doc_id === "slack:1")?.cited).toBeUndefined();
   });
@@ -124,6 +125,6 @@ describe("federated ask", () => {
   it("still writes the audit record when the LLM fails", async () => {
     chat.mockResolvedValueOnce("rollback").mockRejectedValueOnce(new Error("The LLM didn't respond in time. Try again."));
     await expect(ask("alice@x.com", "Rollback how", "demo")).rejects.toThrow("didn't respond");
-    expect(vi.mocked(appendAudit).mock.calls[0][0].answer).toMatch(/^\(no answer:/);
+    expect((vi.mocked(appendAudit).mock.calls[0][0] as AccessEvent).answer).toMatch(/^\(no answer:/);
   });
 });

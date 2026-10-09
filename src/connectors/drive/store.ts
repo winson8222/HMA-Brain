@@ -112,6 +112,12 @@ export async function relabelFile(fileId: string, acl: string[]) {
     });
 }
 
+// The labels a file is indexed with now (from any of its chunks), for recording what a relabel changed.
+export async function storedAcl(fileId: string): Promise<string[] | null> {
+  const r = await es.search<DriveDoc>({ index: INDEX, size: 1, _source: ["acl_container"], query: { term: { file_id: fileId } } });
+  return r.hits.hits[0]?._source?.acl_container ?? null;
+}
+
 export async function deleteFileDocs(fileId: string) {
   await es.deleteByQuery({ index: INDEX, refresh: true, conflicts: "proceed", query: { term: { file_id: fileId } } });
 }

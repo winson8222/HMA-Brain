@@ -81,7 +81,7 @@ They're stored as `linked_refs`, so the agent can `open()` a linked item directl
 - Each connector filters **inside** its index query, never with `post_filter`, and re-checks live against the platform before returning anything, failing closed on errors. Today that's Slack membership and channel privacy, and Drive's live `getMeta` sharing check.
 - Evidence the asker can't see is dropped before the LLM sees it. Only the audit log records it.
 
-**Audit.** Log every tool call, not just the final answer, as one entry per hop to the tamper-evident `brain-audit` log from drive-connector. Move Slack's in-memory `auditLog` onto it at the same time, which also fixes the `/api/log` issue below.
+**Audit.** Log every tool call, not just the final answer, as one entry per hop to the tamper-evident `brain-audit` log from drive-connector. (Slack's in-memory `auditLog` and `/api/log` are gone: every source now writes to `brain-audit`.)
 
 **Limits.**
 - At most 3–4 tool calls, a total time budget, and a stop when a call returns nothing new.
@@ -208,7 +208,7 @@ Nothing in the agent, Ask, Search, rerank, audit or UI changes.
 
 ## Known issues to fix alongside
 
-- **`/api/log` has no access control.** It returns every person's questions and the text of withheld private-channel messages (DM text is already hidden). Put it behind an admin check, like `requireAdmin` on `drive-connector`, or stop storing withheld text.
+- ~~**`/api/log` has no access control.**~~ Removed: the Audit log page reads the admin-only `/api/audit`, whose records hold titles and IDs, never withheld text.
 - **`drive-connector` isn't merged** into this branch yet. It's the first step of section 2.
 
 ## Suggested order

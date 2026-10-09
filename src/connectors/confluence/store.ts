@@ -75,6 +75,19 @@ export async function writePageDocs(pageId: string, docs: ConfluenceDoc[]): Prom
   return !embeddingConfigured() || withVec.every((d) => "text_vector" in d);
 }
 
+// Each page as indexed now (its first chunk), for the audit log.
+export type PageSnapshot = Pick<ConfluenceDoc, "page_id" | "title" | "space_name" | "acl_container" | "restricted" | "acl_item" | "updated_at">;
+export async function pageSnapshots(pageIds: string[]): Promise<Map<string, PageSnapshot>> {
+  if (!pageIds.length) return new Map();
+  const r = await es.search<PageSnapshot>({
+    index: INDEX,
+    size: pageIds.length,
+    _source: ["page_id", "title", "space_name", "acl_container", "restricted", "acl_item", "updated_at"],
+    query: { bool: { filter: [{ terms: { page_id: pageIds } }, { term: { chunk_index: 0 } }] } },
+  });
+  return new Map(r.hits.hits.map((h) => [h._source!.page_id, h._source!]));
+}
+
 export async function deletePageDocs(pageIds: string[]) {
   if (!pageIds.length) return;
   await es.deleteByQuery({ index: INDEX, refresh: true, conflicts: "proceed", query: { terms: { page_id: pageIds } } });
