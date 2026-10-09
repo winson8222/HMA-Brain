@@ -9,7 +9,10 @@ import { deleteMessage, reaclChannel, upsert } from "./indexer.js";
 import { invalidateAccount } from "./people.js";
 import type { Workspace } from "./slack.js";
 import { classifyMessageEvent, messageToDoc } from "./slackDocs.js";
-import { backfillChannel } from "./sync.js";
+import { recordAudit, recordBackfill } from "./audit/record.js";
+import { backfillChannel, channelItemId, conversationTitle } from "./sync.js";
+
+const slackTime = (ts?: string) => (ts ? new Date(Number(ts) * 1000).toISOString() : null);
 
 export const status = { eventsReceived: 0, lastEvent: null as null | { type: string; at: string } };
 
@@ -31,10 +34,23 @@ export function registerEvents(app: App, ws: Workspace) {
 
   app.event("message", async ({ event, body }) => {
     const e = event as any;
+    const detected = new Date().toISOString(); // Slack pushed it: detection is seconds after the change
     const action = classifyMessageEvent(e);
     if (action.action === "skip") return;
     if (action.action === "delete") {
       await deleteMessage(ws.teamId, e.channel, action.ts);
+      const ch = await ws.getChannel(e.channel).catch(() => null);
+      await recordAudit({
+        kind: "content_change",
+        actor: "system",
+        via: "event",
+        source: "slack",
+        change: "deleted",
+        item: { id: `slack:${ws.teamId}:${e.channel}:${action.ts}`, source: "slack", title: `message in ${ch ? conversationTitle(ch) : e.channel}`, path: ws.teamName },
+        changed_at: slackTime(e.event_ts ?? e.ts),
+        detected_at: detected,
+        indexed_at: new Date().toISOString(),
+      });
       console.log(`deleted ${ws.teamName} ${e.channel}:${action.ts}`);
       return;
     }
@@ -49,20 +65,50 @@ export function registerEvents(app: App, ws: Workspace) {
     if (doc) {
       await upsert((await withVectors([doc]))[0]);
       console.log(`indexed ${doc.doc_id} in ${ch.kind === "channel" ? "#" : ""}${doc.channel_name}`);
+      const edited = e.subtype === "message_changed";
+      await recordAudit({
+        kind: "content_change",
+        actor: "system",
+        via: "event",
+        source: "slack",
+        change: edited ? "updated" : "added",
+        item: { id: doc.doc_id, source: "slack", title: `message in ${conversationTitle(ch)}`, path: ws.teamName },
+        changed_at: slackTime(edited ? (action.msg.edited?.ts ?? e.event_ts) : action.msg.ts),
+        detected_at: detected,
+        indexed_at: new Date().toISOString(),
+      });
     }
   });
 
   // Membership changes only affect the person's principals, not the index.
+  // Who is in a channel decides who can see it: each join or leave is a permission change on the channel.
+  const membership = async (user: string, channel: string, joined: boolean, eventTs?: string) => {
+    const ch = await ws.getChannel(channel).catch(() => null);
+    const who = ws.ctx().userName(user) ?? user;
+    await recordAudit({
+      kind: "permission_change",
+      actor: "system",
+      via: "event",
+      source: "slack",
+      item: { id: channelItemId(ws.teamId, channel), source: "slack", title: ch ? conversationTitle(ch) : channel, path: ws.teamName },
+      summary: `${who} ${joined ? "joined (gained access)" : "left (lost access)"}`,
+      changed_at: slackTime(eventTs),
+      detected_at: new Date().toISOString(),
+    });
+  };
   app.event("member_joined_channel", async ({ event }) => {
     await invalidateAccount(ws, event.user);
     if (event.user === ws.botUserId) {
-      const n = await backfillChannel(ws, await ws.getChannel(event.channel, true));
+      const ch = await ws.getChannel(event.channel, true);
+      const n = await backfillChannel(ws, ch);
       console.log(`bot added to ${event.channel} in ${ws.teamName}, indexed ${n} messages`);
-    }
+      await recordBackfill("slack", "event", n, `Slack ${ws.teamName} ${conversationTitle(ch)}: bot added, ${n} messages`);
+    } else await membership(event.user, event.channel, true, (event as any).event_ts);
   });
   app.event("member_left_channel", async ({ event }) => {
     await invalidateAccount(ws, event.user);
     console.log(`${event.user} left ${event.channel} in ${ws.teamName}: access refreshed`);
+    await membership(event.user, event.channel, false, (event as any).event_ts);
   });
 
   app.event("channel_created", async ({ event }) => {

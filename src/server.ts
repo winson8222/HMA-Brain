@@ -1,20 +1,20 @@
 import { App, LogLevel } from "@slack/bolt";
 import express from "express";
 import { config } from "./config.js";
+import { recordAudit, recordBackfill } from "./audit/record.js";
 import { backfillUserDms, cleanupAfterDisconnect, personIdOfToken, userClient } from "./dms.js";
 import { ensureIndex, es, INDEX } from "./es.js";
 import { registerEvents, status } from "./events.js";
 import { embeddingConfigured } from "./embeddings.js";
 import { resolveMultiQuery, resolveRetrievalMode, resolveRerank } from "./hybrid.js";
 import { auditRouter } from "./audit/routes.js";
-import { requireAdmin } from "./admin.js";
 import { accessSummary } from "./access.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
 import { findPerson, getAccess, listPeople } from "./people.js";
 import { asker, HttpError, wrap } from "./http.js";
 import { confluenceConfigured, connectors, driveConfigured, jiraConfigured } from "./connectors/index.js";
-import { ask, auditLog, search, UnknownSourceError } from "./federated.js";
+import { ask, search, UnknownSourceError } from "./federated.js";
 import { clearSession, getSession, setSession } from "./session.js";
 import { workspaceByKey, workspaces } from "./slack.js";
 import { reconcileChannels } from "./sync.js";
@@ -163,11 +163,6 @@ web.post(
   }),
 );
 
-// Withheld items are admin-only, so the whole log needs the admin password (ADMIN_TOKEN).
-web.get("/api/log", requireAdmin, (_req, res) => {
-  res.json(auditLog);
-});
-
 web.get(
   "/api/status",
   wrap(async (_req, res) => {
@@ -223,8 +218,10 @@ web.get("/slack/oauth/callback", async (req, res) => {
   try {
     const { ws, token } = await completeConnect(String(req.query.code), String(req.query.state));
     setSession(res, personIdOfToken(token));
+    await recordAudit({ kind: "account", actor: personIdOfToken(token), via: "web", source: "slack", action: "connect", account: `${ws.teamName} (${token.userId})` });
     const n = await backfillUserDms(ws, token);
     console.log(`connected ${token.email ?? token.userId} in ${ws.teamName}, indexed ${n} DM messages`);
+    await recordBackfill("slack", "event", n, `Slack ${ws.teamName}: DMs of ${personIdOfToken(token)} after connecting, ${n} messages`);
     back({ connected: ws.teamName });
   } catch (e: any) {
     console.error(e);
@@ -245,6 +242,7 @@ web.post(
       await userClient(t).auth.revoke().catch(() => {}); // already revoked is fine
       removeUserToken(t.teamId, t.userId);
       removed += await cleanupAfterDisconnect(ws, me);
+      await recordAudit({ kind: "account", actor: me, via: "web", source: "slack", action: "disconnect", account: `${ws.teamName} (${t.userId})` });
     }
     res.json({ ok: true, removedConversations: removed });
   }),

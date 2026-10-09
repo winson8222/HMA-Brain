@@ -71,20 +71,26 @@ Slack version: add Bob to `#payments-incident`, have Bob ask about the root caus
 
 *A compliance officer reconstructs who asked what, what was retrieved and what was answered.*
 
-As Carol, click **Audit log** and unlock it with `ADMIN_TOKEN`:
+As Carol, click **Audit log** and unlock it with `ADMIN_TOKEN`. Every row is a sealed record in the tamper-evident chain: searches and answers, permission changes, content changes, account links and admin actions.
 
-1. Each search shows who asked, the question, when, the documents **allowed**, the documents **withheld** (titles only, admin-only), and the ones **dropped by live re-check**.
+1. Each search shows who asked, the question, when, the documents **allowed**, the documents **withheld** (titles only, admin-only), and the ones **dropped by live re-check**. Expand a row for the answer and the lists.
 2. Point at Bob's "security vulnerabilities" search: the register was **withheld** from him and never reached the model.
+3. Type `postmortem` in **Document**. After scenario 4 you see, newest first: the **Permission** row "Access changed on Payment outage postmortem · lost: dave…" (expand it: Dave is struck through under *Before*), Dave's searches with the postmortem **dropped by live re-check**, and earlier searches where it was **shown**. That answers "when did Dave lose access, and did he see it after?" in one view.
+4. Click **Verify chain** → "Chain intact, all N records verified".
 
-For the filterable, tamper-evident trail, use the **Drive page** (`/drive.html`, linked from the Audit log's Drive card) or the CLI:
+| Question from the brief | In the Audit log | CLI |
+|---|---|---|
+| "What did Dave access last week?" | Person `dave@…`, From/To dates | `npm run audit:log -- --user dave --since 2026-10-01` |
+| "Who retrieved this sensitive doc?" | Document: title words or ID, Decision: *Something was shown* | `npm run audit:log -- --doc postmortem` |
+| "When did this doc's access change?" | Document + Kind: *Permission changes* | `npm run audit:log -- --doc postmortem --kind permission` |
+| How fresh is the index? | Kind: *Content changes*, expand a row: modified vs indexed time | `npm run audit:log -- --kind content` |
+| Only denied access | Decision: *Something was withheld* | `npm run audit:log -- --denied` |
+| Who connected or disconnected accounts, who looked at the log | Kind: *Account links* / *Admin actions* | `npm run audit:log -- --kind account,admin` |
+| Is the log tamper-evident? | **Verify chain** | `npm run audit:verify` → "chain intact". Edit a record in `brain-audit` and run it again to show it fail |
 
-| Question from the brief | How |
-|---|---|
-| "What did Dave access?" | Filter by user `dave`, or `npm run audit:log -- --user dave` |
-| "Who retrieved this sensitive doc?" | Filter by the postmortem's file ID, or `npm run audit:log -- --doc <file id>` |
-| "…in the last 30 days" | `npm run audit:log -- --user dave --since 2026-09-06` |
-| Only denied access | `npm run audit:log -- --denied` |
-| Is the log tamper-evident? | **Verify audit chain**, or `npm run audit:verify` → "All records intact". Edit a line in the log file and run it again to show it fail |
+What each platform logs, and when (time changed vs time detected): [audit-trail.md](audit-trail.md).
+
+To set up step 3 without a live revoke: `npm run seed:drive -- --close-vendor-access`, then `npm run drive:poll` (or wait for the poll). Restore with `npm run seed:drive -- --reset` and poll again; that writes the matching "gained" record.
 
 ---
 

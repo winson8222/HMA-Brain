@@ -1,10 +1,11 @@
 // The audit log in Elasticsearch (`brain-audit`): append-only records chained by hash (see chain.ts).
-// Source-agnostic: Drive writes to it today; Slack's in-memory log can switch to appendAudit() later.
+// Every kind of record (searches, answers, permission and content changes, account links, admin actions)
+// goes into the same chain; see chain.ts for the kinds.
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { es } from "../es.js";
-import { seal, verifyChain, type AuditEvent, type AuditRecord, type Decision, type VerifyResult } from "./chain.js";
+import { seal, verifyChain, type AuditEvent, type AuditKind, type AuditRecord, type Decision, type VerifyResult } from "./chain.js";
 
 const INDEX = process.env.AUDIT_INDEX || "brain-audit";
 
@@ -24,6 +25,14 @@ const mappings = {
     dropped_ids: { type: "keyword" },
     denied_ids: { type: "keyword" },
     docs: { properties: { doc_id: { type: "keyword" }, title: { type: "keyword" }, decision: { type: "keyword" }, source: { type: "keyword" } } },
+    // permission_change, content_change, account, admin
+    source: { type: "keyword" },
+    item: { properties: { id: { type: "keyword" }, title: { type: "keyword" }, source: { type: "keyword" } } },
+    change: { type: "keyword" },
+    action: { type: "keyword" },
+    summary: { type: "text" },
+    modified_at: { type: "date" },
+    indexed_at: { type: "date" },
     prev_hash: { type: "keyword" },
     hash: { type: "keyword" },
   },
@@ -52,6 +61,9 @@ async function ensureAuditIndex() {
   if (ready) return;
   if (!(await es.indices.exists({ index: INDEX }))) {
     await es.indices.create({ index: INDEX, mappings }, { ignore: [400] }); // 400: another process created it first
+  } else {
+    // An index created before the newer kinds existed: add their fields (adding fields is always allowed).
+    await es.indices.putMapping({ index: INDEX, ...mappings });
   }
   ready = true;
 }
@@ -87,27 +99,54 @@ async function appendNow(e: AuditEvent): Promise<AuditRecord> {
 
 export type AuditFilter = {
   actor?: string;
-  doc?: string; // a doc ID (drive:<file>:<n>, slack:<channel>:<ts>) or a bare Drive file ID
+  // An item: a doc ID (drive:<file>:<n>), an item ID (drive:<file>, jira:<site>:<issue>), a bare Drive file
+  // ID, or words from its title. Matches searches that returned it AND its permission/content changes.
+  doc?: string;
+  kind?: AuditKind[];
   decision?: Decision;
   since?: string;
   until?: string;
-  text?: string; // words in the question or answer
+  text?: string; // words in the question, answer or change summary
   limit?: number;
 };
 
-// "Who saw X?", "What did Bob ask this week?", "Show every denial": newest first.
+const DECISION_FIELDS = (d?: Decision) => (d ? [d] : (["allowed", "dropped", "denied"] as const)).map((x) => `${x}_ids`);
+
+// A chunk's doc ID → its item's ID (drive:F:3 → drive:F). Anything else is already an item ID.
+const CHUNK_PARTS: Record<string, number> = { drive: 3, jira: 4, confluence: 4 };
+export function itemIdOf(docId: string): string {
+  const parts = docId.split(":");
+  return parts.length === CHUNK_PARTS[parts[0]] && /^\d+$/.test(parts.at(-1)!) ? parts.slice(0, -1).join(":") : docId;
+}
+
+// Every way the `doc` filter can name an item.
+export function docClauses(raw: string, decision?: Decision): object[] {
+  const d = raw.trim();
+  const ids = DECISION_FIELDS(decision);
+  const out: object[] = [];
+  const titleWords = { value: `*${d.replace(/[*?\\]/g, "")}*`, case_insensitive: true };
+  out.push({ wildcard: { "docs.title": titleWords } });
+  if (!decision) out.push({ wildcard: { "item.title": titleWords } });
+  if (/\s/.test(d)) return out; // a title, not an ID
+  const itemIds = d.includes(":") ? [d, itemIdOf(d)] : [`drive:${d}`];
+  for (const f of ids) {
+    out.push({ term: { [f]: d } });
+    for (const i of itemIds) out.push({ prefix: { [f]: `${i}:` } });
+  }
+  if (!decision) out.push({ terms: { "item.id": [...new Set(itemIds)] } });
+  return out;
+}
+
+// "Who saw X?", "What did Bob ask this week?", "When did Dave lose access to the postmortem?": newest first.
 export async function queryAudit(f: AuditFilter): Promise<AuditRecord[]> {
   await ensureAuditIndex();
   const filter: object[] = [];
-  const decisions: Decision[] = f.decision ? [f.decision] : ["allowed", "dropped", "denied"];
   if (f.actor) filter.push({ term: { actor: f.actor.trim().toLowerCase() } });
-  if (f.doc) {
-    const d = f.doc.trim();
-    const match = d.includes(":") ? (field: string) => ({ term: { [field]: d } }) : (field: string) => ({ prefix: { [field]: `drive:${d}:` } });
-    filter.push({ bool: { should: decisions.map((x) => match(`${x}_ids`)), minimum_should_match: 1 } });
-  } else if (f.decision) filter.push({ exists: { field: `${f.decision}_ids` } });
+  if (f.kind?.length) filter.push({ terms: { kind: f.kind } });
+  if (f.doc) filter.push({ bool: { should: docClauses(f.doc, f.decision), minimum_should_match: 1 } });
+  if (f.decision) filter.push({ bool: { should: DECISION_FIELDS(f.decision).map((field) => ({ exists: { field } })), minimum_should_match: 1 } });
   if (f.since || f.until) filter.push({ range: { at: { ...(f.since ? { gte: f.since } : {}), ...(f.until ? { lte: f.until } : {}) } } });
-  const must = f.text ? [{ multi_match: { query: f.text, fields: ["query", "keywords", "answer"] } }] : [];
+  const must = f.text ? [{ multi_match: { query: f.text, fields: ["query", "keywords", "answer", "summary"] } }] : [];
   const r = await es.search<AuditRecord>({
     index: INDEX,
     size: Math.min(Math.max(f.limit ?? 50, 1), 500),

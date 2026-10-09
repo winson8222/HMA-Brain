@@ -136,9 +136,9 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run jira:backfill` | Index every issue in the Jira projects; unchanged issues are skipped (`-- --reset` rebuilds the Jira indexes only) |
 | `npm run jira:poll` | Apply Jira changes (issues and permissions) since the last run (`-- --watch` to keep polling) |
 | `npm run jira:doctor` | Check the Jira setup: crawler token, Administer Jira, each project's permissions, Connect Jira, who has linked |
-| `npm run audit:log` | Query the audit log (`-- --user bob`, `--doc <file id>`, `--denied`, `--since <date>`) |
-| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed |
-| `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies, Drive mapping and queries, audit chain) |
+| `npm run audit:log` | Query the audit log: searches, answers, permission and content changes, account links, admin actions (`-- --user bob`, `--doc <ID or title words>`, `--kind permission`, `--denied`, `--since <date>`) |
+| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed. What's logged and how: [docs/audit-trail.md](docs/audit-trail.md) |
+| `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies, Drive mapping and queries, audit chain, record kinds and filters) |
 | `npm run typecheck` | TypeScript check |
 
 ### Sharing the demo (optional)
@@ -328,7 +328,7 @@ Use **Demo** mode with the compare view for 1–6, and **Me** mode for 7.
 | 5 | Remove Alice from `#payments-incident` in Slack, then Alice asks again | Root cause from the channel is gone. Add her back and it returns. |
 | 6 | Post a new DM or channel message in Slack (with `SLACK_SYNC=on`) | Appears within seconds (the status bar shows the event) |
 | 7 | Switch to **Me** in a persona's signed-in browser and ask | Answers as that person only. On `/connect`, **Disconnect** removes their DMs unless another participant is still connected. |
-| 8 | Scroll to the audit log | Each search: keywords, answer, messages shown and withheld. Withheld DMs appear as `DM: … (withheld)` with no text. |
+| 8 | Open **Audit log** (admin password) | Each search: keywords, answer, messages shown and withheld (withheld DMs never show text), plus permission and content changes, account links and admin actions. Filter by person, document, kind, decision or dates, and **Verify chain**. |
 
 ---
 
@@ -362,5 +362,4 @@ Architecture, the permission model, the file map, and **what a new connector (Gm
 
 - With `ALLOW_IMPERSONATION=on`, the UI can act as anyone (Me mode is the real sign-in, via Slack).
 - Tokens are stored in a JSON file instead of an encrypted database.
-- The Slack page's audit log is in memory and not tamper-evident. (Drive's is, in `brain-audit`.)
 - Elasticsearch runs without security on localhost.

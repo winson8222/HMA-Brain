@@ -8,10 +8,13 @@
 //     the page's descendants through the stored tree.
 //   - Deleted pages: the sweep diffs Confluence's page IDs against the state. Until then the live re-check
 //     withholds a deleted page, because Confluence no longer lets anyone read it.
+import type { SyncVia } from "../../audit/chain.js";
+import { access, type Snapshot } from "../../audit/events.js";
+import { recordBackfill, recordItemChange, recordItemDeleted } from "../../audit/record.js";
 import { effectiveLabels, restrictionLabels } from "./acl.js";
 import { currentUser, explain, getPage, isAuthError, listPages, listSpaces, readRestriction, searchPageIds, userName, type RawPage, type Space } from "./client.js";
 import { confluenceConfig } from "./config.js";
-import { pageToDocs, type SpaceAcl } from "./docs.js";
+import { pageToDocs, type ConfluenceDoc, type SpaceAcl } from "./docs.js";
 import { spaceAcl } from "./spaces.js";
 import {
   allSpaceStates,
@@ -23,12 +26,14 @@ import {
   ensureConfluenceIndices,
   getConnector,
   getSpaceState,
+  pageSnapshots,
   pageStates,
   putConnector,
   putPageState,
   putSpaceState,
   resetConfluenceIndices,
   writePageDocs,
+  type PageSnapshot,
   type PageState,
 } from "./store.js";
 
@@ -58,17 +63,35 @@ export const confluenceStatus = {
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const parentOf = (p: RawPage) => (p.parentType === "page" && p.parentId ? p.parentId : null);
 
-async function removePages(ids: string[], states: Map<string, PageState>) {
+// For the audit log: what to call this run, and whether it's a first backfill (one summary record).
+type Ctx = { via: SyncVia; initial: boolean };
+
+const pageItemId = (pageId: string) => `confluence:${confluenceConfig.site}:${pageId}`;
+const snapshot = (d: PageSnapshot | ConfluenceDoc): Snapshot => ({
+  title: d.title,
+  path: d.space_name,
+  access: access(d.acl_container, d.restricted ? d.acl_item : null),
+  modified_at: d.updated_at,
+});
+
+async function removePages(ids: string[], states: Map<string, PageState>, ctx: Ctx) {
   if (!ids.length) return;
+  const before = await pageSnapshots(ids);
   await deletePageDocs(ids);
   await deletePageStates(ids);
-  for (const id of ids) states.delete(id);
+  for (const id of ids) {
+    const s = before.get(id);
+    const title = s?.title ?? states.get(id)?.title ?? id;
+    // Confluence doesn't say when a page was deleted: only the detection time is known.
+    await recordItemDeleted("confluence", ctx.via, { id: pageItemId(id), source: "confluence", title, ...(s ? { path: s.space_name } : {}) });
+    states.delete(id);
+  }
 }
 
 // Index these pages (with bodies) of one space: read each one's own view restriction, resolve the effective
 // one through its parents (this batch first, then the stored state), write what changed, and re-index the
 // stored descendants of any page whose effective restriction changed.
-async function indexPages(acl: SpaceAcl, pages: RawPage[], states: Map<string, PageState>, counts: Counts): Promise<void> {
+async function indexPages(acl: SpaceAcl, pages: RawPage[], states: Map<string, PageState>, counts: Counts, ctx: Ctx): Promise<void> {
   const { site, baseUrl } = confluenceConfig;
   const batch = new Map(pages.map((p) => [p.id, p]));
   const own = new Map<string, string[] | null>();
@@ -80,7 +103,7 @@ async function indexPages(acl: SpaceAcl, pages: RawPage[], states: Map<string, P
       batch.delete(p.id);
     } else own.set(p.id, restrictionLabels(site, r));
   }
-  await removePages(gone, states);
+  await removePages(gone, states, ctx);
   counts.deleted += gone.length;
 
   const eff = new Map<string, string[] | null>();
@@ -106,8 +129,10 @@ async function indexPages(acl: SpaceAcl, pages: RawPage[], states: Map<string, P
       const next: Omit<PageState, "kind" | "synced_at"> = { page_id: p.id, space_id: acl.space_id, parent_id: parentOf(p), title: p.title ?? "", own: own.get(p.id)!, effective: e, content_hash: docs[0].content_hash };
       if (prev?.content_hash === next.content_hash) counts.unchanged++;
       else {
+        const old = prev ? ((await pageSnapshots([p.id])).get(p.id) ?? null) : null;
         await writePageDocs(p.id, docs);
         counts.indexed++;
+        await recordItemChange("confluence", ctx.via, pageItemId(p.id), old && snapshot(old), snapshot(docs[0]), { quietAdd: ctx.initial });
       }
       if (!same(prev?.effective ?? null, e)) fanOut.push(p.id);
       if (!prev || !same({ ...prev, kind: undefined, synced_at: undefined }, { ...next, kind: undefined, synced_at: undefined })) {
@@ -133,39 +158,40 @@ async function indexPages(acl: SpaceAcl, pages: RawPage[], states: Map<string, P
     if (p) fetched.push(p);
     else missing.push(id);
   }
-  await removePages(missing, states);
+  await removePages(missing, states, ctx);
   counts.deleted += missing.length;
-  await indexPages(acl, fetched, states, counts);
+  await indexPages(acl, fetched, states, counts, ctx);
 }
 
 // Every page in one space, then drop stored pages Confluence no longer has.
-async function syncSpace(s: Space, acl: SpaceAcl, counts: Counts) {
+async function syncSpace(s: Space, acl: SpaceAcl, counts: Counts, ctx: Ctx) {
   const states = await pageStates(s.id);
   const all: RawPage[] = [];
   for await (const page of listPages(s.id, true)) all.push(...page);
-  await indexPages(acl, all, states, counts);
+  await indexPages(acl, all, states, counts, ctx);
   const seen = new Set(all.map((p) => p.id));
   const gone = [...states.keys()].filter((id) => !seen.has(id));
-  await removePages(gone, states);
+  await removePages(gone, states, ctx);
   counts.deleted += gone.length;
   await putSpaceState(acl);
   counts.spaces++;
 }
 
-async function dropSpace(spaceId: string) {
-  await deleteSpaceDocs(spaceId);
-  await deletePageStates([...(await pageStates(spaceId)).keys()]);
+async function dropSpace(spaceId: string, ctx: Ctx) {
+  const states = await pageStates(spaceId);
+  await removePages([...states.keys()], states, ctx);
+  await deleteSpaceDocs(spaceId); // anything left without state
   await deleteSpaceState(spaceId);
 }
 
 // A space whose permissions can't be read can't be labelled. Its pages stay out of the index.
-async function aclOrDrop(s: Space, counts: Counts): Promise<SpaceAcl | null> {
+async function aclOrDrop(s: Space, counts: Counts, ctx: Ctx): Promise<SpaceAcl | null> {
   try {
     return await spaceAcl(s);
   } catch (e) {
     if (isAuthError(e) && (e as any).status === 401) throw e; // bad token: stop the whole run
     console.error(`Confluence ${s.key}: couldn't read its permissions (${explain(e)}); removing it from the index until it can be`);
-    await dropSpace(s.id);
+    await dropSpace(s.id, ctx);
     counts.error++;
     return null;
   }
@@ -205,6 +231,8 @@ async function exclusive<T>(fn: () => Promise<T>): Promise<T | null> {
 async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
   if (opts.reset) await resetConfluenceIndices();
   else await ensureConfluenceIndices();
+  const initial = !!opts.reset || !(await getConnector())?.cursor;
+  const ctx: Ctx = { via: initial ? "backfill" : "reconcile", initial };
   const me = await currentUser();
   const started = new Date(); // anything modified during the backfill is picked up by the next poll
   const counts = newCounts();
@@ -213,15 +241,16 @@ async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
   const missing = confluenceConfig.spaces.filter((k) => !spaces.some((s) => s.key.toUpperCase() === k));
   if (missing.length) console.warn(`Confluence: the service account can't see space(s) ${missing.join(", ")}`);
   for (const s of spaces) {
-    const acl = await aclOrDrop(s, counts);
-    if (acl) await syncSpace(s, acl, counts);
+    const acl = await aclOrDrop(s, counts, ctx);
+    if (acl) await syncSpace(s, acl, counts, ctx);
   }
 
   // Spaces that left the scope (or were deleted, or the service account lost access).
   const inScope = new Set(spaces.map((s) => s.id));
-  for (const st of await allSpaceStates()) if (!inScope.has(st.space_id)) await dropSpace(st.space_id);
+  for (const st of await allSpaceStates()) if (!inScope.has(st.space_id)) await dropSpace(st.space_id, ctx);
 
   await putConnector({ account_id: me.accountId, last_backfill_at: new Date().toISOString(), cursor: started.toISOString() });
+  if (initial) await recordBackfill("confluence", "backfill", counts.indexed, `Confluence ${spaces.map((s) => s.key).join(", ") || "(no spaces)"}: ${summary(counts)}`);
   await refreshStatus("backfill", counts);
   return counts;
 }
@@ -247,16 +276,17 @@ export function pollOnce(): Promise<Counts | null> {
     }
     const started = new Date();
     const counts = newCounts();
+    const ctx: Ctx = { via: "poll", initial: false };
 
     // 1. Permissions first: a space whose picture changed is re-synced in full; a new space is backfilled.
     const current: { s: Space; acl: SpaceAcl }[] = [];
     for (const s of await listSpaces(confluenceConfig.spaces)) {
-      const acl = await aclOrDrop(s, counts);
+      const acl = await aclOrDrop(s, counts, ctx);
       if (!acl) continue;
       const prev = await getSpaceState(s.id);
       if (!prev || prev.hash !== acl.hash) {
         console.log(`Confluence ${s.key}: ${prev ? "permissions changed, relabelling" : "new space, indexing"}`);
-        await syncSpace(s, acl, counts);
+        await syncSpace(s, acl, counts, ctx);
       } else current.push({ s, acl });
     }
 
@@ -273,9 +303,9 @@ export function pollOnce(): Promise<Counts | null> {
         if (p) pages.push(p);
         else if (states.has(id)) gone.push(id);
       }
-      await removePages(gone, states);
+      await removePages(gone, states, ctx);
       counts.deleted += gone.length;
-      await indexPages(acl, pages, states, counts);
+      await indexPages(acl, pages, states, counts, ctx);
     }
 
     // 3. Save the new position only after everything is applied. A crash before this just redoes the batch.
@@ -288,13 +318,14 @@ export function pollOnce(): Promise<Counts | null> {
 // Reconcile: deleted or moved pages, and view restrictions that changed without a content edit.
 export async function sweep(): Promise<Counts> {
   const counts = newCounts();
+  const ctx: Ctx = { via: "reconcile", initial: false };
   for (const st of await allSpaceStates()) {
     const states = await pageStates(st.space_id);
     const live: RawPage[] = [];
     for await (const page of listPages(st.space_id, false)) live.push(...page);
     const liveIds = new Set(live.map((p) => p.id));
     const gone = [...states.keys()].filter((id) => !liveIds.has(id));
-    await removePages(gone, states);
+    await removePages(gone, states, ctx);
     counts.deleted += gone.length;
 
     const changed: string[] = [];
@@ -309,7 +340,7 @@ export async function sweep(): Promise<Counts> {
       const p = await getPage(id);
       if (p) pages.push(p);
     }
-    if (pages.length) await indexPages(st, pages, states, counts);
+    if (pages.length) await indexPages(st, pages, states, counts, ctx);
   }
   return counts;
 }

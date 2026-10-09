@@ -81,8 +81,9 @@ Every audit entry records which mode was used.
 | `src/connectors/drive/cli/*` | Drive | `drive:connect`, `seed:drive`, `drive:backfill`, `drive:poll`, `drive:verify`, `drive:ask`, `drive:doctor` |
 | `public/drive.html` | Drive | Drive page: Ask/Search with two-person compare, and an admin-only Audit log tab (filters, verify, connect) |
 | `src/connectors/jira/*` | Jira | Jira Cloud connector: two-layer labels (project browse + security level), live re-check with Jira's bulk permission check, polling sync; Connect Jira links each person to their Atlassian account; `jira:backfill`, `jira:poll`, `jira:doctor`. See [jira-connector-plan.md](jira-connector-plan.md) |
-| `src/audit/chain.ts`, `store.ts` | shared | Tamper-evident audit log: HMAC hash chain in `brain-audit`, query and verify |
-| `src/audit/routes.ts`, `cli.ts`, `src/admin.ts` | shared | Admin-only audit API (`ADMIN_TOKEN`), `audit:log`, `audit:verify` |
+| `src/audit/chain.ts`, `store.ts` | shared | Tamper-evident audit log: record kinds, HMAC hash chain in `brain-audit`, query and verify |
+| `src/audit/events.ts`, `record.ts` | shared | Permission and content change records from the syncs (pure builders + the writers sync code calls) |
+| `src/audit/routes.ts`, `cli.ts`, `format.ts`, `src/admin.ts` | shared | Admin-only audit API (`ADMIN_TOKEN`), `audit:log`, `audit:verify` |
 
 ## Document shape
 
@@ -176,7 +177,7 @@ If a source needs "container **and** item" rules (e.g. a Confluence space plus a
 | 10 Verify | Done | `drive:verify` |
 | 11 Fixtures + tests | Done | `fixtures/drive/` (real API payloads), `src/__tests__/drive.test.ts` |
 
-Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id`, `title`, `path`, `chunk_index`, ...) with the same `acl_container` label field. Drive has its own retrieval (`connectors/drive/query.ts`) and page (`/drive.html`). To search both sources in one place, query both indexes with the union of the person's Slack and Drive keys in the same `terms` filter, run each hit's own live re-check, and write one audit record through `src/audit/store.ts appendAudit()` (Slack's `logEntry()` can switch to it with a small change).
+Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id`, `title`, `path`, `chunk_index`, ...) with the same `acl_container` label field. Drive has its own retrieval (`connectors/drive/query.ts`) and page (`/drive.html`). To search both sources in one place, query both indexes with the union of the person's Slack and Drive keys in the same `terms` filter, run each hit's own live re-check, and write one audit record through `src/audit/store.ts appendAudit()` (as `federated.ts` does for every source).
 
 **Wiring a new connector in:**
 
@@ -186,11 +187,35 @@ Drive docs live in `brain-drive`, not `brain`, and use their own shape (`file_id
 4. Extend the live re-check in `retrieve()` for the new `source`.
 5. Add its events or webhooks to the server start-up.
 6. Don't add anything that sends unfiltered content to the LLM or the UI. `retrieve()` is the only way in.
+7. Record its permission and content changes: call `recordItemChange()` with the item's access before and after (see [Audit log](#audit-log)).
+
+## Audit log
+
+Every meaningful action goes into one tamper-evident log, `brain-audit`. Each record carries the previous record's hash, and its own hash is an HMAC (key in `.secrets/audit-key` or `AUDIT_KEY`, never in Elasticsearch) over its contents plus that link, so an edited, deleted or reordered record breaks `audit:verify` from that point on. Records written before a kind existed still verify: the hash covers whatever fields a record has.
+
+| Kind | Actor | Written by | What it holds |
+|---|---|---|---|
+| `search`, `ask` | the person | `federated.ts` (and the Drive page) | question, keywords, answer, `mode` (signed in or demo), and every document considered with its decision: **allowed** (★ cited), **denied** (not shared with them) or **dropped** by the live re-check. No answer is returned without its record |
+| `permission_change` | `system` | Drive sync and live re-check, Jira and Confluence sync, Slack membership events and channel reconcile | the item (ID, title, path), its access before and after (labels, plus `restricted_to` for Jira security levels and Confluence restrictions), a readable summary ("lost: drive:user:dave@…"), and how it was detected (`poll`, `reconcile`, `live-recheck`, `event`) |
+| `content_change` | `system` | the same syncs, and live Slack events | `added`, `updated` or `deleted`, and when the index caught up (`indexed_at`) |
+| `account` | the person | Slack Connect / Disconnect, Atlassian link / unlink, Drive connected | which source and which account |
+| `admin` | `admin` (or the signed-in person for Sync now) | `/api/audit`, `/api/audit/verify`, `audit:log`, `audit:verify`, Drive **Sync now** | the filters used, or the result |
+
+Both change kinds carry `changed_at` (when it happened in the source, or `null` when the source doesn't say) and `detected_at` (when we saw it). Which sources give an exact `changed_at`, and why the gap doesn't expose anything, is in [audit-trail.md](audit-trail.md).
+
+Rules:
+
+- **No content.** Records hold IDs, titles, paths and permission labels, never message, page or file text. DMs show only "a DM" in change records, and the Slack connector's withheld-DM redaction still applies to search records.
+- **Backfills are summarised.** A first backfill (or one after `--reset`) writes one `content_change` with `change: "backfill"` and a count, not a record per item. Later reconciles record each real change.
+- **One record per real change.** Unchanged items write nothing. Drive judges "edited" by its content hash, because Drive bumps a file's modified time when only its sharing changes.
+- **Sync keeps going if the log is down.** A failed write from a sync is logged as `AUDIT WRITE FAILED` and the sync carries on, because the sync is what keeps permissions correct. Searches and answers are the opposite: they fail rather than return without a record.
+
+Querying (`queryAudit()` in `store.ts`, `GET /api/audit`, `npm run audit:log`): `actor`, `kind` (`search`, `ask`, `access` = both, `permission`, `content`, `account`, `admin`; comma-separated), `doc`, `decision`, `since`, `until`, `text`. `doc` takes a chunk doc ID, an item ID (`drive:<file>`, `jira:<site>:<issue>`, `confluence:<site>:<page>`), a bare Drive file ID, or title words. It matches searches that considered the item **and** its permission and content changes, so "when did Dave lose access to the postmortem, and did he see it after?" is one query. Viewing or verifying the log is itself recorded.
 
 ## Towards the full product
 
 - **Real login.** Add Google SSO (or Sign in with Slack) as the main login, then turn off impersonation. Slack Connect becomes "link your Slack accounts" after login. The backend already takes Me-mode identity only from the signed cookie.
 - **Token storage.** Replace `tokens.ts` with an encrypted database, and turn on token rotation.
 - **Slack Connect channels** (shared between workspaces, paid plans): a new label case, since one channel belongs to several workspaces.
-- **Tamper-evident audit.** Done for Drive (`src/audit/`: HMAC hash chain in `brain-audit`, `audit:verify`). Slack's log is still in memory; point it at `appendAudit()`. For production, also anchor the chain head somewhere append-only.
+- **Tamper-evident audit.** Done for every source and action (see [Audit log](#audit-log)). For production, also anchor the chain head somewhere append-only, and give each admin their own login so `admin` records name a person.
 - **Agentic Ask.** Let the LLM call a `search(query)` tool several times. The server always runs it as the asking person.
