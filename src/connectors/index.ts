@@ -13,10 +13,19 @@ export const driveConfigured =
 export const jiraConfigured =
   /^https:\/\/[^/]+/.test(process.env.JIRA_BASE_URL ?? "") && !!process.env.JIRA_EMAIL && !!process.env.JIRA_API_TOKEN && !process.env.JIRA_API_TOKEN.endsWith("...");
 
+// Confluence shares Jira's site and crawler token by default (see confluence/config.ts).
+export const confluenceConfigured =
+  /^https:\/\/[^/]+/.test(process.env.CONFLUENCE_BASE_URL || process.env.JIRA_BASE_URL || "") &&
+  !!(process.env.CONFLUENCE_EMAIL || process.env.JIRA_EMAIL) &&
+  !!(process.env.CONFLUENCE_API_TOKEN || process.env.JIRA_API_TOKEN) &&
+  !(process.env.CONFLUENCE_API_TOKEN || process.env.JIRA_API_TOKEN || "").endsWith("...") &&
+  process.env.CONFLUENCE_SYNC !== undefined; // opt in: set CONFLUENCE_SYNC=on|off to enable the connector
+
 export const connectors: Connector[] = [
   slack,
   ...(driveConfigured ? [(await import("./drive/index.js")).drive] : []),
   ...(jiraConfigured ? [(await import("./jira/index.js")).jira] : []),
+  ...(confluenceConfigured ? [(await import("./confluence/index.js")).confluence] : []),
 ];
 
 export const connectorByName = (name: string) => connectors.find((c) => c.name === name);

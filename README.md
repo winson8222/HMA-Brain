@@ -23,9 +23,10 @@ This repo contains the first connector, **Slack**, plus the shared search, Q&A a
 3. [Install and run](#2-install-and-run)
 4. [Configure the LLM](#3-configure-the-llm-env)
 5. [Jira connector](#4-jira-connector-optional) (optional), with the full [Jira demo setup guide](docs/jira-mock-data-plan.md)
-6. [Demo script](#demo-script)
-7. [Developer guide](docs/developer-guide.md): architecture, permission model, adding a connector
-8. [Troubleshooting](#troubleshooting)
+6. [Confluence connector](#5-confluence-connector-optional) (optional): same site and crawler as Jira
+7. [Demo script](#demo-script)
+8. [Developer guide](docs/developer-guide.md): architecture, permission model, adding a connector
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -292,6 +293,27 @@ Tick only **Jira** in the sources so Slack and Drive don't blur the test.
 The audit log lists each withheld issue as **denied** (title only) or **dropped** by the live check.
 
 ---
+
+
+## 5. Confluence connector (optional)
+
+Confluence sits on the **same Atlassian site as Jira** and uses the same crawler account and API token, so after the Jira setup it needs only this in `.env`:
+
+```
+CONFLUENCE_SYNC=on          # or off: either value enables the connector
+CONFLUENCE_SPACES=ENG,SEC   # optional; empty = every space the crawler can view
+```
+
+Site setup (Carol): add Confluence to the site and start the **Premium trial** from Settings → Billing (the Free plan has no space or page permissions). Give the crawler Confluence access, **View on every space**, a place in **every page view restriction** (admins don't bypass restrictions), and the **Confluence Administrator** global permission (the live re-check asks Confluence whether the asker can read each page). People link their Atlassian account once with **Connect Jira**; the same link serves Confluence.
+
+```bash
+npm run confluence:doctor     # token, spaces and their View grants, admin permission, who's linked
+npm run confluence:backfill   # index every in-scope space (--reset rebuilds brain-confluence only)
+npm run confluence:poll       # pages and permissions changed since the last run (--watch, or --sweep for the reconcile)
+npm run seed:confluence       # demo spaces and pages as Carol (docs/confluence-demo-content.md); --dry-run first
+```
+
+How it works, labels, sync and the demo data: [docs/confluence-connector-plan.md](docs/confluence-connector-plan.md).
 
 ## Demo script
 
