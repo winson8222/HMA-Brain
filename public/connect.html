@@ -3,52 +3,236 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Connect Slack</title>
+<title>Connections · Aspire Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3de;
-    --accent: #2f5bd3; --ok: #217a3c; --ok-bg: #e5f3e9; --deny: #b3261e; --deny-bg: #fbeae4;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #151514; --panel: #1f1f1d; --text: #ececea; --muted: #9b9b95; --border: #33332f;
-      --accent: #8aa8ff; --ok: #7fd49a; --ok-bg: #1c2e22; --deny: #f2a19b; --deny-bg: #3a2019;
-    }
+    color-scheme: light;
+    --bg: #ffffff; --panel: #ffffff; --text: #161817; --muted: #6d736e; --border: #e5e8e5; --border-strong: #ccd8cf;
+    --secondary: #f6f7f6; --secondary-text: #484e49;
+    --primary: #121412; --primary-hover: #2a302b; --primary-text: #c2fbd5;
+    --mint: #c2fbd5; --mint-soft: #edfaf1; --accent: #e5f8eb; --accent-text: #255c3b; --ring: #4c9567;
+    --priv: #a16e19; --priv-bg: #fff6e5; --ok: #26714d; --deny: #c13f4d; --deny-bg: #fdeef0;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "DM Sans", "Inter", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  p { color: var(--muted); margin: 4px 0 16px; }
-  a { color: var(--accent); }
-  .notice { padding: 10px 12px; border-radius: 8px; margin: 12px 0; }
-  .notice.ok { background: var(--ok-bg); color: var(--ok); }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--mint); color: #161817; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  /* ---- Shell (same as the main page) ---- */
+  .shell { display: flex; min-height: 100vh; }
+  aside { position: sticky; top: 0; height: 100vh; width: 244px; transition: width .2s ease; overflow: hidden; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--panel); }
+  .logo { display: flex; align-items: center; gap: 12px; padding: 28px 24px; text-decoration: none; color: var(--text); }
+  .logo img { width: 108px; height: auto; display: block; }
+  .logo span { border-left: 1px solid var(--border); padding-left: 12px; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; }
+  .navlbl { padding: 0 24px 10px; font-size: 9px; font-weight: 600; letter-spacing: 1.5px; color: var(--muted); }
+  nav { display: flex; flex-direction: column; gap: 4px; padding: 0 12px; }
+  nav a { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--secondary-text); text-decoration: none; }
+  nav a:hover { background: var(--secondary); color: var(--text); }
+  nav a.active { background: var(--accent); color: var(--accent-text); }
+  nav a .tag { margin-left: auto; font-size: 9px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  nav svg, .ico { width: 17px; height: 17px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .pi { width: 16px; height: 16px; flex-shrink: 0; stroke: none; }
+  .trust { margin: auto 16px 16px; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .trust b { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .trust b .ico { color: var(--ok); width: 15px; height: 15px; }
+  .trust p { margin: 8px 0 0; font-size: 10px; line-height: 17px; color: var(--muted); }
+  .logo .rail { display: none; width: 36px; height: 36px; border-radius: 11px; background: #121412; color: #c2fbd5; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo .rail .ico { width: 20px; height: 20px; stroke-width: 1.5; }
+  .collapse { display: flex; align-items: center; gap: 12px; margin: 0 12px; padding: 14px 12px; border: 0; border-top: 1px solid var(--border); background: none; color: var(--muted); font: 500 12px var(--font); white-space: nowrap; cursor: pointer; }
+  .collapse:hover { color: var(--text); }
+  nav a, .navlbl, .logo { white-space: nowrap; }
+  .shell.collapsed aside { width: 72px; }
+  .shell.collapsed .logo { padding: 26px 18px; }
+  .shell.collapsed .logo img, .shell.collapsed .logo span { display: none; }
+  .shell.collapsed .logo .rail { display: flex; }
+  .shell.collapsed .navlbl { visibility: hidden; }
+  .shell.collapsed nav a { justify-content: center; padding: 12px 0; }
+  .shell.collapsed nav a .nt, .shell.collapsed nav a .tag, .shell.collapsed .collapse .nt { display: none; }
+  .shell.collapsed .trust { visibility: hidden; }
+  .shell.collapsed .collapse { justify-content: center; padding: 14px 0; }
+  .shell.collapsed .collapse .ico { transform: scaleX(-1); }
+
+  .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { position: sticky; top: 0; z-index: 5; height: 73px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-start; gap: 16px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  .topbar .mlogo { display: none; order: 2; }
+  .back { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--accent-text); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  .wrap { width: 100%; max-width: 860px; margin: 0 auto; padding: 32px 32px 0; }
+
+  /* ---- Page ---- */
+  .pagehead { margin-bottom: 24px; }
+  .pagehead h1 { margin: 0; font: 700 32px/1.12 var(--display); letter-spacing: -.7px; }
+  .pagehead p { margin: 10px 0 0; max-width: 640px; font-size: 13px; color: var(--muted); }
+  .pagehead p b { color: var(--secondary-text); font-weight: 600; }
+
+  .notice { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; }
+  .notice .ico { width: 16px; height: 16px; margin-top: 1px; }
+  .notice.ok { background: var(--mint-soft); color: var(--accent-text); }
   .notice.err { background: var(--deny-bg); color: var(--deny); }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin: 12px 0; }
-  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .name { font-weight: 600; }
-  .muted { color: var(--muted); font-size: 13px; }
-  .btn { display: inline-block; padding: 8px 14px; border-radius: 8px; background: var(--accent); color: #fff; text-decoration: none; border: 0; font: inherit; cursor: pointer; }
-  .btn.secondary { background: transparent; color: var(--deny); border: 1px solid var(--deny); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+  .sechead { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); margin: 28px 0 10px; }
+  .sechead + .secsub { margin: -6px 0 12px; font-size: 12px; color: var(--muted); }
+
+  .mecard { display: flex; align-items: center; gap: 14px; border-color: var(--border-strong); background: var(--mint-soft); }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--accent); color: var(--accent-text); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .avatar.off { background: var(--secondary); color: var(--muted); border-color: var(--border); }
+  .avatar .ico { width: 18px; height: 18px; }
+
+  .conn + .conn { margin-top: 12px; }
+  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .plogo { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .plogo .pi { width: 22px; height: 22px; }
+  .grow { flex: 1; min-width: 200px; }
+  .name { font: 600 15px var(--display); }
+  .muted { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font: 500 10px var(--font); vertical-align: 2px; }
+  .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status.on { background: var(--mint-soft); color: var(--ok); }
+  .status.off { background: var(--secondary); color: var(--muted); }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; background: var(--primary); color: var(--primary-text); text-decoration: none; border: 0; font: 500 13px var(--font); cursor: pointer; transition: background .15s; white-space: nowrap; }
+  .btn:hover { background: var(--primary-hover); }
+  .btn.secondary { background: var(--panel); color: var(--deny); border: 1px solid var(--border); }
+  .btn.secondary:hover { background: var(--deny-bg); border-color: transparent; }
   .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
-  ol { color: var(--muted); padding-left: 20px; }
+  .btn .ico { width: 14px; height: 14px; }
+
+  .accrows { display: flex; flex-direction: column; }
+  .accrow { display: flex; gap: 14px; padding: 12px 0; }
+  .accrow + .accrow { border-top: 1px solid var(--border); }
+  .accrow:first-child { padding-top: 0; } .accrow:last-child { padding-bottom: 0; }
+  .acclbl { width: 170px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--secondary-text); }
+  .acclbl .pi { width: 15px; height: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
+  .chip.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
+  .chip.off { background: var(--secondary); color: var(--muted); }
+  .chips .more[hidden] { display: none; } .chips .more { display: contents; }
+  .morebtn { padding: 3px 9px; font: 500 11px var(--font); background: var(--panel); color: var(--accent-text); border: 1px dashed var(--border-strong); border-radius: 6px; cursor: pointer; }
+  .morebtn:hover { background: var(--mint-soft); }
+  @media (max-width: 600px) { .accrow { flex-direction: column; gap: 8px; } .acclbl { width: auto; } }
+  .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .steps li { counter-increment: step; display: flex; gap: 12px; font-size: 13px; color: var(--secondary-text); }
+  .steps li::before { content: counter(step); width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .steps b { color: var(--text); font-weight: 600; }
+
+  footer { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; padding: 16px 32px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); margin-top: 40px; }
+  footer span { display: flex; align-items: center; gap: 6px; }
+  footer .ico { width: 12px; height: 12px; }
+
+  @media (max-width: 1000px) { .shell:not(.collapsed) aside { width: 208px; } }
+  @media (max-width: 768px) {
+    aside { display: none; }
+    .topbar { padding: 0 16px; justify-content: space-between; }
+    .topbar .mlogo { display: block; }
+    .topbar .mlogo img { width: 84px; display: block; }
+    .wrap { padding: 20px 16px 0; }
+    footer { padding: 16px; }
+  }
+  @media (max-width: 600px) {
+    .pagehead h1 { font-size: 27px; }
+    .card { padding: 16px; }
+    .row .btn, .row > .muted { margin-left: 54px; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <p><a href="/">← Back to HMA Brain</a></p>
-  <h1>Connect your Slack</h1>
-  <p>Connecting signs you in and lets HMA Brain read <b>your own DMs and group DMs</b>, so you can ask about them. Nobody else can see them in answers unless they're in the conversation too.</p>
-  <div id="notice"></div>
-  <div id="me" class="card"></div>
-  <div id="list"></div>
-  <div id="jira"></div>
-  <ol>
-    <li>Make sure you're signed in to Slack <b>as yourself</b> in this browser. The connection belongs to whoever Slack sees as signed in.</li>
-    <li>Click <b>Connect</b> for each workspace you're in, then <b>Allow</b> in Slack.</li>
-    <li><b>Sign out</b> (on the main page) forgets you in this browser. <b>Disconnect</b> also revokes access and removes your DMs from the index, unless another participant is still connected.</li>
-  </ol>
-</main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path d="M19 3v4M21 5h-4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="p-slack" viewBox="0 0 24 24"><rect x="2" y="9" width="10" height="4" rx="2" fill="#36C5F0"/><rect x="8" y="2" width="4" height="6" rx="2" fill="#36C5F0"/><rect x="13" y="2" width="4" height="10" rx="2" fill="#2EB67D"/><rect x="18" y="8" width="4" height="4" rx="2" fill="#2EB67D"/><rect x="12" y="13" width="10" height="4" rx="2" fill="#ECB22E"/><rect x="12" y="18" width="4" height="4" rx="2" fill="#ECB22E"/><rect x="7" y="12" width="4" height="10" rx="2" fill="#E01E5A"/><rect x="2" y="14" width="4" height="4" rx="2" fill="#E01E5A"/></symbol>
+  <symbol id="p-drive" viewBox="0 0 24 24"><path d="m9 2-8 14 4 6 8-14Z" fill="#0F9D58"/><path d="m9 2 8 14h7L16 2Z" fill="#F4B400"/><path d="M5 22h15l4-6H9Z" fill="#4285F4"/></symbol>
+  <symbol id="p-jira" viewBox="0 0 24 24"><path d="M12 2 22 12 12 22 2 12Z" fill="#2684FF"/><path d="m12 7 5 5-5 5-5-5Z" fill="white"/></symbol>
+</svg>
+
+<div class="shell" id="shell">
+  <aside>
+    <a class="logo" href="/#ask" aria-label="Aspire Atlas home"><img src="aspire-logo.png" alt="Aspire" /><span>ATLAS</span><span class="rail"><svg class="ico"><use href="#i-compass"/></svg></span></a>
+    <div class="navlbl">WORKSPACE</div>
+    <nav>
+      <a href="/#ask" title="Ask Aspire Atlas"><svg><use href="#i-spark"/></svg><span class="nt">Ask Aspire Atlas</span><span class="tag">AI</span></a>
+      <a href="/connect.html" class="active" title="Connections"><svg><use href="#i-link"/></svg><span class="nt">Connections</span></a>
+      <a href="/#audit" title="Audit log"><svg><use href="#i-shield"/></svg><span class="nt">Audit log</span><span class="tag">Admin</span></a>
+    </nav>
+    <div class="trust">
+      <b><svg class="ico"><use href="#i-shield"/></svg>Private by design</b>
+      <p>Your DMs only show up in your own answers, and for people who were in the conversation.</p>
+    </div>
+    <button type="button" class="collapse" id="sidebarToggle" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><svg class="ico"><use href="#i-panel"/></svg><span class="nt">Collapse</span></button>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <a class="mlogo" href="/#ask" aria-label="Aspire Atlas home"><img src="aspire-logo.png" alt="Aspire" /></a>
+      <a class="back" href="/#ask"><svg class="ico" style="width:14px;height:14px"><use href="#i-back"/></svg>Back to Aspire Atlas</a>
+    </div>
+
+    <div class="wrap">
+      <div class="pagehead">
+        <h1>Connections</h1>
+        <p>Link your own accounts. Connecting Slack signs you in and lets Aspire Atlas read <b>your own DMs and group DMs</b>, so you can ask about them. Nobody else can see them in answers unless they're in the conversation too.</p>
+      </div>
+
+      <div id="notice"></div>
+      <div id="me" class="card mecard"></div>
+
+      <div id="access"></div>
+
+      <div class="sechead">YOUR ACCOUNTS</div>
+      <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira results that follow your Jira permissions.</p>
+      <div id="list"></div>
+
+      <div id="jira"></div>
+
+      <div class="sechead">HOW IT WORKS</div>
+      <div class="card">
+        <ol class="steps">
+          <li><span>Make sure you're signed in to Slack <b>as yourself</b> in this browser. The connection belongs to whoever Slack sees as signed in.</span></li>
+          <li><span>Click <b>Connect</b> for each workspace you're in, then <b>Allow</b> in Slack.</span></li>
+          <li><span><b>Sign out</b> (on the main page) forgets you in this browser. <b>Disconnect</b> also revokes access and removes your DMs from the index, unless another participant is still connected.</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <footer>
+      <span><svg class="ico"><use href="#i-shield"/></svg>Your access stays your access.</span>
+      <span>Aspire Atlas</span>
+    </footer>
+  </div>
+</div>
+
+<script>
+// Sidebar collapse (UI only); shares the remembered choice with the main page.
+(() => {
+  const shell = document.getElementById("shell"), btn = document.getElementById("sidebarToggle");
+  const set = (c) => {
+    shell.classList.toggle("collapsed", c);
+    btn.setAttribute("aria-expanded", String(!c));
+    btn.title = btn.ariaLabel = c ? "Expand sidebar" : "Collapse sidebar";
+  };
+  try { set(localStorage.getItem("sidebarCollapsed") === "1"); } catch {}
+  btn.onclick = () => {
+    const c = !shell.classList.contains("collapsed");
+    set(c);
+    try { localStorage.setItem("sidebarCollapsed", c ? "1" : "0"); } catch {}
+  };
+})();
+</script>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -57,49 +241,83 @@ const api = async (path, body) => {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 };
+const ok = (msg) => `<div class="notice ok"><svg class="ico"><use href="#i-check"/></svg><span>${msg}</span></div>`;
+const err = (msg) => `<div class="notice err"><svg class="ico"><use href="#i-alert"/></svg><span>${msg}</span></div>`;
+const icon = (id) => `<div class="plogo"><svg class="pi"><use href="#${id}"/></svg></div>`;
+const initials = (n) => String(n || "?").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
 const params = new URLSearchParams(location.search);
 if (params.get("connected")) $("#notice").innerHTML = params.get("connected").startsWith("Jira")
-  ? `<div class="notice ok">Connected ${esc(params.get("connected"))}. Jira issues you can see in Jira are now included in your results.</div>`
-  : `<div class="notice ok">Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.</div>`;
-if (params.get("error")) $("#notice").innerHTML = `<div class="notice err">${esc(params.get("error"))}</div>`;
+  ? ok(`Connected ${esc(params.get("connected"))}. Jira issues you can see in Jira are now included in your results.`)
+  : ok(`Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.`);
+if (params.get("error")) $("#notice").innerHTML = err(esc(params.get("error")));
+
+// What the signed-in person can see in each source (their own access only).
+const chip = (label, cls = "") => `<span class="chip ${cls}">${esc(label)}</span>`;
+const chipRow = (icon, label, chips) => `
+  <div class="accrow"><div class="acclbl"><svg class="pi"><use href="#${icon}"/></svg>${esc(label)}</div>
+    <div class="chips">${chips.slice(0, 8).join("")}${chips.length > 8
+      ? `<span class="more" hidden>${chips.slice(8).join("")}</span><button type="button" class="morebtn">+${chips.length - 8} more</button>` : ""}</div></div>`;
+async function renderAccess(me) {
+  if (!me.signedIn) { $("#access").innerHTML = ""; return; }
+  const a = await api("/api/access", { asMe: true }).catch(() => ({}));
+  const rows = (me.workspaces || []).map((w) => chipRow("p-slack", `Slack · ${w.workspace}`,
+    [...w.items.map((c) => chip((c.private ? "🔒 " : "") + c.label, c.private ? "priv" : "")), chip("🔒 your own DMs", "priv")]));
+  if (a.drive) rows.push(chipRow("p-drive", "Google Drive", a.drive.files.length ? a.drive.files.map((f) => chip(f)) : [chip("No files shared with you yet", "off")]));
+  if (a.jira) rows.push(chipRow("p-jira", "Jira", !a.jira.linked ? [chip("Connect Jira below to see your projects", "off")]
+    : a.jira.projects.length ? a.jira.projects.map((p) => chip(`${p.key} · ${p.name}`)) : [chip("No projects", "off")]));
+  $("#access").innerHTML = `<div class="sechead">WHAT YOU CAN ACCESS</div>
+    <p class="secsub">Atlas only answers from these, using your permissions in each source.</p>
+    <div class="card accrows">${rows.join("")}</div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".morebtn");
+  if (!b) return;
+  b.previousElementSibling.hidden = false;
+  b.remove();
+});
 
 async function render() {
   const [me, conns] = await Promise.all([api("/api/me"), api("/api/connections")]);
+  renderAccess(me);
   $("#me").innerHTML = me.signedIn
-    ? `<div class="name">Signed in as ${esc(me.name)}</div><div class="muted">${esc(me.email || "")}</div>`
-    : `<div class="name">Not signed in</div><div class="muted">Connect a workspace below to sign in.</div>`;
+    ? `<span class="avatar">${esc(initials(me.name))}</span>
+       <div><div class="name">Signed in as ${esc(me.name)}</div><div class="muted">${esc(me.email || "")}</div></div>`
+    : `<span class="avatar off"><svg class="ico"><use href="#i-user"/></svg></span>
+       <div><div class="name">Not signed in</div><div class="muted">Connect a workspace below to sign in.</div></div>`;
 
   $("#list").innerHTML = conns.map((c) => {
     const mine = me.signedIn && me.connections.find((x) => x.workspace === c.workspace);
     const action = !c.canConnect
-      ? `<span class="muted">Not set up for Connect (no clientId/clientSecret)</span>`
+      ? `<span class="muted">Not set up for Connect yet. Ask an admin.</span>`
       : mine?.connected
         ? `<button class="btn secondary" data-disconnect="${esc(mine.teamId)}">Disconnect</button>`
-        : `<a class="btn" href="/slack/oauth/start?ws=${encodeURIComponent(c.key)}">Connect</a>`;
-    return `<div class="card"><div class="row">
-      <div><div class="name">${esc(c.workspace)}</div>
-        <div class="muted">Connected: ${c.connected.length ? c.connected.map(esc).join(", ") : "nobody yet"}</div></div>
+        : `<a class="btn" href="/slack/oauth/start?ws=${encodeURIComponent(c.key)}"><svg class="ico"><use href="#i-link"/></svg>Connect</a>`;
+    return `<div class="card conn"><div class="row">
+      ${icon("p-slack")}
+      <div class="grow"><div class="name">${esc(c.workspace)}<span class="status ${mine?.connected ? "on" : "off"}">${mine?.connected ? "You're connected" : "Not connected"}</span></div>
+        <div class="muted">${c.connected.length ? `Linked by ${c.connected.map(esc).join(", ")}` : "Nobody has linked their account yet"}</div></div>
       ${action}</div></div>`;
   }).join("");
 
   // Connect Jira: only shown when the server has the Jira connector. Links your own Atlassian account.
   const jira = await api("/api/jira/me").catch(() => null);
-  $("#jira").innerHTML = !jira ? "" : `<div class="card"><div class="row">
-      <div><div class="name">Jira</div>
+  $("#jira").innerHTML = !jira ? "" : `<div class="card conn" style="margin-top:12px"><div class="row">
+      ${icon("p-jira")}
+      <div class="grow"><div class="name">Jira<span class="status ${jira.linked ? "on" : "off"}">${jira.linked ? "You're connected" : "Not connected"}</span></div>
         <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. Jira results follow your Jira permissions.` : "Link your Atlassian account to include Jira issues you can see in Jira."}</div></div>
       ${!me.signedIn ? `<span class="muted">Connect Slack first to sign in</span>`
-        : !jira.canConnect ? `<span class="muted">Not set up (no JIRA_OAUTH_CLIENT_ID)</span>`
+        : !jira.canConnect ? `<span class="muted">Not set up yet. Ask an admin.</span>`
         : jira.linked ? `<button class="btn secondary" id="jira-disconnect">Disconnect</button>`
-        : `<a class="btn" href="/connect/jira/start">Connect Jira</a>`}</div></div>`;
+        : `<a class="btn" href="/connect/jira/start"><svg class="ico"><use href="#i-link"/></svg>Connect Jira</a>`}</div></div>`;
   const jd = $("#jira-disconnect");
   if (jd) jd.onclick = async () => {
     jd.setAttribute("aria-disabled", "true");
     try {
       await api("/api/jira/disconnect", {});
-      $("#notice").innerHTML = `<div class="notice ok">Jira disconnected. You'll get no Jira results until you connect again.</div>`;
+      $("#notice").innerHTML = ok("Jira disconnected. You'll get no Jira results until you connect again.");
     } catch (e) {
-      $("#notice").innerHTML = `<div class="notice err">${esc(e.message)}</div>`;
+      $("#notice").innerHTML = err(esc(e.message));
     }
     render();
   };
@@ -108,14 +326,15 @@ async function render() {
     b.setAttribute("aria-disabled", "true");
     try {
       const r = await api("/api/disconnect", { teamId: b.dataset.disconnect });
-      $("#notice").innerHTML = `<div class="notice ok">Disconnected. Removed ${r.removedConversations} DM conversation(s) that no other participant still allows.</div>`;
+      $("#notice").innerHTML = ok(`Disconnected. Removed ${r.removedConversations} DM conversation(s) that no other participant still allows.`);
     } catch (e) {
-      $("#notice").innerHTML = `<div class="notice err">${esc(e.message)}</div>`;
+      $("#notice").innerHTML = err(esc(e.message));
     }
     render();
   });
 }
 render();
+
 </script>
 </body>
 </html>
