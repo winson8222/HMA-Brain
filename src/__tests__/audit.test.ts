@@ -172,9 +172,29 @@ describe("permission and content change events", () => {
     expect(e).toMatchObject({ kind: "permission_change", actor: "system", item: { id: "drive:F", title: "Postmortem" }, summary: "lost: dave; gained: vendor" });
   });
 
-  it("content edited: one content change with the source's modified time", () => {
-    const [e] = changeEvents("jira", "poll", "jira:s:1", snap(["a"]), snap(["a"], "2026-09-02T00:00:00Z"), { indexedAt: "2026-09-02T00:01:00Z" });
-    expect(e).toMatchObject({ kind: "content_change", change: "updated", modified_at: "2026-09-02T00:00:00Z", indexed_at: "2026-09-02T00:01:00Z" });
+  it("content edited: changed_at is the source's modified time, detected_at when the sync saw it", () => {
+    const [e] = changeEvents("jira", "poll", "jira:s:1", snap(["a"]), snap(["a"], "2026-09-02T00:00:00Z"), {
+      detectedAt: "2026-09-02T00:00:40Z",
+      indexedAt: "2026-09-02T00:01:00Z",
+    });
+    expect(e).toMatchObject({
+      kind: "content_change",
+      change: "updated",
+      changed_at: "2026-09-02T00:00:00Z",
+      detected_at: "2026-09-02T00:00:40Z",
+      indexed_at: "2026-09-02T00:01:00Z",
+    });
+  });
+
+  it("permission change: changed_at from the source when it says (Drive's change feed), else null", () => {
+    const [fromFeed] = changeEvents("drive", "poll", "drive:F", snap(["dave"]), snap([]), {
+      permissionChangedAt: "2026-10-09T10:22:24Z",
+      detectedAt: "2026-10-09T10:22:28Z",
+    });
+    expect(fromFeed).toMatchObject({ kind: "permission_change", changed_at: "2026-10-09T10:22:24Z", detected_at: "2026-10-09T10:22:28Z" });
+    const [unknown] = changeEvents("jira", "poll", "jira:s:1", snap(["dave"]), snap([]));
+    expect(unknown).toMatchObject({ kind: "permission_change", changed_at: null });
+    expect(typeof (unknown as { detected_at?: string }).detected_at).toBe("string");
   });
 
   it("new item: added, unless it's part of a first backfill", () => {
@@ -189,8 +209,8 @@ describe("permission and content change events", () => {
   });
 
   it("deleted items are recorded with their title, never their text", () => {
-    const e = deletedEvent("confluence", "reconcile", { id: "confluence:s:5", source: "confluence", title: "Runbook" }, "2026-09-01T00:00:00Z");
-    expect(e).toMatchObject({ kind: "content_change", change: "deleted", item: { title: "Runbook" } });
+    const e = deletedEvent("confluence", "reconcile", { id: "confluence:s:5", source: "confluence", title: "Runbook" });
+    expect(e).toMatchObject({ kind: "content_change", change: "deleted", item: { title: "Runbook" }, changed_at: null });
     expect(JSON.stringify(e)).not.toMatch(/text/);
   });
 });

@@ -137,7 +137,7 @@ After this, with `SLACK_SYNC=on`, **new, edited and deleted Slack messages and D
 | `npm run jira:poll` | Apply Jira changes (issues and permissions) since the last run (`-- --watch` to keep polling) |
 | `npm run jira:doctor` | Check the Jira setup: crawler token, Administer Jira, each project's permissions, Connect Jira, who has linked |
 | `npm run audit:log` | Query the audit log: searches, answers, permission and content changes, account links, admin actions (`-- --user bob`, `--doc <ID or title words>`, `--kind permission`, `--denied`, `--since <date>`) |
-| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed |
+| `npm run audit:verify` | Recompute the audit hash chain. Exits 1 if any record was changed. What's logged and how: [docs/audit-trail.md](docs/audit-trail.md) |
 | `npm test` | Unit tests (permission labels, workspaces, DMs, message handling, signed cookies, Drive mapping and queries, audit chain, record kinds and filters) |
 | `npm run typecheck` | TypeScript check |
 

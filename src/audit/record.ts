@@ -20,13 +20,13 @@ export async function recordItemChange(
   id: string,
   prev: Snapshot | null,
   next: Snapshot,
-  opts: { quietAdd?: boolean; contentChanged?: boolean } = {},
+  opts: { quietAdd?: boolean; contentChanged?: boolean; permissionChangedAt?: string | null; detectedAt?: string } = {},
 ): Promise<void> {
   for (const e of changeEvents(source, via, id, prev, next, opts)) await recordAudit(e);
 }
 
-export const recordItemDeleted = (source: string, via: SyncVia, item: AuditItem, modifiedAt?: string | null) =>
-  recordAudit(deletedEvent(source, via, item, modifiedAt));
+export const recordItemDeleted = (source: string, via: SyncVia, item: AuditItem, changedAt: string | null = null, detectedAt?: string) =>
+  recordAudit(deletedEvent(source, via, item, changedAt, detectedAt));
 
 // A first (or reset) backfill: one record instead of one per item.
 export const recordBackfill = (source: string, via: SyncVia, items: number, summary: string) =>

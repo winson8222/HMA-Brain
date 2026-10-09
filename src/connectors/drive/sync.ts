@@ -57,7 +57,22 @@ export type Outcome = "indexed" | "relabelled" | "unchanged" | "deleted" | "skip
 export type Counts = Record<Outcome, number>;
 // quietMs: the debounce window for this run (0 = re-index edited files right away).
 // via: what to call this run in the audit log. initial: a first backfill, audited as one summary record.
-type Run = { root: Root; counts: Counts; maxLagMs: number; measureLag: boolean; quietMs: number; via: SyncVia; initial: boolean };
+// changeTimes: for a poll, when Drive's change feed says each file changed (the audit's changed_at), and
+// listedAt: when the poll read the feed (its detected_at). A backfill has neither: only detection is known.
+type Run = {
+  root: Root;
+  counts: Counts;
+  maxLagMs: number;
+  measureLag: boolean;
+  quietMs: number;
+  via: SyncVia;
+  initial: boolean;
+  changeTimes?: Map<string, string>;
+  listedAt?: string;
+};
+
+const changedAt = (run: Run, fileId: string) => run.changeTimes?.get(fileId) ?? null;
+const detectedAt = (run: Run, fileId: string) => (run.changeTimes?.has(fileId) ? run.listedAt : undefined);
 
 const newCounts = (): Counts => ({ indexed: 0, relabelled: 0, unchanged: 0, deleted: 0, skipped: 0, deferred: 0, error: 0 });
 
@@ -127,7 +142,7 @@ async function deleteFile(fileId: string, run: Run): Promise<Outcome> {
   if (!prev) return "skipped";
   await deleteFileDocs(fileId);
   await deleteFileState(fileId);
-  await recordItemDeleted("drive", run.via, { id: driveItemId(fileId), source: "drive", title: prev.name, path: prev.path }, prev.modified_at);
+  await recordItemDeleted("drive", run.via, { id: driveItemId(fileId), source: "drive", title: prev.name, path: prev.path }, changedAt(run, fileId), detectedAt(run, fileId));
   return "deleted";
 }
 
@@ -184,7 +199,11 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
       const old = await before(prev, aHash, acl); // labels as stored, before relabelling
       await relabelFile(fileId, acl);
       await putFileState({ ...prev, acl_hash: aHash });
-      await recordItemChange("drive", run.via, driveItemId(fileId), old, { ...old, access: access(acl) }, { contentChanged: false });
+      await recordItemChange("drive", run.via, driveItemId(fileId), old, { ...old, access: access(acl) }, {
+        contentChanged: false,
+        permissionChangedAt: changedAt(run, fileId),
+        detectedAt: detectedAt(run, fileId),
+      });
     }
     await putPending(fileId, new Date(Date.parse(meta.modifiedTime!) + run.quietMs).toISOString());
     return "deferred";
@@ -244,7 +263,12 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
     driveItemId(fileId),
     old,
     { title: name, path: loc.path, access: access(acl), modified_at: meta.modifiedTime ?? null },
-    { quietAdd: run.initial, contentChanged: prev?.content_hash !== finalHash },
+    {
+      quietAdd: run.initial,
+      contentChanged: prev?.content_hash !== finalHash,
+      permissionChangedAt: changedAt(run, fileId),
+      detectedAt: detectedAt(run, fileId),
+    },
   );
   return decision === "reindex" ? "indexed" : "relabelled";
 }
@@ -410,7 +434,7 @@ export async function pollOnce(opts: { force?: boolean } = {}): Promise<Counts |
     if (!cachedFolder(root.id)) await rememberFolder({ ...root, parentId: null });
 
     // 1. Everything that changed since the saved position. A file can appear several times; keep the last entry.
-    const latest = new Map<string, { removed: boolean; folder: boolean }>();
+    const latest = new Map<string, { removed: boolean; folder: boolean; time?: string }>();
     let token = conn.page_token;
     let newStart: string | undefined;
     try {
@@ -418,7 +442,7 @@ export async function pollOnce(opts: { force?: boolean } = {}): Promise<Counts |
         const page = await listChanges(token);
         for (const c of page.changes) {
           if (c.changeType === "drive" || !c.fileId) continue;
-          latest.set(c.fileId, { removed: !!c.removed, folder: c.file?.mimeType === FOLDER || !!cachedFolder(c.fileId) });
+          latest.set(c.fileId, { removed: !!c.removed, folder: c.file?.mimeType === FOLDER || !!cachedFolder(c.fileId), time: c.time ?? undefined });
         }
         if (page.nextPageToken) token = page.nextPageToken;
         else newStart = page.newStartPageToken;
@@ -432,7 +456,8 @@ export async function pollOnce(opts: { force?: boolean } = {}): Promise<Counts |
     }
 
     // 2. Apply. Folders first, so files get the right paths.
-    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true, quietMs, via: "poll", initial: false };
+    const changeTimes = new Map([...latest].filter(([, c]) => c.time).map(([id, c]) => [id, c.time!]));
+    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true, quietMs, via: "poll", initial: false, changeTimes, listedAt: new Date().toISOString() };
     const entries = [...latest].sort((a, b) => Number(b[1].folder) - Number(a[1].folder));
     for (const [id, c] of entries) {
       if (c.removed) {

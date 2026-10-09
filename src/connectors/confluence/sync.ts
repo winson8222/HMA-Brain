@@ -82,7 +82,8 @@ async function removePages(ids: string[], states: Map<string, PageState>, ctx: C
   for (const id of ids) {
     const s = before.get(id);
     const title = s?.title ?? states.get(id)?.title ?? id;
-    await recordItemDeleted("confluence", ctx.via, { id: pageItemId(id), source: "confluence", title, ...(s ? { path: s.space_name } : {}) }, s?.updated_at);
+    // Confluence doesn't say when a page was deleted: only the detection time is known.
+    await recordItemDeleted("confluence", ctx.via, { id: pageItemId(id), source: "confluence", title, ...(s ? { path: s.space_name } : {}) });
     states.delete(id);
   }
 }
