@@ -490,14 +490,15 @@ const store = {
 };
 const adminToken = () => store.get("adminToken");
 
-// Remember which sources this browser last searched (a convenience only; all sources if unset).
-const loadPicked = () => { try { return JSON.parse(localStorage.getItem("sources") || "null"); } catch { return null; } };
-const savePicked = (v) => { try { localStorage.setItem("sources", JSON.stringify(v)); } catch {} };
+// Remember which sources this browser turned off (a convenience only). Storing the ones turned off, not the
+// ones picked, means a newly added source starts ticked instead of silently missing from every search.
+const loadOff = () => { try { return JSON.parse(localStorage.getItem("sourcesOff") || "[]"); } catch { return []; } };
+const savePicked = (picked) => { try { localStorage.setItem("sourcesOff", JSON.stringify(connectorList.map((c) => c.name).filter((n) => !picked.includes(n)))); } catch {} };
 const chosenSources = () => [...document.querySelectorAll('#sources input:checked')].map((i) => i.value);
 function renderSources() {
-  const saved = loadPicked();
+  const off = loadOff();
   $("#sources").innerHTML = `<span class="lbl2">SEARCH IN</span>` + connectorList.map((c) => `
-    <label><input type="checkbox" value="${esc(c.name)}" ${!saved || saved.includes(c.name) ? "checked" : ""} />${pIcon(c.name)}${esc(c.label)}</label>`).join("")
+    <label><input type="checkbox" value="${esc(c.name)}" ${off.includes(c.name) ? "" : "checked"} />${pIcon(c.name)}${esc(c.label)}</label>`).join("")
     + (connectorList.length > 1 ? `<button type="button" class="linkbtn" id="allsrc"></button>` : "");
   const syncAll = () => {
     const b = $("#allsrc");
