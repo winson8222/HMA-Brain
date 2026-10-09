@@ -94,7 +94,7 @@ npm run audit:log -- --denied --since 2026-10-01   # every time something was wi
 npm run audit:verify                               # recompute the hash chain; exits 1 if tampered
 ```
 
-The same is on the **Audit log** tab of `/drive.html` (needs `ADMIN_TOKEN`), with filters and a **Verify audit chain** button.
+The same searches are on the **Audit log** tab of `/drive.html` (needs `ADMIN_TOKEN`), with filters and a **Verify audit chain** button. The main page's **Audit log** also shows Drive's permission and content changes (for example "lost: drive:user:dave@…" on the postmortem), with `--kind` / Kind filters; see the developer guide's "Audit log" section.
 
 **Tamper-evident:** each record stores the previous record's hash, and its own hash is an HMAC over its contents plus that link. The key is in `.secrets/audit-key` (or `AUDIT_KEY`), never in Elasticsearch. Editing, deleting or reordering any record breaks verification from that point on, and someone with write access to Elasticsearch can't forge a consistent chain without the key. Removing records from the *end* can only be caught by comparing the head (`audit:verify` prints it) with one noted earlier. For production, publish the head somewhere append-only (for example, object storage with retention lock).
 

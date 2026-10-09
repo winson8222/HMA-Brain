@@ -15,7 +15,8 @@ import { driveConfig } from "./config.js";
 import { demoPeople, findPerson, isRealEmail, type Person } from "./people.js";
 import { driveAsk, driveSearch } from "./query.js";
 import { ensureDriveIndices, getConnector } from "./store.js";
-import { driveStatus, loadStatus, pollOnce } from "./sync.js";
+import { driveStatus, loadStatus, pollOnce, summary } from "./sync.js";
+import { recordAudit } from "../../audit/record.js";
 
 export const driveRouter = express.Router();
 
@@ -108,10 +109,19 @@ driveRouter.get(
 let lastManualSync = 0;
 driveRouter.post(
   "/api/drive/sync",
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
     if (Date.now() - lastManualSync < 5000) return res.json({ skipped: "just synced" });
     lastManualSync = Date.now();
     const counts = await pollOnce({ force: true }); // "Sync now" doesn't wait for files being edited
+    // Anyone on the Drive page may press it, so the actor is whoever is signed in.
+    await recordAudit({
+      kind: "admin",
+      actor: getSession(req) ?? "anonymous",
+      via: "web",
+      action: "sync_now",
+      detail: { source: "drive" },
+      result: counts ? summary(counts) : "skipped: a sync is already running",
+    });
     res.json(counts ? { counts } : { skipped: "a sync is already running" });
   }),
 );
@@ -157,6 +167,7 @@ driveRouter.get("/connect/google/callback", async (req, res) => {
     saveToken(tokens);
     loadToken();
     const who = await accountEmail();
+    await recordAudit({ kind: "account", actor: who ?? "admin", via: "web", source: "drive", action: "connect", account: who ?? undefined });
     Object.assign(driveStatus, { connected: true, authError: false, lastError: null });
     const before = (await getConnector())?.account_email?.toLowerCase();
     const note = before && before !== who ? ` The index was built as ${before}, so the first sync rebuilds it from this account's Drive.` : "";

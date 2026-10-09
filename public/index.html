@@ -235,6 +235,32 @@
   .devnote code { font-size: 11px; background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 4px; }
 
   section.log { margin: 0 0 32px; }
+  .loghead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .loghead .sechead { margin: 0; }
+  .loghead button { padding: 7px 12px; font-size: 12px; }
+  .loghead button .ico { width: 14px; height: 14px; }
+  .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; }
+  .chain.idle { background: var(--secondary); color: var(--muted); }
+  .chain.ok { background: var(--mint-soft); color: var(--ok); }
+  .chain.bad { background: #fdeef0; color: var(--deny); }
+  .chain .mono, .lfoot { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; padding: 0; margin-bottom: 12px; }
+  .filters .field, .filters select { width: 100%; padding: 8px 10px; font-size: 12px; }
+  .filters select { padding-right: 32px; }
+  .fdate { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .fbtns { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+  .fbtns button { padding: 8px 14px; font-size: 12px; margin-left: 0; }
+  .lcountline { font-size: 11px; color: var(--muted); margin-bottom: 8px; min-height: 1em; }
+  .ktag { flex-shrink: 0; font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 999px; background: var(--secondary); color: var(--secondary-text); border: 1px solid var(--border); }
+  .ktag.permission_change { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
+  .ktag.content_change { background: var(--mint-soft); color: var(--accent-text); border-color: transparent; }
+  .ktag.admin, .ktag.account { background: #eef2fb; color: #3b5486; border-color: transparent; }
+  .labels { display: flex; flex-wrap: wrap; gap: 4px; }
+  .labels .chip { font-size: 10px; padding: 1px 6px; }
+  .labels .chip.lost { background: #fdeef0; color: var(--deny); text-decoration: line-through; }
+  .labels .chip.gained { background: var(--accent); border-color: var(--border-strong); }
+  .facts.kv { margin: 10px 0 4px; max-width: 640px; }
+  .lfoot { margin-top: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
   .logrow { border: 1px solid var(--border); border-radius: 10px; font-size: 13px; }
   .logrow + .logrow { margin-top: 8px; }
@@ -242,7 +268,7 @@
   .logrow summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; color: var(--secondary-text); }
   .logrow summary::-webkit-details-marker { display: none; }
   .logrow summary:hover { background: var(--secondary); border-radius: 10px; }
-  .ltime { width: 64px; flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ltime { width: 92px; flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .lwho { flex-shrink: 0; white-space: nowrap; }
   .lq { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lq b { color: var(--text); font-weight: 500; }
@@ -393,7 +419,7 @@
         <div class="pagehead">
           <div>
             <h1>Audit log <small>Admin view</small></h1>
-            <p>Server-side record of each search, across sources. The withheld column is for admins only and is never sent to the person asking; it shows only titles, never text. Hover an item to see its ID.</p>
+            <p>Tamper-evident record of every search and answer, permission and content change, account link and admin action. Withheld items are for admins only and are never sent to the person asking. Records hold titles, IDs and permission labels, never message or page text.</p>
           </div>
           <button type="button" class="ghost" id="lockbtn" hidden><svg class="ico" style="width:14px;height:14px"><use href="#i-lock"/></svg>Lock</button>
         </div>
@@ -418,7 +444,37 @@
             <div id="devnotes"></div>
           </div>
           <section class="card log">
-            <div class="sechead">SEARCHES</div>
+            <div class="loghead">
+              <div class="sechead">AUDIT TRAIL</div>
+              <button type="button" class="ghost" id="verifybtn"><svg class="ico"><use href="#i-shield"/></svg>Verify chain</button>
+            </div>
+            <div class="chain idle" id="chain" role="status">Each record is sealed with the previous record's hash. Verify to check nothing was edited, reordered or deleted.</div>
+            <form class="filters" id="logfilters">
+              <input class="field" id="fperson" list="fpeople" placeholder="Person (email, system or admin)" aria-label="Person" autocomplete="off" />
+              <datalist id="fpeople"></datalist>
+              <input class="field" id="fdoc" placeholder="Document: title words or ID" aria-label="Document" />
+              <select id="fkind" aria-label="Kind">
+                <option value="">All kinds</option>
+                <option value="access">Searches and answers</option>
+                <option value="permission">Permission changes</option>
+                <option value="content">Content changes</option>
+                <option value="account">Account links</option>
+                <option value="admin">Admin actions</option>
+              </select>
+              <select id="fdecision" aria-label="Decision">
+                <option value="">Any decision</option>
+                <option value="allowed">Something was shown</option>
+                <option value="denied">Something was withheld</option>
+                <option value="dropped">Dropped by live re-check</option>
+              </select>
+              <label class="fdate">From <input class="field" type="date" id="fsince" /></label>
+              <label class="fdate">To <input class="field" type="date" id="funtil" /></label>
+              <div class="fbtns">
+                <button type="button" class="ghost" id="freset">Reset</button>
+                <button>Apply</button>
+              </div>
+            </form>
+            <div class="lcountline" id="logcount"></div>
             <div id="log"></div>
           </section>
         </div>
@@ -728,13 +784,101 @@ function renderTries() {
   $("#go span").textContent = m === "ask" ? "Ask" : "Search";
 }
 
-// ---- Audit log (admin only) ----
-const label = (src) => connectorList.find((c) => c.name === src)?.label || src;
-const docList = (docs, cls) => docs.length
+// ---- Audit log (admin only): the tamper-evident records from /api/audit ----
+const label = (src) => connectorList.find((c) => c.name === src)?.label || ({ atlassian: "Atlassian" })[src] || src;
+const docList = (docs, cls, withReason) => docs.length
   ? `<ul class="docs ${cls}">${docs.map((d) => `
-      <li title="${esc(d.id)}"><div class="dhead">${pIcon(d.source)}<b>${esc(d.title)}</b><span class="dloc">${esc(d.location)}</span></div>
-        ${d.text ? `<div class="dtext">${esc(d.text)}</div>` : ""}</li>`).join("")}</ul>`
+      <li title="${esc(d.doc_id)}"><div class="dhead">${pIcon(d.source)}<b>${d.cited ? "★ " : ""}${esc(d.title)}</b><span class="dloc">${esc(d.path || "")}${withReason && d.reason ? ` · ${esc(d.reason)}` : ""}</span></div></li>`).join("")}</ul>`
   : `<div class="none">none</div>`;
+const actorName = (id) => ({ system: "System", admin: "Admin", anonymous: "Someone (not signed in)" })[id] || (me.id === id && me.name) || users.find((u) => u.id === id)?.name || id;
+const stamp = (iso) => iso ? new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "unknown";
+const KIND = { search: "Search", ask: "Ask", permission_change: "Permission", content_change: "Content", account: "Account", admin: "Admin" };
+// drive:user:dave@x.com → dave@x.com; the raw label stays in the tooltip.
+const prettyLabel = (l) => l.startsWith("drive:user:") || l.startsWith("drive:group:") ? l.split(":").slice(2).join(":")
+  : l.startsWith("drive:domain:") ? `anyone at ${l.slice(13)}` : l === "drive:anyone" ? "anyone (public)"
+  : l.startsWith("person:") ? l.slice(7) : l;
+const labelChips = (list, other, cls) => (list || []).length
+  ? `<div class="labels">${list.map((l) => `<span class="chip ${other && !other.includes(l) ? cls : ""}" title="${esc(l)}">${esc(prettyLabel(l))}</span>`).join("")}</div>`
+  : `<span class="none" style="padding:0">nobody</span>`;
+const accessHtml = (a, other, cls) => !a ? `<span class="none" style="padding:0">unknown</span>`
+  : `${labelChips(a.labels, other?.labels, cls)}${a.restricted_to ? `<div style="margin-top:6px;font-size:11px;color:var(--muted)">and restricted to:</div>${labelChips(a.restricted_to, other?.restricted_to, cls)}` : ""}`;
+const lagText = (r) => {
+  if (!r.modified_at || !r.indexed_at) return "";
+  const s = Math.max(0, Math.round((Date.parse(r.indexed_at) - Date.parse(r.modified_at)) / 1000));
+  return s < 120 ? `${s}s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
+};
+const ADMIN_ACTION = { audit_query: "viewed the audit log", audit_verify: "verified the audit chain", sync_now: "pressed Sync now" };
+
+function rowSummary(r) {
+  const who = `<span class="lwho"><b>${esc(actorName(r.actor))}</b></span>`;
+  switch (r.kind) {
+    case "search": case "ask": {
+      const n = (d) => r.docs.filter((x) => x.decision === d).length;
+      return `${who}${r.mode ? `<span class="tag">${r.mode === "me" ? "signed in" : "demo"}</span>` : ""}<span class="lq">${r.kind === "ask" ? "asked" : "searched"} <b>“${esc(r.query)}”</b></span>
+        <span class="lsrc">${r.sources.map(pIcon).join("")}</span>
+        <span class="lcount allow" title="Shown">✓ ${n("allowed")}</span>
+        <span class="lcount deny" title="Withheld or dropped">✕ ${n("denied") + n("dropped")}</span>`;
+    }
+    case "permission_change":
+      return `${who}<span class="lq">Access changed on <b>${esc(r.item.title)}</b> · ${esc(r.summary)}</span><span class="lsrc">${pIcon(r.source)}</span>`;
+    case "content_change":
+      return r.change === "backfill"
+        ? `${who}<span class="lq">${esc(label(r.source))} backfill: <b>${r.items} item(s)</b> indexed</span><span class="lsrc">${pIcon(r.source)}</span>`
+        : `${who}<span class="lq"><b>${esc(r.item.title)}</b> ${esc(r.change)}</span><span class="lsrc">${pIcon(r.source)}</span>`;
+    case "account":
+      return `${who}<span class="lq">${r.action === "connect" ? "connected" : "disconnected"} <b>${esc(label(r.source))}</b>${r.account ? ` (${esc(r.account)})` : ""}</span><span class="lsrc">${pIcon(r.source)}</span>`;
+    case "admin":
+      return `${who}<span class="lq">${esc(ADMIN_ACTION[r.action] || r.action)}${r.result ? ` · ${esc(r.result)}` : ""}</span>`;
+  }
+  return `${who}<span class="lq">${esc(r.kind)}</span>`;
+}
+
+function rowBody(r) {
+  const facts = (rows) => `<ul class="facts kv">${rows.filter(([, v]) => v).map(([k, v]) => `<li><span>${esc(k)}</span><span>${v}</span></li>`).join("")}</ul>`;
+  switch (r.kind) {
+    case "search": case "ask": {
+      const by = (d) => r.docs.filter((x) => x.decision === d);
+      return `<div class="lmeta">In ${esc(r.sources.map(label).join(" + "))} · via ${esc(r.via)}${r.keywords ? ` · Keywords: ${esc(r.keywords)}` : ""}</div>
+        ${r.answer ? `<div class="logans">${esc(r.answer)}</div>` : ""}
+        <div class="cols">
+          <div><div class="lbl allow">✓ Shown to ${esc(actorName(r.actor))} (${by("allowed").length})</div>${docList(by("allowed"), "allow")}</div>
+          <div><div class="lbl deny">✕ Withheld: not shared (${by("denied").length})</div>${docList(by("denied"), "deny")}</div>
+        </div>
+        ${by("dropped").length ? `<div class="lbl deny" style="margin-top:12px">Dropped by live re-check (${by("dropped").length})</div>${docList(by("dropped"), "deny", true)}` : ""}`;
+    }
+    case "permission_change":
+      return facts([
+        ["Item", `${pIcon(r.source)} ${esc(r.item.title)}${r.item.path ? ` <span class="dloc">${esc(r.item.path)}</span>` : ""}`],
+        ["Change", esc(r.summary)],
+        ["Before", r.old_access || r.new_access ? accessHtml(r.old_access, r.new_access, "lost") : ""],
+        ["After", r.old_access || r.new_access ? accessHtml(r.new_access, r.old_access, "gained") : ""],
+        ["Detected by", esc(r.via)],
+        ["Item ID", `<span class="dloc">${esc(r.item.id)}</span>`],
+      ]);
+    case "content_change":
+      return r.change === "backfill"
+        ? facts([["Source", esc(label(r.source))], ["Summary", esc(r.summary)], ["Indexed", esc(stamp(r.indexed_at))]])
+        : facts([
+            ["Item", `${pIcon(r.source)} ${esc(r.item.title)}${r.item.path ? ` <span class="dloc">${esc(r.item.path)}</span>` : ""}`],
+            ["Change", esc(r.change)],
+            [`Modified in ${label(r.source)}`, esc(stamp(r.modified_at))],
+            ["Indexed", esc(stamp(r.indexed_at))],
+            ["Freshness lag", esc(lagText(r))],
+            ["Detected by", esc(r.via)],
+            ["Item ID", `<span class="dloc">${esc(r.item.id)}</span>`],
+          ]);
+    case "account":
+      return facts([["Person", esc(r.actor)], ["Source", esc(label(r.source))], ["Account", esc(r.account || "")], ["Via", esc(r.via)]]);
+    case "admin":
+      return facts([
+        ["Action", esc(ADMIN_ACTION[r.action] || r.action)],
+        ["Filters", r.detail && Object.keys(r.detail).length ? esc(Object.entries(r.detail).map(([k, v]) => `${k}: ${v}`).join(" · ")) : ""],
+        ["Result", esc(r.result || "")],
+        ["Via", esc(r.via)],
+      ]);
+  }
+  return "";
+}
 
 function showLocked(message) {
   $("#auditLocked").hidden = false;
@@ -743,10 +887,25 @@ function showLocked(message) {
   $("#lockerr").textContent = message || "";
 }
 
+function logQuery() {
+  const qs = new URLSearchParams({ limit: "60" });
+  const v = (id) => $(id).value.trim();
+  const person = v("#fperson");
+  // A name from the list maps to its ID; anything else is used as typed (an email, "system", "admin").
+  if (person) qs.set("actor", users.find((u) => u.name?.toLowerCase() === person.toLowerCase())?.id || person);
+  if (v("#fdoc")) qs.set("doc", v("#fdoc"));
+  if (v("#fkind")) qs.set("kind", v("#fkind"));
+  if (v("#fdecision")) qs.set("decision", v("#fdecision"));
+  // Dates are local days: from the start of "From" to the end of "To".
+  if (v("#fsince")) qs.set("since", new Date(`${v("#fsince")}T00:00:00`).toISOString());
+  if (v("#funtil")) qs.set("until", new Date(`${v("#funtil")}T23:59:59.999`).toISOString());
+  return qs;
+}
+
 async function loadLog() {
   if (!adminToken()) return showLocked();
   let log;
-  try { log = await api("/api/log", null, true); }
+  try { log = await api(`/api/audit?${logQuery()}`, null, true); }
   catch (e) {
     if (e.status === 401 || e.status === 403) { store.set("adminToken", ""); showLocked(e.status === 401 ? "That password isn't right." : e.message); }
     else $("#lockerr").textContent = `Couldn't load the audit log: ${e.message}`;
@@ -756,34 +915,41 @@ async function loadLog() {
   $("#auditUnlocked").hidden = false;
   $("#lockbtn").hidden = false;
   renderDevNotes();
-  const name = (id) => (me.id === id && me.name) || users.find((u) => u.id === id)?.name || id;
-  const rowId = (e) => `${e.at}|${e.personId}|${e.query}`;
-  $("#log").innerHTML = log.slice(0, 20).map((e) => `
-    <details class="logrow" data-id="${esc(rowId(e))}" ${openLogRows.has(rowId(e)) ? "open" : ""}>
+  $("#fpeople").innerHTML = ["system", "admin", ...users.map((u) => u.name || u.id)].map((n) => `<option value="${esc(n)}"></option>`).join("");
+  $("#logcount").textContent = log.length ? `Newest first · ${log.length} record${log.length === 1 ? "" : "s"}${log.length >= 60 ? " (narrow the filters to see older ones)" : ""}` : "";
+  $("#log").innerHTML = log.map((r) => `
+    <details class="logrow" data-id="${r.seq}" ${openLogRows.has(String(r.seq)) ? "open" : ""}>
       <summary>
-        <span class="ltime">${new Date(e.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
-        <span class="lwho"><b>${esc(name(e.personId))}</b> <span class="tag">${e.mode === "me" ? "signed in" : "demo"}</span></span>
-        <span class="lq">${e.kind === "ask" ? "asked" : "searched"} <b>“${esc(e.query)}”</b></span>
-        <span class="lsrc">${e.sources.map(pIcon).join("")}</span>
-        <span class="lcount allow" title="Shown">✓ ${e.allowed.length}</span>
-        <span class="lcount deny" title="Withheld">✕ ${e.denied.length}</span>
+        <span class="ltime">${esc(stamp(r.at))}</span>
+        <span class="ktag ${esc(r.kind)}">${esc(KIND[r.kind] || r.kind)}</span>
+        ${rowSummary(r)}
         <svg class="ico chev"><use href="#i-chev"/></svg>
       </summary>
       <div class="lbody">
-      <div class="lmeta">In ${esc(e.sources.map(label).join(" + "))}${e.keywords ? ` · Keywords: ${esc(e.keywords)}` : ""}</div>
-      ${e.answer ? `<div class="logans">${esc(e.answer)}</div>` : ""}
-      <div class="cols">
-        <div><div class="lbl allow">✓ Shown to ${esc(name(e.personId))} (${e.allowed.length})</div>${docList(e.allowed, "allow")}</div>
-        <div><div class="lbl deny">✕ Withheld (${e.denied.length})</div>${docList(e.denied, "deny")}</div>
+        ${rowBody(r)}
+        <div class="lfoot">#${r.seq} · ${esc(new Date(r.at).toLocaleString())} · hash ${esc(r.hash.slice(0, 16))}… ← ${esc(r.prev_hash.slice(0, 16))}…</div>
       </div>
-      ${e.droppedByRecheck.length ? `<div class="lbl deny" style="margin-top:12px">Dropped by live re-check</div>${docList(e.droppedByRecheck, "deny")}` : ""}
-      </div>
-    </details>`).join("") || `<div class="empty">No searches yet.</div>`;
+    </details>`).join("") || `<div class="empty">No matching records.</div>`;
   $("#log").querySelectorAll("details.logrow").forEach((d) => d.addEventListener("toggle", () => {
     d.open ? openLogRows.add(d.dataset.id) : openLogRows.delete(d.dataset.id);
   }));
 }
-const openLogRows = new Set(); // which audit rows are expanded, kept when the log refreshes
+$("#logfilters").onsubmit = (e) => { e.preventDefault(); loadLog(); };
+["#fkind", "#fdecision", "#fsince", "#funtil"].forEach((id) => ($(id).onchange = () => loadLog()));
+$("#freset").onclick = () => { $("#logfilters").reset(); loadLog(); };
+
+$("#verifybtn").onclick = async () => {
+  const c = $("#chain");
+  c.className = "chain idle"; c.textContent = "Checking every record…";
+  try {
+    const v = await api("/api/audit/verify", null, true);
+    c.className = "chain " + (v.ok ? "ok" : "bad");
+    c.innerHTML = v.ok
+      ? `<b>✓ Chain intact</b><span>All ${v.checked} records verified.</span>${v.head ? `<span class="mono">head #${v.head.seq} ${esc(v.head.hash.slice(0, 24))}…</span>` : ""}`
+      : `<b>✕ Chain broken</b><span>${v.problems.map((p) => `#${p.seq}: ${esc(p.problem)}`).join(" · ")}</span>`;
+  } catch (e) { c.className = "chain bad"; c.textContent = e.message; }
+};
+const openLogRows = new Set(); // which audit rows (by seq) are expanded, kept when the log refreshes
 
 $("#lockform").onsubmit = (e) => {
   e.preventDefault();

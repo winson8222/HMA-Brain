@@ -3,6 +3,9 @@
 // produces an entry per affected file, so each file is handled the same way: re-read it and
 // update whatever changed. See docs in the team workspace: drive-spike-findings.md.
 import type { drive_v3 } from "googleapis";
+import type { SyncVia } from "../../audit/chain.js";
+import { access, type Snapshot } from "../../audit/events.js";
+import { recordBackfill, recordItemChange, recordItemDeleted } from "../../audit/record.js";
 import { aclHash, permsToAcl } from "./acl.js";
 import {
   accountEmail,
@@ -43,6 +46,7 @@ import {
   putPending,
   relabelFile,
   resetDriveIndices,
+  storedAcl,
   writeFileDocs,
 } from "./store.js";
 import { cachedFolder, forgetFolder, loadFolders, locate, rememberFolder } from "./tree.js";
@@ -52,7 +56,8 @@ type Root = { id: string; name: string };
 export type Outcome = "indexed" | "relabelled" | "unchanged" | "deleted" | "skipped" | "deferred" | "error";
 export type Counts = Record<Outcome, number>;
 // quietMs: the debounce window for this run (0 = re-index edited files right away).
-type Run = { root: Root; counts: Counts; maxLagMs: number; measureLag: boolean; quietMs: number };
+// via: what to call this run in the audit log. initial: a first backfill, audited as one summary record.
+type Run = { root: Root; counts: Counts; maxLagMs: number; measureLag: boolean; quietMs: number; via: SyncVia; initial: boolean };
 
 const newCounts = (): Counts => ({ indexed: 0, relabelled: 0, unchanged: 0, deleted: 0, skipped: 0, deferred: 0, error: 0 });
 
@@ -116,12 +121,23 @@ export async function resolveRoot(): Promise<Root> {
 
 // Files outside Company A also show up in the changes feed; they were never indexed, so there's nothing to do.
 // (Chunks without state, e.g. after a crash mid-write, are cleaned up by backfill.)
-async function deleteFile(fileId: string): Promise<Outcome> {
+async function deleteFile(fileId: string, run: Run): Promise<Outcome> {
   await deletePending(fileId);
-  if (!(await getFileState(fileId))) return "skipped";
+  const prev = await getFileState(fileId);
+  if (!prev) return "skipped";
   await deleteFileDocs(fileId);
   await deleteFileState(fileId);
+  await recordItemDeleted("drive", run.via, { id: driveItemId(fileId), source: "drive", title: prev.name, path: prev.path }, prev.modified_at);
   return "deleted";
+}
+
+export const driveItemId = (fileId: string) => `drive:${fileId}`;
+
+// The file as the index had it before this change, for the audit record. The labels come from its chunks;
+// if those are missing (a crash mid-write), the old access is recorded as unknown.
+async function before(prev: NonNullable<Awaited<ReturnType<typeof getFileState>>>, newAclHash: string, newAcl: string[]): Promise<Snapshot> {
+  const old = prev.acl_hash === newAclHash ? newAcl : await storedAcl(prev.file_id);
+  return { title: prev.name, path: prev.path, access: access(old ?? ["(unknown)"]), modified_at: prev.modified_at };
 }
 
 async function processItem(fileId: string, run: Run) {
@@ -142,17 +158,17 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
   const meta = await getMeta(fileId);
   if (!meta) {
     if (cachedFolder(fileId)) await dropFolder(fileId, run);
-    return deleteFile(fileId);
+    return deleteFile(fileId, run);
   }
   if (meta.mimeType === FOLDER) {
     await processFolder(meta, run);
     return "skipped";
   }
-  if (meta.trashed) return deleteFile(fileId);
+  if (meta.trashed) return deleteFile(fileId, run);
   const how = extractionFor(meta.mimeType!);
-  if (how.kind === "skip") return deleteFile(fileId);
+  if (how.kind === "skip") return deleteFile(fileId, run);
   const loc = await locate(meta.parents?.[0], run.root);
-  if (!loc) return deleteFile(fileId); // not (or no longer) under Company A
+  if (!loc) return deleteFile(fileId, run); // not (or no longer) under Company A
 
   const name = meta.name ?? fileId;
   const acl = permsToAcl(meta.permissions);
@@ -165,8 +181,10 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
   // and re-embedding it. Sharing can't wait (it decides who may see the file), so it's applied now.
   if (how.kind !== "title" && stillEditing(meta.modifiedTime, Date.now(), run.quietMs)) {
     if (prev && prev.status !== "error" && prev.acl_hash !== aHash) {
+      const old = await before(prev, aHash, acl); // labels as stored, before relabelling
       await relabelFile(fileId, acl);
       await putFileState({ ...prev, acl_hash: aHash });
+      await recordItemChange("drive", run.via, driveItemId(fileId), old, { ...old, access: access(acl) }, { contentChanged: false });
     }
     await putPending(fileId, new Date(Date.parse(meta.modifiedTime!) + run.quietMs).toISOString());
     return "deferred";
@@ -187,6 +205,7 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
   const decision = planUpdate(prev, { name, path: loc.path, aclHash: aHash, contentHash: cHash, wantVectors });
   if (decision === "none") return "unchanged";
 
+  const old = prev && prev.status !== "error" ? await before(prev, aHash, acl) : null;
   let chunkCount = prev?.chunk_count ?? 0;
   let finalHash = cHash;
   let vectors = prev?.vectors;
@@ -219,6 +238,14 @@ async function processFile(fileId: string, run: Run): Promise<Outcome> {
     indexed_at: new Date().toISOString(),
     ...(vectors !== undefined ? { vectors } : {}),
   });
+  await recordItemChange(
+    "drive",
+    run.via,
+    driveItemId(fileId),
+    old,
+    { title: name, path: loc.path, access: access(acl), modified_at: meta.modifiedTime ?? null },
+    { quietAdd: run.initial, contentChanged: prev?.content_hash !== finalHash },
+  );
   return decision === "reindex" ? "indexed" : "relabelled";
 }
 
@@ -303,7 +330,7 @@ async function refreshStatus(kind: "backfill" | "poll", run: Run) {
 let busy = false; // one backfill or poll at a time in this process
 
 // quietMs: debounce for files edited moments ago (the server's periodic reconcile); 0 for an explicit backfill.
-export async function backfill(opts: { reset?: boolean; quietMs?: number } = {}): Promise<Counts> {
+export async function backfill(opts: { reset?: boolean; quietMs?: number; via?: SyncVia } = {}): Promise<Counts> {
   if (busy) throw new Error("A Drive sync is already running.");
   busy = true;
   try {
@@ -321,7 +348,9 @@ function noteError(e: unknown) {
   driveStatus.authError = isAuthError(e);
 }
 
-async function backfillInner(opts: { reset?: boolean; quietMs?: number }): Promise<Counts> {
+async function backfillInner(opts: { reset?: boolean; quietMs?: number; via?: SyncVia }): Promise<Counts> {
+  // The first backfill (or one after a reset) adds everything: one summary record, not one per file.
+  const initial = !!opts.reset || !(await getConnector().catch(() => undefined))?.page_token;
   if (opts.reset) await resetDriveIndices();
   else await ensureDriveIndices();
   await loadFolders();
@@ -330,7 +359,7 @@ async function backfillInner(opts: { reset?: boolean; quietMs?: number }): Promi
   const token = await startPageToken();
   const root = await resolveRoot();
   await rememberFolder({ id: root.id, name: root.name, parentId: null });
-  const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: false, quietMs: opts.quietMs ?? 0 };
+  const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: false, quietMs: opts.quietMs ?? 0, via: initial ? "backfill" : (opts.via ?? "reconcile"), initial };
 
   const fileIds: string[] = [];
   const folderIds = new Set<string>();
@@ -340,7 +369,7 @@ async function backfillInner(opts: { reset?: boolean; quietMs?: number }): Promi
   // Remove anything indexed earlier that is no longer under the root.
   const seen = new Set(fileIds);
   if (!run.quietMs) for (const p of await allPending()) if (!seen.has(p.file_id)) await deletePending(p.file_id); // left the folder
-  for (const s of await allFileStates()) if (!seen.has(s.file_id)) run.counts[await deleteFile(s.file_id)]++;
+  for (const s of await allFileStates()) if (!seen.has(s.file_id)) run.counts[await deleteFile(s.file_id, run)]++;
   for (const id of await indexedFileIds()) if (!seen.has(id)) await deleteFileDocs(id); // chunks without state
   for (const f of await allFolderStates()) if (!folderIds.has(f.folder_id)) await forgetFolder(f.folder_id);
 
@@ -351,6 +380,7 @@ async function backfillInner(opts: { reset?: boolean; quietMs?: number }): Promi
     account_email: await accountEmail(),
     last_backfill_at: new Date().toISOString(),
   });
+  if (initial) await recordBackfill("drive", "backfill", run.counts.indexed, `Drive "${root.name}": ${summary(run.counts)}`);
   await refreshStatus("backfill", run);
   return run.counts;
 }
@@ -402,12 +432,12 @@ export async function pollOnce(opts: { force?: boolean } = {}): Promise<Counts |
     }
 
     // 2. Apply. Folders first, so files get the right paths.
-    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true, quietMs };
+    const run: Run = { root, counts: newCounts(), maxLagMs: 0, measureLag: true, quietMs, via: "poll", initial: false };
     const entries = [...latest].sort((a, b) => Number(b[1].folder) - Number(a[1].folder));
     for (const [id, c] of entries) {
       if (c.removed) {
         if (cachedFolder(id)) await dropFolder(id, run);
-        run.counts[await deleteFile(id)]++;
+        run.counts[await deleteFile(id, run)]++;
       } else await processItem(id, run);
     }
 
