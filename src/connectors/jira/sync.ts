@@ -70,7 +70,8 @@ async function deleteIssues(ids: string[], ctx: Ctx) {
   await deleteIssueDocs(ids);
   for (const id of ids) {
     const s = before.get(id);
-    await recordItemDeleted("jira", ctx.via, { id: issueItemId(id), source: "jira", title: s ? snapshot(s).title : id, ...(s ? { path: s.project_name } : {}) }, s?.updated_at);
+    // Jira doesn't say when an issue was deleted: only the detection time is known.
+    await recordItemDeleted("jira", ctx.via, { id: issueItemId(id), source: "jira", title: s ? snapshot(s).title : id, ...(s ? { path: s.project_name } : {}) });
   }
 }
 

@@ -62,6 +62,14 @@ export type Access = { labels: string[]; restricted_to?: string[] };
 // How the system noticed a change.
 export type SyncVia = "backfill" | "poll" | "reconcile" | "live-recheck" | "event";
 
+// Two times on every permission and content change:
+//   changed_at:  when it happened in the source, if the source says (Drive's change feed, an item's own
+//                modified time, a Slack event). null when the source doesn't expose it (e.g. Jira and
+//                Confluence permission changes): then only the detection time is known.
+//   detected_at: when this system saw it (a poll, a reconcile, a live re-check, an event).
+// detected_at - changed_at is the detection lag. Searches in between are still protected by the live re-check.
+type ChangeTimes = { changed_at?: string | null; detected_at?: string }; // optional only on records written before they existed
+
 export type PermissionChangeEvent = {
   kind: "permission_change";
   actor: "system";
@@ -71,7 +79,7 @@ export type PermissionChangeEvent = {
   old_access?: Access; // absent when the old labels weren't known
   new_access?: Access;
   summary: string; // readable: "lost: drive:user:dave@…; gained: …"
-};
+} & ChangeTimes;
 
 export type ContentChangeEvent =
   | {
@@ -81,9 +89,9 @@ export type ContentChangeEvent =
       source: string;
       change: "added" | "updated" | "deleted";
       item: AuditItem;
-      modified_at?: string | null; // when the source says it last changed
-      indexed_at: string; // when the index caught up (indexed_at - modified_at = freshness lag)
-    }
+      modified_at?: string | null; // older records only: the source's modified time (now changed_at)
+      indexed_at: string; // when the index caught up
+    } & ChangeTimes
   | {
       // A first (or reset) backfill: one summary instead of one record per item.
       kind: "content_change";

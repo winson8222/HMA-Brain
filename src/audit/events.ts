@@ -36,16 +36,20 @@ export function describeAccessChange(before: Access, after: Access): string {
 // A new item is "added" unless quietAdd (a first backfill, summarised once instead).
 // contentChanged: set it when the source knows better than the modified time (Drive bumps modifiedTime
 // on a sharing change, so a sharing-only change would otherwise also look like an edit).
+// permissionChangedAt: when the sharing changed, if the source says (Drive's change feed). An edit's time is
+// the item's own modified time (next.modified_at).
 export function changeEvents(
   source: string,
   via: SyncVia,
   id: string,
   prev: Snapshot | null,
   next: Snapshot,
-  opts: { quietAdd?: boolean; indexedAt?: string; contentChanged?: boolean } = {},
+  opts: { quietAdd?: boolean; detectedAt?: string; indexedAt?: string; contentChanged?: boolean; permissionChangedAt?: string | null } = {},
 ): (PermissionChangeEvent | ContentChangeEvent)[] {
   const item: AuditItem = { id, source, title: next.title, ...(next.path ? { path: next.path } : {}) };
-  const indexed_at = opts.indexedAt ?? new Date().toISOString();
+  const now = new Date().toISOString();
+  const detected_at = opts.detectedAt ?? now;
+  const indexed_at = opts.indexedAt ?? now;
   const content = (change: "added" | "updated"): ContentChangeEvent => ({
     kind: "content_change",
     actor: "system",
@@ -53,7 +57,8 @@ export function changeEvents(
     source,
     change,
     item,
-    modified_at: next.modified_at,
+    changed_at: next.modified_at,
+    detected_at,
     indexed_at,
   });
   if (!prev) return opts.quietAdd ? [] : [content("added")];
@@ -68,6 +73,8 @@ export function changeEvents(
       old_access: prev.access,
       new_access: next.access,
       summary: describeAccessChange(prev.access, next.access),
+      changed_at: opts.permissionChangedAt ?? null,
+      detected_at,
     });
   }
   const edited = opts.contentChanged ?? prev.modified_at !== next.modified_at;
@@ -75,15 +82,8 @@ export function changeEvents(
   return out;
 }
 
-export function deletedEvent(source: string, via: SyncVia, item: AuditItem, modifiedAt?: string | null): ContentChangeEvent {
-  return {
-    kind: "content_change",
-    actor: "system",
-    via,
-    source,
-    change: "deleted",
-    item,
-    ...(modifiedAt !== undefined ? { modified_at: modifiedAt } : {}),
-    indexed_at: new Date().toISOString(),
-  };
+// changedAt: when it was deleted in the source, if the source says; otherwise null (only detected_at is known).
+export function deletedEvent(source: string, via: SyncVia, item: AuditItem, changedAt: string | null = null, detectedAt?: string): ContentChangeEvent {
+  const now = new Date().toISOString();
+  return { kind: "content_change", actor: "system", via, source, change: "deleted", item, changed_at: changedAt, detected_at: detectedAt ?? now, indexed_at: now };
 }

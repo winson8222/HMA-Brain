@@ -88,6 +88,8 @@ As Carol, click **Audit log** and unlock it with `ADMIN_TOKEN`. Every row is a s
 | Who connected or disconnected accounts, who looked at the log | Kind: *Account links* / *Admin actions* | `npm run audit:log -- --kind account,admin` |
 | Is the log tamper-evident? | **Verify chain** | `npm run audit:verify` → "chain intact". Edit a record in `brain-audit` and run it again to show it fail |
 
+What each platform logs, and when (time changed vs time detected): [audit-trail.md](audit-trail.md).
+
 To set up step 3 without a live revoke: `npm run seed:drive -- --close-vendor-access`, then `npm run drive:poll` (or wait for the poll). Restore with `npm run seed:drive -- --reset` and poll again; that writes the matching "gained" record.
 
 ---

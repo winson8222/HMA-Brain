@@ -802,11 +802,18 @@ const labelChips = (list, other, cls) => (list || []).length
   : `<span class="none" style="padding:0">nobody</span>`;
 const accessHtml = (a, other, cls) => !a ? `<span class="none" style="padding:0">unknown</span>`
   : `${labelChips(a.labels, other?.labels, cls)}${a.restricted_to ? `<div style="margin-top:6px;font-size:11px;color:var(--muted)">and restricted to:</div>${labelChips(a.restricted_to, other?.restricted_to, cls)}` : ""}`;
-const lagText = (r) => {
-  if (!r.modified_at || !r.indexed_at) return "";
-  const s = Math.max(0, Math.round((Date.parse(r.indexed_at) - Date.parse(r.modified_at)) / 1000));
+// Change records carry when it happened in the source (changed_at, if the source says) and when we saw it
+// (detected_at). Older records: modified_at, and the record time as detection.
+const changedAt = (r) => r.changed_at ?? r.modified_at ?? null;
+const detectedAt = (r) => r.detected_at ?? r.at;
+const span = (from, to) => {
+  const s = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000));
   return s < 120 ? `${s}s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
 };
+const timeFacts = (r) => [
+  [`Changed in ${label(r.source)}`, changedAt(r) ? esc(stamp(changedAt(r))) : `<span class="dloc">not given by ${esc(label(r.source))}; only the detection time is known</span>`],
+  ["Detected", esc(stamp(detectedAt(r))) + (changedAt(r) ? ` <span class="dloc">(${esc(span(changedAt(r), detectedAt(r)))} after the change)</span>` : "")],
+];
 const ADMIN_ACTION = { audit_query: "viewed the audit log", audit_verify: "verified the audit chain", sync_now: "pressed Sync now" };
 
 function rowSummary(r) {
@@ -852,6 +859,7 @@ function rowBody(r) {
         ["Change", esc(r.summary)],
         ["Before", r.old_access || r.new_access ? accessHtml(r.old_access, r.new_access, "lost") : ""],
         ["After", r.old_access || r.new_access ? accessHtml(r.new_access, r.old_access, "gained") : ""],
+        ...timeFacts(r),
         ["Detected by", esc(r.via)],
         ["Item ID", `<span class="dloc">${esc(r.item.id)}</span>`],
       ]);
@@ -861,9 +869,8 @@ function rowBody(r) {
         : facts([
             ["Item", `${pIcon(r.source)} ${esc(r.item.title)}${r.item.path ? ` <span class="dloc">${esc(r.item.path)}</span>` : ""}`],
             ["Change", esc(r.change)],
-            [`Modified in ${label(r.source)}`, esc(stamp(r.modified_at))],
-            ["Indexed", esc(stamp(r.indexed_at))],
-            ["Freshness lag", esc(lagText(r))],
+            ...timeFacts(r),
+            ["Indexed", esc(stamp(r.indexed_at)) + (changedAt(r) ? ` <span class="dloc">(${esc(span(changedAt(r), r.indexed_at))} after the change)</span>` : "")],
             ["Detected by", esc(r.via)],
             ["Item ID", `<span class="dloc">${esc(r.item.id)}</span>`],
           ]);

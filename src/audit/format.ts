@@ -12,6 +12,15 @@ const accessText = (a?: Access) =>
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : "unknown");
 
+// "changed 6:22:24 PM in drive · detected 6:22:28 PM (4s later)". Older records: the record time is detection.
+type Timed = { source: string; at: string; changed_at?: string | null; detected_at?: string; modified_at?: string | null };
+function times(r: Timed): string {
+  const changed = r.changed_at ?? r.modified_at ?? null;
+  const detected = r.detected_at ?? r.at;
+  const lag = changed ? Math.max(0, Math.round((Date.parse(detected) - Date.parse(changed)) / 1000)) : null;
+  return `changed in ${r.source}: ${changed ? when(changed) : "not given by the source"}   detected: ${when(detected)}${lag !== null ? ` (${lag}s later)` : ""}`;
+}
+
 function body(r: AuditRecord): string[] {
   switch (r.kind) {
     case "search":
@@ -30,13 +39,14 @@ function body(r: AuditRecord): string[] {
         `    ${r.summary}`,
         `    before: ${accessText(r.old_access)}`,
         `    after:  ${accessText(r.new_access)}`,
+        `    ${times(r)}`,
         `    item:   ${r.item.id}${r.item.path ? `  ${r.item.path}` : ""}`,
       ];
     case "content_change":
       if (r.change === "backfill") return [`${r.source} backfill: ${r.items} item(s) indexed  (${r.via})`, `    ${r.summary}`];
       return [
         `${r.source} "${r.item.title}" ${r.change}  (${r.via})`,
-        `    modified in ${r.source}: ${when(r.modified_at)}   indexed: ${when(r.indexed_at)}`,
+        `    ${times(r)}   indexed: ${when(r.indexed_at)}`,
         `    item: ${r.item.id}${r.item.path ? `  ${r.item.path}` : ""}`,
       ];
     case "account":

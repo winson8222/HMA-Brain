@@ -197,9 +197,11 @@ Every meaningful action goes into one tamper-evident log, `brain-audit`. Each re
 |---|---|---|---|
 | `search`, `ask` | the person | `federated.ts` (and the Drive page) | question, keywords, answer, `mode` (signed in or demo), and every document considered with its decision: **allowed** (★ cited), **denied** (not shared with them) or **dropped** by the live re-check. No answer is returned without its record |
 | `permission_change` | `system` | Drive sync and live re-check, Jira and Confluence sync, Slack membership events and channel reconcile | the item (ID, title, path), its access before and after (labels, plus `restricted_to` for Jira security levels and Confluence restrictions), a readable summary ("lost: drive:user:dave@…"), and how it was detected (`poll`, `reconcile`, `live-recheck`, `event`) |
-| `content_change` | `system` | the same syncs, and live Slack events | `added`, `updated` or `deleted`, with the time the source says it changed (`modified_at`) and when the index caught up (`indexed_at`): the gap is the freshness lag |
+| `content_change` | `system` | the same syncs, and live Slack events | `added`, `updated` or `deleted`, and when the index caught up (`indexed_at`) |
 | `account` | the person | Slack Connect / Disconnect, Atlassian link / unlink, Drive connected | which source and which account |
 | `admin` | `admin` (or the signed-in person for Sync now) | `/api/audit`, `/api/audit/verify`, `audit:log`, `audit:verify`, Drive **Sync now** | the filters used, or the result |
+
+Both change kinds carry `changed_at` (when it happened in the source, or `null` when the source doesn't say) and `detected_at` (when we saw it). Which sources give an exact `changed_at`, and why the gap doesn't expose anything, is in [audit-trail.md](audit-trail.md).
 
 Rules:
 
