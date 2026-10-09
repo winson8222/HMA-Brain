@@ -158,6 +158,7 @@
   <symbol id="p-slack" viewBox="0 0 24 24"><rect x="2" y="9" width="10" height="4" rx="2" fill="#36C5F0"/><rect x="8" y="2" width="4" height="6" rx="2" fill="#36C5F0"/><rect x="13" y="2" width="4" height="10" rx="2" fill="#2EB67D"/><rect x="18" y="8" width="4" height="4" rx="2" fill="#2EB67D"/><rect x="12" y="13" width="10" height="4" rx="2" fill="#ECB22E"/><rect x="12" y="18" width="4" height="4" rx="2" fill="#ECB22E"/><rect x="7" y="12" width="4" height="10" rx="2" fill="#E01E5A"/><rect x="2" y="14" width="4" height="4" rx="2" fill="#E01E5A"/></symbol>
   <symbol id="p-drive" viewBox="0 0 24 24"><path d="m9 2-8 14 4 6 8-14Z" fill="#0F9D58"/><path d="m9 2 8 14h7L16 2Z" fill="#F4B400"/><path d="M5 22h15l4-6H9Z" fill="#4285F4"/></symbol>
   <symbol id="p-jira" viewBox="0 0 24 24"><path d="M12 2 22 12 12 22 2 12Z" fill="#2684FF"/><path d="m12 7 5 5-5 5-5-5Z" fill="white"/></symbol>
+  <symbol id="p-confluence" viewBox="0 0 24 24"><path d="M2 17.5c3.5-5 7-6 11-4l7 3.5-2.5 4.5-6.5-3.3c-2.5-1.3-4.3-.8-6.3 2.3Z" fill="#2684FF"/><path d="M22 6.5c-3.5 5-7 6-11 4L4 7l2.5-4.5L13 5.8c2.5 1.3 4.3.8 6.3-2.3Z" fill="#0052CC"/></symbol>
 </svg>
 
 <div class="shell" id="shell">
@@ -194,7 +195,7 @@
       <div id="access"></div>
 
       <div class="sechead">YOUR ACCOUNTS</div>
-      <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira results that follow your Jira permissions.</p>
+      <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira and Confluence results that follow your Atlassian permissions.</p>
       <div id="list"></div>
 
       <div id="jira"></div>
@@ -248,7 +249,7 @@ const initials = (n) => String(n || "?").split(/\s+/).map((p) => p[0]).join("").
 
 const params = new URLSearchParams(location.search);
 if (params.get("connected")) $("#notice").innerHTML = params.get("connected").startsWith("Jira")
-  ? ok(`Connected ${esc(params.get("connected"))}. Jira issues you can see in Jira are now included in your results.`)
+  ? ok(`Connected ${esc(params.get("connected"))}. Jira issues and Confluence pages you can see there are now included in your results.`)
   : ok(`Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.`);
 if (params.get("error")) $("#notice").innerHTML = err(esc(params.get("error")));
 
@@ -264,8 +265,10 @@ async function renderAccess(me) {
   const rows = (me.workspaces || []).map((w) => chipRow("p-slack", `Slack · ${w.workspace}`,
     [...w.items.map((c) => chip((c.private ? "🔒 " : "") + c.label, c.private ? "priv" : "")), chip("🔒 your own DMs", "priv")]));
   if (a.drive) rows.push(chipRow("p-drive", "Google Drive", a.drive.files.length ? a.drive.files.map((f) => chip(f)) : [chip("No files shared with you yet", "off")]));
-  if (a.jira) rows.push(chipRow("p-jira", "Jira", !a.jira.linked ? [chip("Connect Jira below to see your projects", "off")]
+  if (a.jira) rows.push(chipRow("p-jira", "Jira", !a.jira.linked ? [chip("Connect Atlassian below to see your projects", "off")]
     : a.jira.projects.length ? a.jira.projects.map((p) => chip(`${p.key} · ${p.name}`)) : [chip("No projects", "off")]));
+  if (a.confluence) rows.push(chipRow("p-confluence", "Confluence", !a.confluence.linked ? [chip("Connect Atlassian below to see your spaces", "off")]
+    : a.confluence.spaces.length ? a.confluence.spaces.map((sp) => chip(`${sp.key} · ${sp.name}`)) : [chip("No spaces", "off")]));
   $("#access").innerHTML = `<div class="sechead">WHAT YOU CAN ACCESS</div>
     <p class="secsub">Atlas only answers from these, using your permissions in each source.</p>
     <div class="card accrows">${rows.join("")}</div>`;
@@ -300,22 +303,25 @@ async function render() {
       ${action}</div></div>`;
   }).join("");
 
-  // Connect Jira: only shown when the server has the Jira connector. Links your own Atlassian account.
-  const jira = await api("/api/jira/me").catch(() => null);
+  // Connect Atlassian: only shown when the server has the Jira connector. One link to your own Atlassian
+  // account serves Jira and Confluence (same site, same account).
+  const [jira, sources] = await Promise.all([api("/api/jira/me").catch(() => null), api("/api/connectors").catch(() => [])]);
+  const withConfluence = sources.some((c) => c.name === "confluence");
+  const products = withConfluence ? "Jira and Confluence" : "Jira";
   $("#jira").innerHTML = !jira ? "" : `<div class="card conn" style="margin-top:12px"><div class="row">
-      ${icon("p-jira")}
-      <div class="grow"><div class="name">Jira<span class="status ${jira.linked ? "on" : "off"}">${jira.linked ? "You're connected" : "Not connected"}</span></div>
-        <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. Jira results follow your Jira permissions.` : "Link your Atlassian account to include Jira issues you can see in Jira."}</div></div>
+      ${icon("p-jira")}${withConfluence ? icon("p-confluence") : ""}
+      <div class="grow"><div class="name">Atlassian (${products})<span class="status ${jira.linked ? "on" : "off"}">${jira.linked ? "You're connected" : "Not connected"}</span></div>
+        <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. ${products} results follow your permissions there.` : `One link covers ${withConfluence ? "both" : "it"}: include the ${withConfluence ? "Jira issues and Confluence pages" : "Jira issues"} you can see.`}</div></div>
       ${!me.signedIn ? `<span class="muted">Connect Slack first to sign in</span>`
         : !jira.canConnect ? `<span class="muted">Not set up yet. Ask an admin.</span>`
         : jira.linked ? `<button class="btn secondary" id="jira-disconnect">Disconnect</button>`
-        : `<a class="btn" href="/connect/jira/start"><svg class="ico"><use href="#i-link"/></svg>Connect Jira</a>`}</div></div>`;
+        : `<a class="btn" href="/connect/jira/start"><svg class="ico"><use href="#i-link"/></svg>Connect Atlassian</a>`}</div></div>`;
   const jd = $("#jira-disconnect");
   if (jd) jd.onclick = async () => {
     jd.setAttribute("aria-disabled", "true");
     try {
       await api("/api/jira/disconnect", {});
-      $("#notice").innerHTML = ok("Jira disconnected. You'll get no Jira results until you connect again.");
+      $("#notice").innerHTML = ok(`Atlassian disconnected. You'll get no ${products} results until you connect again.`);
     } catch (e) {
       $("#notice").innerHTML = err(esc(e.message));
     }
