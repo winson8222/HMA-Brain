@@ -1,4 +1,4 @@
-// The Jira demo data that `npm run seed:jira` creates. It mirrors docs/jira-mock-data-plan.md: change both together.
+// The Jira demo data that `npm run seed:jira` creates. It mirrors docs/demo/data/jira.md: change both together.
 //
 // ---- Scenario description ----
 //
@@ -6,7 +6,7 @@
 // database. While the migration runs, every payment holds two connections, so one Saturday evening the pay-db-1
 // connection pool ran out and 18% of checkouts failed between 19:40 and 21:15. Acme's support desk took 47 minutes
 // to answer the page. The same story is told in Slack (#payments, #payments-incident, #acme-support) and Drive
-// (postmortem, runbooks); see docs/demo-data.md. Jira holds the tickets:
+// (postmortem, runbooks); see docs/demo/story-and-personas.md. Jira holds the tickets:
 //
 //   PAY (Payments Engineering): the migration step that's blocked (PAY-231), the postmortem follow-ups,
 //     restricted to the incident team (PAY-240 connection limit, PAY-241 alerting, PAY-245 runbook), a SEV4 near miss (PAY-242), the leadership-only cost estimate for
