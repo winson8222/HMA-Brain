@@ -173,7 +173,7 @@ export type Problem = { seq: number; problem: string };
 export type VerifyResult = { ok: boolean; checked: number; head: { seq: number; hash: string } | null; problems: Problem[] };
 
 // Records must be sorted by seq. Removing records from the very end can't be seen from the chain
-// alone; compare the head with one noted earlier (see docs/drive-setup.md, "Audit log").
+// alone; compare the head with one noted earlier (see docs/reference/architecture.md, "Shared audit chain").
 export function verifyChain(records: AuditRecord[], key: string): VerifyResult {
   const problems: Problem[] = [];
   let expectedSeq = 1;
