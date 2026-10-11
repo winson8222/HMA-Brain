@@ -1,5 +1,5 @@
 // The demo story's Drive content, used by seed:drive and seed:story. What's in it and who sees what:
-// docs/demo-data.md. The story: Company A's checkout broke one evening; Alice fixed it and wrote a postmortem,
+// docs/demo/story-and-personas.md. The story: Company A's checkout broke one evening; Alice fixed it and wrote a postmortem,
 // which Carol shared with Dave (Acme, the card processor) for follow-up work and then takes back.
 //
 // Rules: plain language, no dates (clock times only in the postmortem's timeline); each fact lives in one

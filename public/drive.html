@@ -453,7 +453,8 @@ const docList = (docs, withReason) => docs.length
   : `<div class="none">none</div>`;
 
 async function loadLog() {
-  const qs = new URLSearchParams({ limit: "40" });
+  // Searches and answers only; permission, content, account and admin records are on the main Audit log page.
+  const qs = new URLSearchParams({ limit: "40", kind: "access" });
   if ($("#factor").value) qs.set("actor", $("#factor").value);
   if ($("#fdecision").value) qs.set("decision", $("#fdecision").value);
   if ($("#fdoc").value.trim()) qs.set("doc", $("#fdoc").value.trim());

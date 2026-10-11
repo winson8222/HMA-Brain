@@ -23,34 +23,6 @@ import { withSpan, withTrace } from "./tracing.js";
 export type Result = Omit<Evidence, "text"> & { sourceLabel: string };
 export type Answer = { answer: string; keywords: string; sources: (Result & { n: number })[]; unavailable: string[] };
 
-// ---- page audit log (the admin panel on index.html) ----
-// Withheld items show only their title and location, never their text.
-export type PageLogDoc = { id: string; source: string; title: string; location: string; text?: string };
-export type LogEntry = {
-  at: string;
-  kind: "search" | "ask";
-  mode: AskMode;
-  personId: string;
-  sources: string[];
-  query: string;
-  keywords?: string;
-  answer?: string;
-  allowed: PageLogDoc[];
-  droppedByRecheck: PageLogDoc[];
-  denied: PageLogDoc[];
-};
-export const auditLog: LogEntry[] = [];
-
-function logEntry(e: Omit<LogEntry, "at" | "allowed" | "droppedByRecheck" | "denied">, evidence: Evidence[], docs: AuditDoc[]) {
-  const text = new Map(evidence.map((x) => [x.ref, x.text]));
-  const pick = (decision: AuditDoc["decision"]) =>
-    docs
-      .filter((d) => d.decision === decision)
-      .map((d) => ({ id: d.doc_id, source: d.source, title: d.title, location: d.path ?? "", ...(decision === "allowed" ? { text: text.get(d.doc_id) } : {}) }));
-  auditLog.unshift({ at: new Date().toISOString(), ...e, allowed: pick("allowed"), droppedByRecheck: pick("dropped"), denied: pick("denied") });
-  auditLog.length = Math.min(auditLog.length, 200);
-}
-
 // ---- retrieval ----
 
 export class UnknownSourceError extends Error {}
@@ -107,8 +79,7 @@ export async function search(personId: string, q: string, mode: AskMode, sources
   const names = picked.map((c) => c.name);
   return withTrace("search", { userId: personId, input: { query: q }, metadata: { mode, sources: names } }, async () => {
     const { evidence, audit, unavailable } = await retrieveAll(personId, q, picked, { size: 10, purpose: "search", rerankQuery: q });
-    await appendAudit({ actor: personId, kind: "search", via: "web", sources: names, query: q, docs: audit });
-    logEntry({ kind: "search", mode, personId, sources: names, query: q }, evidence, audit);
+    await appendAudit({ actor: personId, kind: "search", via: "web", mode, sources: names, query: q, docs: audit });
     return { results: evidence.map(toResult), unavailable };
   });
 }
@@ -182,8 +153,7 @@ export async function ask(personId: string, question: string, mode: AskMode, sou
 
     // No answer goes out without its audit record.
     const logged = failure ? `(no answer: ${failure})` : answer;
-    await appendAudit({ actor: personId, kind: "ask", via: "web", sources: names, query: question, keywords, answer: logged, docs: audit });
-    logEntry({ kind: "ask", mode, personId, sources: names, query: question, keywords, answer: logged }, evidence, audit);
+    await appendAudit({ actor: personId, kind: "ask", via: "web", mode, sources: names, query: question, keywords, answer: logged, docs: audit });
     if (failure) throw new Error(failure);
 
     const sourcesOut = evidence.map((e, i) => ({ n: i + 1, ...toResult(e) })).filter((s) => cited.has(s.n));

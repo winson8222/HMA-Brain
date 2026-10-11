@@ -77,7 +77,7 @@ for (const p of demoPeople(admin)) {
   ok(`${p.name} (${p.email})${p.admin ? " [admin]" : ""}: ${(r.aggregations?.files as any)?.value ?? 0} of ${files} files`);
 }
 for (const w of setupWarnings(admin)) {
-  if (w.includes("is also the Drive admin")) warn(w, "Before the real demo: switch to a dedicated admin account (docs/drive-setup.md, “Switch to a dedicated admin”).");
+  if (w.includes("is also the Drive admin")) warn(w, "Before the real demo: switch to a dedicated admin account (docs/setup/drive.md, “Create accounts and source access”).");
   else if (w.startsWith("CAROL_EMAIL")) warn(w, "Set CAROL_EMAIL in .env (the email Carol uses in Slack), then `npm run seed:drive` to share her files.");
   else warn(w);
 }
