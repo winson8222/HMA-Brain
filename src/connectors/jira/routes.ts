@@ -5,6 +5,7 @@ import { getSession } from "../../session.js";
 import { accountForCode, authorizeUrl, linkTarget, oauthConfigured } from "./auth.js";
 import { ensureJiraIndices, deleteLink, getLink, putLink } from "./store.js";
 import { forgetAccess } from "./people.js";
+import { recordAudit } from "../../audit/record.js";
 
 export const jiraRouter = express.Router();
 
@@ -44,6 +45,7 @@ jiraRouter.get("/connect/jira/callback", async (req, res) => {
     await putLink(target.personId, account.accountId, account.name);
     forgetAccess(target.personId);
     console.log(`Jira: linked ${target.personId} to Atlassian account ${account.accountId}`);
+    await recordAudit({ kind: "account", actor: target.personId, via: "web", source: "atlassian", action: "connect", account: account.name ?? account.accountId });
     back({ connected: `Jira (${account.name ?? account.accountId})` });
   } catch (e: any) {
     console.error(e);
@@ -55,8 +57,10 @@ jiraRouter.post(
   "/api/jira/disconnect",
   wrap(async (req, res) => {
     const p = me(req);
+    const link = await getLink(p);
     await deleteLink(p);
     forgetAccess(p);
+    if (link) await recordAudit({ kind: "account", actor: p, via: "web", source: "atlassian", action: "disconnect", account: link.account_name ?? link.account_id });
     res.json({ ok: true });
   }),
 );

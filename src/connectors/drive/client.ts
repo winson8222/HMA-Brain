@@ -158,7 +158,7 @@ export async function listChanges(pageToken: string): Promise<ChangePage> {
       includeRemoved: true,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-      fields: "nextPageToken,newStartPageToken,changes(changeType,fileId,removed,file(mimeType))",
+      fields: "nextPageToken,newStartPageToken,changes(changeType,fileId,removed,time,file(mimeType))",
     }),
   );
   return {

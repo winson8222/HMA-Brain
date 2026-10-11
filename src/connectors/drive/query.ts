@@ -22,6 +22,8 @@ import { driveConfig } from "./config.js";
 import type { DriveDoc } from "./docs.js";
 import { ANSWER_RULES, bodyOf, buildContext, citedNumbers, KEYWORD_RULES, NO_INFO } from "./prompt.js";
 import { relabelFile } from "./store.js";
+import { access } from "../../audit/events.js";
+import { recordItemChange } from "../../audit/record.js";
 import { driveStatus } from "./sync.js";
 
 type Hit = estypes.SearchHit<DriveDoc>;
@@ -150,9 +152,13 @@ export async function retrieve(email: string, q: string, opts: { size: number; o
 
   // The index was behind Drive: fix the labels now instead of waiting for the next poll.
   for (const [fileId, l] of live) {
-    const stored = hits.find((h) => h._source!.file_id === fileId)!._source!.acl_container;
+    const doc = hits.find((h) => h._source!.file_id === fileId)!._source!;
+    const stored = doc.acl_container;
     if (l.state === "ok" && aclHash(l.acl) !== aclHash([...stored].sort())) {
-      relabelFile(fileId, l.acl).catch((e) => console.error(`Drive relabel ${fileId}: ${explain(e)}`));
+      const was = { title: doc.title, path: doc.path, access: access(stored), modified_at: null };
+      relabelFile(fileId, l.acl)
+        .then(() => recordItemChange("drive", "live-recheck", `drive:${fileId}`, was, { ...was, access: access(l.acl) }, { contentChanged: false }))
+        .catch((e) => console.error(`Drive relabel ${fileId}: ${explain(e)}`));
     }
   }
 

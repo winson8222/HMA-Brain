@@ -5,6 +5,9 @@
 //     project's permission picture, and a project whose picture changed is relabelled in full.
 //   - Deleted issues: the reconcile (backfill) diffs Jira's issue IDs against the index. Until then, the
 //     live re-check at query time withholds a deleted issue, because Jira no longer lets anyone browse it.
+import type { SyncVia } from "../../audit/chain.js";
+import { access, type Snapshot } from "../../audit/events.js";
+import { recordBackfill, recordItemChange, recordItemDeleted } from "../../audit/record.js";
 import { explain, isAuthError, issueIds, listProjects, myself, searchIssues, type Project } from "./client.js";
 import { jiraConfig } from "./config.js";
 import { issueToDocs, jqlTime, pickerFields, type ProjectAcl } from "./docs.js";
@@ -13,17 +16,19 @@ import {
   allProjectStates,
   countDocs,
   deleteIssueDocs,
-  deleteProjectDocs,
   deleteProjectState,
   ensureJiraIndices,
   getConnector,
   getProjectState,
   indexedIssues,
+  issueSnapshots,
   putConnector,
   putProjectState,
   resetJiraIndices,
   writeIssueDocs,
+  type IssueSnapshot,
 } from "./store.js";
+import type { JiraDoc } from "./docs.js";
 
 export type Counts = { indexed: number; unchanged: number; deleted: number; projects: number; error: number };
 const newCounts = (): Counts => ({ indexed: 0, unchanged: 0, deleted: 0, projects: 0, error: 0 });
@@ -48,8 +53,35 @@ export const jiraStatus = {
   authError: false,
 };
 
+// For the audit log: what to call this run, and whether it's a first backfill (one summary record).
+type Ctx = { via: SyncVia; initial: boolean };
+
+const issueItemId = (issueId: string) => `jira:${jiraConfig.site}:${issueId}`;
+const snapshot = (d: IssueSnapshot | JiraDoc): Snapshot => ({
+  title: `${d.issue_key}: ${d.summary}`,
+  path: d.project_name,
+  access: access(d.acl_container, d.restricted ? d.acl_item : null),
+  modified_at: d.updated_at,
+});
+
+async function deleteIssues(ids: string[], ctx: Ctx) {
+  if (!ids.length) return;
+  const before = await issueSnapshots(ids);
+  await deleteIssueDocs(ids);
+  for (const id of ids) {
+    const s = before.get(id);
+    // Jira doesn't say when an issue was deleted: only the detection time is known.
+    await recordItemDeleted("jira", ctx.via, { id: issueItemId(id), source: "jira", title: s ? snapshot(s).title : id, ...(s ? { path: s.project_name } : {}) });
+  }
+}
+
+async function dropProject(projectId: string, ctx: Ctx) {
+  await deleteIssues([...(await indexedIssues(projectId)).keys()], ctx);
+  await deleteProjectState(projectId);
+}
+
 // Re-read when an issue's content or labels may have changed. Skips issues whose docs are already current.
-async function indexIssues(jql: string, acl: ProjectAcl, known: Map<string, string>, counts: Counts, seen?: Set<string>) {
+async function indexIssues(jql: string, acl: ProjectAcl, known: Map<string, string>, counts: Counts, ctx: Ctx, seen?: Set<string>) {
   for await (const page of searchIssues(jql, pickerFields(acl))) {
     for (const issue of page) {
       seen?.add(issue.id);
@@ -59,8 +91,10 @@ async function indexIssues(jql: string, acl: ProjectAcl, known: Map<string, stri
           counts.unchanged++;
           continue;
         }
+        const prev = known.has(issue.id) ? ((await issueSnapshots([issue.id])).get(issue.id) ?? null) : null;
         await writeIssueDocs(issue.id, docs);
         counts.indexed++;
+        await recordItemChange("jira", ctx.via, issueItemId(issue.id), prev && snapshot(prev), snapshot(docs[0]), { quietAdd: ctx.initial });
       } catch (e) {
         console.error(`  jira ${issue.key}: ${explain(e)}`);
         counts.error++;
@@ -70,11 +104,11 @@ async function indexIssues(jql: string, acl: ProjectAcl, known: Map<string, stri
 }
 
 // Every issue in one project, then drop indexed issues Jira no longer has.
-async function syncProject(p: Project, acl: ProjectAcl, counts: Counts) {
+async function syncProject(p: Project, acl: ProjectAcl, counts: Counts, ctx: Ctx) {
   const known = await indexedIssues(p.id);
   const seen = new Set<string>();
   // A changed permission picture changes every issue's labels, hence its hash: all are rewritten.
-  await indexIssues(`project = ${p.id} ORDER BY updated ASC`, acl, known, counts, seen);
+  await indexIssues(`project = ${p.id} ORDER BY updated ASC`, acl, known, counts, ctx, seen);
   // Jira's search is eventually consistent: right after permission changes it can briefly return nothing.
   // An empty result for a project we hold issues for is far more likely that than every issue being deleted.
   if (!seen.size && known.size) {
@@ -84,7 +118,7 @@ async function syncProject(p: Project, acl: ProjectAcl, counts: Counts) {
     return;
   }
   const gone = [...known.keys()].filter((id) => !seen.has(id));
-  await deleteIssueDocs(gone);
+  await deleteIssues(gone, ctx);
   counts.deleted += gone.length;
   await putProjectState(acl);
   counts.projects++;
@@ -92,14 +126,13 @@ async function syncProject(p: Project, acl: ProjectAcl, counts: Counts) {
 
 // A project whose permissions can't be read can't be labelled. Its issues stay out of the index:
 // better missing than shown to the wrong people.
-async function aclOrDrop(p: Project, counts: Counts): Promise<ProjectAcl | null> {
+async function aclOrDrop(p: Project, counts: Counts, ctx: Ctx): Promise<ProjectAcl | null> {
   try {
     return await projectAcl(p);
   } catch (e) {
     if (isAuthError(e) && (e as any).status === 401) throw e; // bad token: stop the whole run
     console.error(`Jira ${p.key}: couldn't read its permissions (${explain(e)}); removing it from the index until it can be`);
-    await deleteProjectDocs(p.id);
-    await deleteProjectState(p.id);
+    await dropProject(p.id, ctx);
     counts.error++;
     return null;
   }
@@ -143,6 +176,8 @@ async function exclusive<T>(fn: () => Promise<T>): Promise<T | null> {
 async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
   if (opts.reset) await resetJiraIndices();
   else await ensureJiraIndices();
+  const initial = !!opts.reset || !(await getConnector())?.cursor;
+  const ctx: Ctx = { via: initial ? "backfill" : "reconcile", initial };
   const me = await myself();
   const started = new Date(); // anything updated during the backfill is picked up by the next poll
   const counts = newCounts();
@@ -151,19 +186,19 @@ async function backfillInner(opts: { reset?: boolean }): Promise<Counts> {
   const missing = jiraConfig.projects.filter((k) => !projects.some((p) => p.key === k));
   if (missing.length) console.warn(`Jira: the service account can't see project(s) ${missing.join(", ")}`);
   for (const p of projects) {
-    const acl = await aclOrDrop(p, counts);
-    if (acl) await syncProject(p, acl, counts);
+    const acl = await aclOrDrop(p, counts, ctx);
+    if (acl) await syncProject(p, acl, counts, ctx);
   }
 
   // Projects that left the scope (or were deleted, or the service account lost access).
   const inScope = new Set(projects.map((p) => p.id));
   for (const s of await allProjectStates()) {
     if (inScope.has(s.project_id)) continue;
-    await deleteProjectDocs(s.project_id);
-    await deleteProjectState(s.project_id);
+    await dropProject(s.project_id, ctx);
   }
 
   await putConnector({ account_id: me.accountId, last_backfill_at: new Date().toISOString(), cursor: started.toISOString() });
+  if (initial) await recordBackfill("jira", "backfill", counts.indexed, `Jira ${projects.map((p) => p.key).join(", ") || "(no projects)"}: ${summary(counts)}`);
   await refreshStatus("backfill", counts);
   return counts;
 }
@@ -190,16 +225,17 @@ export function pollOnce(): Promise<Counts | null> {
     const me = await myself();
     const started = new Date();
     const counts = newCounts();
+    const ctx: Ctx = { via: "poll", initial: false };
 
     // 1. Permissions first: a project whose picture changed is relabelled in full; a new project is backfilled.
     const current: { p: Project; acl: ProjectAcl }[] = [];
     for (const p of await listProjects(jiraConfig.projects)) {
-      const acl = await aclOrDrop(p, counts);
+      const acl = await aclOrDrop(p, counts, ctx);
       if (!acl) continue;
       const prev = await getProjectState(p.id);
       if (!prev || prev.hash !== acl.hash) {
         console.log(`Jira ${p.key}: ${prev ? "permissions changed, relabelling" : "new project, indexing"}`);
-        await syncProject(p, acl, counts);
+        await syncProject(p, acl, counts, ctx);
       } else current.push({ p, acl });
     }
 
@@ -207,7 +243,7 @@ export function pollOnce(): Promise<Counts | null> {
     const since = jqlTime(new Date(Date.parse(conn.cursor) - OVERLAP_MS), me.timeZone);
     for (const { p, acl } of current) {
       const known = await indexedIssues(p.id);
-      await indexIssues(`project = ${p.id} AND updated >= "${since}" ORDER BY updated ASC`, acl, known, counts);
+      await indexIssues(`project = ${p.id} AND updated >= "${since}" ORDER BY updated ASC`, acl, known, counts, ctx);
     }
 
     // 3. Save the new position only after everything is applied. A crash before this just redoes the batch.
@@ -224,7 +260,7 @@ export async function sweepDeleted(): Promise<number> {
     const live = new Set(await issueIds(`project = ${s.project_id}`));
     if (!live.size) continue; // see syncProject: an empty search is more likely lag than a wiped project
     const gone = [...(await indexedIssues(s.project_id)).keys()].filter((id) => !live.has(id));
-    await deleteIssueDocs(gone);
+    await deleteIssues(gone, { via: "reconcile", initial: false });
     n += gone.length;
   }
   return n;

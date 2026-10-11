@@ -74,6 +74,19 @@ export async function writeIssueDocs(issueId: string, docs: JiraDoc[]): Promise<
   return !embeddingConfigured() || withVec.every((d) => "text_vector" in d);
 }
 
+// Each issue as indexed now (its first chunk; labels and header are the same on every chunk), for the audit log.
+export type IssueSnapshot = Pick<JiraDoc, "issue_id" | "issue_key" | "summary" | "project_name" | "acl_container" | "restricted" | "acl_item" | "updated_at">;
+export async function issueSnapshots(issueIds: string[]): Promise<Map<string, IssueSnapshot>> {
+  if (!issueIds.length) return new Map();
+  const r = await es.search<IssueSnapshot>({
+    index: INDEX,
+    size: issueIds.length,
+    _source: ["issue_id", "issue_key", "summary", "project_name", "acl_container", "restricted", "acl_item", "updated_at"],
+    query: { bool: { filter: [{ terms: { issue_id: issueIds } }, { term: { chunk_index: 0 } }] } },
+  });
+  return new Map(r.hits.hits.map((h) => [h._source!.issue_id, h._source!]));
+}
+
 export async function deleteIssueDocs(issueIds: string[]) {
   if (!issueIds.length) return;
   await es.deleteByQuery({ index: INDEX, refresh: true, conflicts: "proceed", query: { terms: { issue_id: issueIds } } });
