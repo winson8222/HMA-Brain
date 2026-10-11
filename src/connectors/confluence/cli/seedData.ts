@@ -1,5 +1,5 @@
 // The Confluence demo content: three spaces and nine pages for the checkout-outage story.
-// Spec and reasoning: docs/confluence-demo-content.md. seed.ts mirrors this file; edit here, then `seed:confluence`.
+// Spec and reasoning: docs/demo/data/confluence.md. seed.ts mirrors this file; edit here, then `seed:confluence`.
 //
 // Rules (from the spec): a document lives in Drive OR Confluence; Bob never sees the root cause or PAY-240/241;
 // Dave sees VEND only; no invented ticket keys; every page restriction names group `brain-crawler`.
