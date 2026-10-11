@@ -52,7 +52,7 @@ export function setupWarnings(admin: string | null): string[] {
   if (persona && !MAY_BE_ADMIN.includes(persona)) {
     out.push(
       `${title(persona)} is also the Drive admin, so ${title(persona)} owns every file and can see all of them. ` +
-        "Connect a separate admin account before the real demo (docs/drive-setup.md, “Switch to a dedicated admin”).",
+        "Connect a separate admin account before the real demo (docs/setup/drive.md, “Create accounts and source access”).",
     );
   }
   for (const p of PERSONAS) {
