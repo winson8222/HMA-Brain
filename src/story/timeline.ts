@@ -1,5 +1,5 @@
 // The demo story's Slack side: every channel message and DM, in order. `npm run seed:story` posts them all
-// (each as its author) and builds the Drive folder. What's in it and who sees what: docs/demo-data.md.
+// (each as its author) and builds the Drive folder. What's in it and who sees what: docs/demo/story-and-personas.md.
 //
 // The story: Company A is a payments company; Acme is the vendor that processes its card payments. One evening
 // checkout broke. Alice fixed it and wrote a postmortem. Acme has follow-up work from it, so Carol shared the

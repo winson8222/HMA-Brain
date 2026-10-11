@@ -8,7 +8,7 @@
 //
 // Runs as a site admin (JIRA_ADMIN_EMAIL / JIRA_ADMIN_API_TOKEN, normally Carol), never as the crawler.
 // Finding people by email here is only for building demo data; the app itself links people with Connect Jira.
-// Can't be done by API (see docs/jira-mock-data-plan.md, "After seeding"): the Administer Jira global
+// Can't be done by API (see docs/setup/jira.md, "Create accounts and source access"): the Administer Jira global
 // permission for brain-crawler, the crawler's time zone, the Connect Jira OAuth app, and backdated dates.
 import "../../../config.js"; // loads .env
 import { adfToText } from "../adf.js";
@@ -34,7 +34,7 @@ import {
 const need = (name: string) => {
   const v = process.env[name];
   if (!v || v.endsWith("...")) {
-    console.error(`Missing ${name} in .env (see .env.example and docs/jira-mock-data-plan.md)`);
+    console.error(`Missing ${name} in .env (see .env.example and docs/setup/jira.md)`);
     process.exit(1);
   }
   return v.trim();

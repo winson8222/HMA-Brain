@@ -1,5 +1,5 @@
-// The contract every source (Slack, Drive, later Jira, Gmail, …) implements, so Search and Ask can run
-// over any mix of them without knowing which platforms exist. See docs/retrieval-roadmap.md.
+// The contract every source (Slack, Drive, Jira and Confluence) implements, so Search and Ask can run
+// over any mix of them without knowing which platforms exist. See docs/roadmap/retrieval.md.
 import type { AuditDoc } from "../audit/chain.js";
 
 // One permitted piece of content, whatever the platform.

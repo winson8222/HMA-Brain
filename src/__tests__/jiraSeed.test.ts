@@ -1,5 +1,5 @@
 // The seed data run through the connector's own labelling: proves the demo's who-sees-what matrix
-// (docs/jira-mock-data-plan.md) and that every seeded action is allowed by the seeded schemes.
+// (docs/demo/data/jira.md) and that every seeded action is allowed by the seeded schemes.
 import { describe, expect, it } from "vitest";
 import { canSeeJira, jiraKeysFor, toRule, type Holder, type RoleActors } from "../connectors/jira/acl.js";
 import { issueToDocs, type ProjectAcl, type RawIssue } from "../connectors/jira/docs.js";
