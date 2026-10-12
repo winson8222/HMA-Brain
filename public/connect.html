@@ -104,20 +104,6 @@
   .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
   .btn .ico { width: 14px; height: 14px; }
 
-  .accrows { display: flex; flex-direction: column; }
-  .accrow { display: flex; gap: 14px; padding: 12px 0; }
-  .accrow + .accrow { border-top: 1px solid var(--border); }
-  .accrow:first-child { padding-top: 0; } .accrow:last-child { padding-bottom: 0; }
-  .acclbl { width: 170px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--secondary-text); }
-  .acclbl .pi { width: 15px; height: 15px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
-  .chip.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
-  .chip.off { background: var(--secondary); color: var(--muted); }
-  .chips .more[hidden] { display: none; } .chips .more { display: contents; }
-  .morebtn { padding: 3px 9px; font: 500 11px var(--font); background: var(--panel); color: var(--accent-text); border: 1px dashed var(--border-strong); border-radius: 6px; cursor: pointer; }
-  .morebtn:hover { background: var(--mint-soft); }
-  @media (max-width: 600px) { .accrow { flex-direction: column; gap: 8px; } .acclbl { width: auto; } }
   .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
   .steps li { counter-increment: step; display: flex; gap: 12px; font-size: 13px; color: var(--secondary-text); }
   .steps li::before { content: counter(step); width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -192,7 +178,6 @@
       <div id="notice"></div>
       <div id="me" class="card mecard"></div>
 
-      <div id="access"></div>
 
       <div class="sechead">YOUR ACCOUNTS</div>
       <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira and Confluence results that follow your Atlassian permissions.</p>
@@ -253,36 +238,14 @@ if (params.get("connected")) $("#notice").innerHTML = params.get("connected").st
   : ok(`Connected to ${esc(params.get("connected"))}. Your DMs there are now searchable by you.`);
 if (params.get("error")) $("#notice").innerHTML = err(esc(params.get("error")));
 
-// What the signed-in person can see in each source (their own access only).
-const chip = (label, cls = "") => `<span class="chip ${cls}">${esc(label)}</span>`;
-const chipRow = (icon, label, chips) => `
-  <div class="accrow"><div class="acclbl"><svg class="pi"><use href="#${icon}"/></svg>${esc(label)}</div>
-    <div class="chips">${chips.slice(0, 8).join("")}${chips.length > 8
-      ? `<span class="more" hidden>${chips.slice(8).join("")}</span><button type="button" class="morebtn">+${chips.length - 8} more</button>` : ""}</div></div>`;
-async function renderAccess(me) {
-  if (!me.signedIn) { $("#access").innerHTML = ""; return; }
-  const a = await api("/api/access", { asMe: true }).catch(() => ({}));
-  const rows = (me.workspaces || []).map((w) => chipRow("p-slack", `Slack · ${w.workspace}`,
-    [...w.items.map((c) => chip((c.private ? "🔒 " : "") + c.label, c.private ? "priv" : "")), chip("🔒 your own DMs", "priv")]));
-  if (a.drive) rows.push(chipRow("p-drive", "Google Drive", a.drive.files.length ? a.drive.files.map((f) => chip(f)) : [chip("No files shared with you yet", "off")]));
-  if (a.jira) rows.push(chipRow("p-jira", "Jira", !a.jira.linked ? [chip("Connect Atlassian below to see your projects", "off")]
-    : a.jira.projects.length ? a.jira.projects.map((p) => chip(`${p.key} · ${p.name}`)) : [chip("No projects", "off")]));
-  if (a.confluence) rows.push(chipRow("p-confluence", "Confluence", !a.confluence.linked ? [chip("Connect Atlassian below to see your spaces", "off")]
-    : a.confluence.spaces.length ? a.confluence.spaces.map((sp) => chip(`${sp.key} · ${sp.name}`)) : [chip("No spaces", "off")]));
-  $("#access").innerHTML = `<div class="sechead">WHAT YOU CAN ACCESS</div>
-    <p class="secsub">Atlas only answers from these, using your permissions in each source.</p>
-    <div class="card accrows">${rows.join("")}</div>`;
-}
-document.addEventListener("click", (e) => {
-  const b = e.target.closest(".morebtn");
-  if (!b) return;
-  b.previousElementSibling.hidden = false;
-  b.remove();
-});
+let renderVersion = 0;
+
+window.addEventListener("focus", () => render().catch(() => {}));
 
 async function render() {
+  const version = ++renderVersion;
   const [me, conns] = await Promise.all([api("/api/me"), api("/api/connections")]);
-  renderAccess(me);
+  if (version !== renderVersion) return;
   $("#me").innerHTML = me.signedIn
     ? `<span class="avatar">${esc(initials(me.name))}</span>
        <div><div class="name">Signed in as ${esc(me.name)}</div><div class="muted">${esc(me.email || "")}</div></div>`

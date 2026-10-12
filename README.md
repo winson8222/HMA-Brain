@@ -7,7 +7,7 @@ The four connectors are implemented and available when configured. Gmail is a pr
 ## Start here
 
 - **Judges:** read the [demo story](docs/demo/story-and-personas.md), then follow the [demo script](docs/demo/script.md).
-- **Run the app:** follow [local setup](docs/setup/local-development.md), then the relevant platform setup guide.
+- **Run the app:** use the quick start below and the relevant platform setup guide.
 - **Test access and logging:** follow the [audit test plan](docs/demo/audit-test-plan.md), including restoration steps.
 - **Understand the design:** read [architecture](docs/reference/architecture.md) and [permission-aware retrieval](docs/reference/permissions-and-sync.md).
 - **Find a command or document:** use the [command reference](docs/reference/commands.md) or [documentation index](docs/README.md).
@@ -19,6 +19,8 @@ docker compose up -d
 npm install
 npm run dev
 ```
+
+Before the first run with audit checkpoints enabled, initialize the trusted audit baseline using the [audit command reference](docs/reference/commands.md#run-and-check). Search and Ask refuse new audit writes until it is initialized. Preserve the checkpoint together with the audit history and signing key when restarting or moving the demo.
 
 Open `http://localhost:3000`. Use **Search** for a result list or **Ask** for a cited answer. **Me** uses your signed-in identity; **Demo** lets the presenter compare test personas when `ALLOW_IMPERSONATION=on`.
 

@@ -275,18 +275,24 @@ Use **Kind = Account links** to inspect the records. Browser **Sign out** is not
 1. Open the main Audit tab and Apply a filter. Clear filters and reload; expect an admin **audit log viewed** record. The request logs itself after querying, so that action appears on a later reload.
 2. Click **Verify chain**. Expect chain intact. Reload and find the admin verify record.
 3. On `/drive.html`, press **Sync now**. Expect an admin sync-now record. It may identify the signed-in person or anonymous rather than `admin`.
-4. Run `npm run audit:log -- --kind admin` and `npm run audit:verify`. Confirm CLI admin actions are also recorded. Verification checks the chain before writing its own action, so the head advances afterward.
+4. Run `npm run audit:log -- --kind admin` and `npm run audit:verify`. Confirm CLI admin actions are also recorded. Successful verification checks the chain and retained checkpoint before attempting its own best-effort audit action, so the head normally advances afterward. Failed verification writes nothing.
 5. If testing the `/drive.html` audit view, expect only access records there. Use the main page for permission, content, account and admin records.
+
+### How the audit trail detects tampering
+
+Each record is sealed with an HMAC and linked to the previous record's hash. Verification detects edits, reordering and missing records within the chain. A durable checkpoint outside Elasticsearch remembers the latest committed sequence number and hash, so deletion of the newest records or the whole stored log is also detected while the checkpoint remains protected. For example, a checkpoint remembering record #100 exposes a log truncated to #90 even though those first 90 records still form a valid chain.
+
+If integrity checks fail, verification reports the problem and further audit appends are blocked; it does not replace the checkpoint or silently accept the shortened history. The checkpoint advances with successful appends after its one-time initialization. This protects against tampering in Elasticsearch, not coordinated compromise of the app host and checkpoint, and does not prove every source event was captured.
+
+For the judge walkthrough, show an existing query's document decisions and answer, then click **Verify chain** and explain the retained checkpoint. The demonstration does not require changing or deleting audit records. See [audit architecture](../reference/architecture.md#shared-audit-chain) for implementation details and [audit commands](../reference/commands.md#run-and-check) for initialization.
 
 ## Filters and review regressions
 
 1. Generate a Search and an Ask, then verify actor, source, query, mode, decisions and citations in their audit rows.
 2. Try Person, Document, Kind and From/To dates independently, then together. Use **Reset** to clear the filters; this does not clear history.
 3. Leave Person empty when investigating system permission/content changes. Use the document filter to see those changes alongside people's searches.
-4. Exercise the known document/decision regression: find a search with document A withheld and document B shown. Filter Document to A's title and Decision to **Something was shown**. Correct behavior excludes that record. The reviewed PR can incorrectly include it because title and decision can match different documents. Inspect each document's actual decision when evaluating tests.
-5. Verify the chain again after restoring all test data. Retained pre-PR records should still verify with the original audit key.
-
-For a deliberate tampering demonstration, use a separate disposable copy of the audit index and the matching key, edit a nonterminal record there, and point verification at that copy. Expect failure. Do not alter the working audit history as part of these rehearsal steps.
+4. Exercise the document/decision regression: find a search with document A withheld and document B shown. Filter Document to A's title and Decision to **Something was shown**. The record must be excluded. Switch to **Withheld** and confirm it appears; filtering B with **Something was shown** must also include it. Repeat using an item ID. Title/ID and decision must belong to the same document entry.
+5. Verify the chain again after restoring all test data. Retained older records must still verify with the original audit key after explicit checkpoint initialization.
 
 ## Final restoration checklist
 
@@ -315,7 +321,7 @@ npm run audit:verify
 - Confirm Dave can retrieve the Drive postmortem, Bob can retrieve Jira VEND-5, and Bob can retrieve the Confluence drill result.
 - Confirm the original runbook and signing-key rollout answers are restored.
 - Stop temporary watchers and restart the server with its normal sync settings.
-- Keep the audit index and `.secrets/audit-key`. Restoration should add reversal records, not erase test history.
+- Keep the audit index, `.secrets/audit-key` and `.secrets/audit-checkpoint.json` (or their configured paths). Restoration should add reversal records, not erase test history.
 
 Record the run's date, tester, pass/fail per scenario and relevant audit sequence numbers. A passing chain check proves the stored chain is intact; it does not prove that every expected event was captured, so check both.
 

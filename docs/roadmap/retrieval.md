@@ -19,7 +19,7 @@ Explore a bounded search/open loop that follows a reference from one source to a
 - Jira: evaluate team-managed and portal access; model restricted comments separately before indexing them.
 - Confluence: consider checking all page restrictions each poll or introducing events after measuring API cost.
 - Drive: evaluate verified identity and group expansion beyond the demo's email-based keys.
-- Audit: fix document/decision matching and Slack rename capture; add stronger event-delivery recovery and an externally retained chain head.
+- Audit: add Slack rename capture and stronger event-delivery recovery. Replace the local retained checkpoint with independently controlled immutable retention for production, and evaluate verified incremental append checks for larger histories.
 - Identity: invalidate dependent connector caches consistently when the shared Atlassian link changes.
 
 Prioritize reproducible permission tests and retrieval quality measurements before adding more sources. Setup instructions stay in [setup](../README.md); platform design choices stay in each connector reference.

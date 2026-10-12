@@ -137,26 +137,6 @@
     background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236d736e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; }
   select:focus { border-color: var(--ring); outline: none; }
   .melabel { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--mint-soft); font-weight: 600; font-size: 13px; }
-  .chips { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 14px; }
-  .wsgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .wslabel { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-right: 2px; }
-  .wslabel .pi { width: 12px; height: 12px; }
-  .chip.off { background: var(--secondary); color: var(--muted); }
-  .wsgroup .more { display: contents; }
-  .wsgroup .more[hidden] { display: none; }
-  .morebtn { padding: 3px 9px; font-size: 11px; font-weight: 500; background: var(--panel); color: var(--accent-text); border: 1px dashed var(--border-strong); }
-  .morebtn:hover { background: var(--mint-soft); }
-  .accx { display: contents; }
-  .accessbox { margin: 8px 0 0; }
-  .accessbox summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--muted); }
-  .accessbox summary::-webkit-details-marker { display: none; }
-  .accessbox summary:hover { color: var(--accent-text); }
-  .accessbox summary .ico { width: 12px; height: 12px; }
-  .accessbox summary .chev { transition: transform .15s; }
-  .accessbox[open] summary .chev { transform: rotate(180deg); }
-  .accessbox .chips { margin: 0; padding: 8px 0 4px; gap: 6px; }
-  .accessbox .chip { font-size: 10px; padding: 2px 7px; }
-  .accessbox .wsgroup { gap: 4px; }
   .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
   .chip.priv, .badge.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
   .result { border-top: 1px solid var(--border); padding: 14px 0; }
@@ -448,7 +428,7 @@
               <div class="sechead">AUDIT TRAIL</div>
               <button type="button" class="ghost" id="verifybtn"><svg class="ico"><use href="#i-shield"/></svg>Verify chain</button>
             </div>
-            <div class="chain idle" id="chain" role="status">Each record is sealed with the previous record's hash. Verify to check nothing was edited, reordered or deleted.</div>
+            <div class="chain idle" id="chain" role="status">Verify the sealed records and retained checkpoint to detect edits, reordering and deletion.</div>
             <form class="filters" id="logfilters">
               <input class="field" id="fperson" list="fpeople" placeholder="Person (email, system or admin)" aria-label="Person" autocomplete="off" />
               <datalist id="fpeople"></datalist>
@@ -609,46 +589,16 @@ async function api(path, body, admin) {
 const mode = () => document.querySelector('input[name="mode"]:checked').value;
 const asWho = () => (cfg.allowImpersonation ? document.querySelector('input[name="as"]:checked').value : "me");
 
-const chip = (a) => `<span class="chip ${a.private ? "priv" : ""}">${a.private ? "🔒 " : ""}${esc(a.label)}</span>`;
-// One labelled row of access chips; rows longer than 8 show the first 6 and "+N more" until expanded.
-const accRow = (icon, label, chipList) => `
-  <div class="wsgroup"><span class="wslabel">${pIcon(icon)}${esc(label)}</span>${chipList.length > 8
-    ? `${chipList.slice(0, 6).join("")}<span class="more" hidden>${chipList.slice(6).join("")}</span><button type="button" class="chip morebtn">+${chipList.length - 6} more</button>`
-    : chipList.join("")}</div>`;
-const chipsHtml = (u) => (u.workspaces || []).map((w) =>
-  accRow("slack", `Slack · ${w.workspace}${w.isGuest ? " (guest)" : ""}`, [...w.items.map(chip), `<span class="chip priv">🔒 their own DMs</span>`])).join("")
-  + `<div class="accx"></div>`;
-// The pane's access list, collapsed under "Accessible sources"; stays open/closed when the person changes.
-const accessBox = (pane, u) => `
-  <details class="accessbox" ${pane.dataset.accOpen === "1" ? "open" : ""} ontoggle="this.closest('.pane').dataset.accOpen = this.open ? '1' : ''">
-    <summary><svg class="ico"><use href="#i-lock"/></svg>Accessible sources<svg class="ico chev"><use href="#i-chev"/></svg></summary>
-    <div class="chips">${chipsHtml(u)}</div>
-  </details>`;
-// What the person in a pane is connected to, plus their Drive files, Jira projects and Confluence spaces
-// (filled in after the Slack chips). On failure everything stays offered; the server filters anyway.
+// Connection flags control source availability without listing any source content.
 async function loadAccess(pane, who) {
   pane.access = null;
   const p = (pane.accessP = api("/api/access", who).catch(() => null));
   updateSourceAvailability();
   const a = await p;
-  if (pane.accessP !== p) return; // the pane was re-rendered meanwhile
+  if (pane.accessP !== p) return;
   pane.access = a;
   updateSourceAvailability();
-  const box = pane.querySelector(".accx");
-  if (box && a) box.innerHTML = accessRowsHtml(a);
 }
-const accessRowsHtml = (a) =>
-  (a.drive ? accRow("drive", "Google Drive", a.drive.files.length ? a.drive.files.map((f) => chip({ label: f })) : [`<span class="chip off">No files shared</span>`]) : "")
-  + (a.jira ? accRow("jira", "Jira", !a.jira.linked ? [`<span class="chip off">Jira not linked</span>`]
-      : a.jira.projects.length ? a.jira.projects.map((p) => `<span class="chip" title="${esc(p.name)}">${esc(p.key)} · ${esc(p.name)}</span>`) : [`<span class="chip off">No projects</span>`]) : "")
-  + (a.confluence ? accRow("confluence", "Confluence", !a.confluence.linked ? [`<span class="chip off">Confluence not linked</span>`]
-      : a.confluence.spaces.length ? a.confluence.spaces.map((sp) => `<span class="chip" title="${esc(sp.name)}">${esc(sp.key)}</span>`) : [`<span class="chip off">No spaces</span>`]) : "");
-document.addEventListener("click", (e) => {
-  const b = e.target.closest(".morebtn");
-  if (!b) return;
-  b.previousElementSibling.hidden = false;
-  b.remove();
-});
 
 // Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
 function renderPane(pane, selectedId) {
@@ -659,7 +609,7 @@ function renderPane(pane, selectedId) {
     u = me.signedIn ? me : null;
     pane.dataset.user = "";
     pane.innerHTML = u
-      ? `<div class="melabel">You: ${esc(u.name)}</div>${accessBox(pane, u)}<div class="results"></div>`
+      ? `<div class="melabel">You: ${esc(u.name)}</div><div class="results"></div>`
       : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results"></div>`;
     if (u) loadAccess(pane, { asMe: true });
     return;
@@ -668,7 +618,6 @@ function renderPane(pane, selectedId) {
   pane.dataset.user = u?.id || "";
   pane.innerHTML = `
     <select aria-label="Person">${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-    ${u ? accessBox(pane, u) : ""}
     <div class="results"></div>`;
   if (u) loadAccess(pane, { personId: u.id });
   pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
@@ -759,8 +708,8 @@ async function runSearch() {
     const box = p.querySelector(".results");
     const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
     if (who.asMe && !me.signedIn) return;
-    await p.accessP;
     const mine = sources.filter((s) => connectedTo(p, s));
+    loadAccess(p, who); // refresh connection flags independently of search
     if (!mine.length) { box.innerHTML = `<div class="empty">Not connected to any of the selected sources.</div>`; return; }
     if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
     try {
@@ -947,13 +896,13 @@ $("#freset").onclick = () => { $("#logfilters").reset(); loadLog(); };
 
 $("#verifybtn").onclick = async () => {
   const c = $("#chain");
-  c.className = "chain idle"; c.textContent = "Checking every record…";
+  c.className = "chain idle"; c.textContent = "Checking records and checkpoint…";
   try {
     const v = await api("/api/audit/verify", null, true);
     c.className = "chain " + (v.ok ? "ok" : "bad");
     c.innerHTML = v.ok
-      ? `<b>✓ Chain intact</b><span>All ${v.checked} records verified.</span>${v.head ? `<span class="mono">head #${v.head.seq} ${esc(v.head.hash.slice(0, 24))}…</span>` : ""}`
-      : `<b>✕ Chain broken</b><span>${v.problems.map((p) => `#${p.seq}: ${esc(p.problem)}`).join(" · ")}</span>`;
+      ? `<b>✓ Chain intact</b><span>All ${v.checked} records verified.${v.checkpoint ? ` Checkpoint #${v.checkpoint.seq} matched.` : ""}</span>${v.head ? `<span class="mono">head #${v.head.seq} ${esc(v.head.hash.slice(0, 24))}…</span>` : ""}`
+      : `<b>✕ Verification failed</b><span>${v.problems.map((p) => `#${p.seq}: ${esc(p.problem)}`).join(" · ")}</span>`;
   } catch (e) { c.className = "chain bad"; c.textContent = e.message; }
 };
 const openLogRows = new Set(); // which audit rows (by seq) are expanded, kept when the log refreshes
@@ -1093,13 +1042,12 @@ document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = rend
 document.querySelectorAll('input[name="as"]').forEach((r) => r.onchange = () => { renderPanes(); runSearch(); });
 $("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
 $("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); updateSourceAvailability(); runSearch(); };
-// Refresh access chips when the page regains focus (e.g. after changing membership in Slack).
+// Refresh account connections after returning from a source's connection flow.
 window.addEventListener("focus", async () => {
   await Promise.all([loadUsers(), loadMe()]);
   panes.forEach((p) => {
-    const u = p.id === "p0" && asWho() === "me" ? me : users.find((x) => x.id === p.dataset.user);
-    const c = p.querySelector(".chips");
-    if (u && c) { c.innerHTML = chipsHtml(u); loadAccess(p, p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: u.id }); }
+    const who = p.id === "p0" && asWho() === "me" ? (me.signedIn ? { asMe: true } : null) : (p.dataset.user ? { personId: p.dataset.user } : null);
+    if (who) loadAccess(p, who);
   });
 });
 

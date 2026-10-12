@@ -14,9 +14,15 @@ Run commands from the repository root. Polls update the local index from source 
 | `npm run audit:log -- --doc postmortem` | Query records mentioning that document title/ID |
 | `npm run audit:log -- --user bob --kind access` | Query Bob's searches/answers |
 | `npm run audit:log -- --kind account,admin` | Query account and admin records |
-| `npm run audit:verify` | Verify the stored chain, then record the verification action |
+| `npm run audit:log -- checkpoint --trust-current-head` | One-time initialization: validate and explicitly trust the current audit history, then retain its head outside Elasticsearch |
+| `npm run audit:log -- backup --file <new.json>` | Save a verified private backup of the current audit history |
+| `npm run audit:log -- repair --file <backup.json>` | Dry run: check the backup matches the retained checkpoint |
+| `npm run audit:log -- repair --file <backup.json> --apply --evidence <new.json>` | With writers stopped, preserve damaged records and restore the verified backup without resetting trust |
+| `npm run audit:verify` | Verify the stored chain against its retained checkpoint; a successful check records the verification action |
 
-Audit query filters include `--doc`, `--user`, `--kind`, `--denied`, `--dropped`, `--since`, `--until`, `--text` and `--limit`. Permission/content actors normally equal `system`; filtering by Bob will hide those system rows. The title-plus-decision filter has a known false-match gap; inspect the per-document decisions.
+Audit query filters include `--doc`, `--user`, `--kind`, `--denied`, `--dropped`, `--since`, `--until`, `--text` and `--limit`. Permission/content actors normally equal `system`; filtering by Bob will hide those system rows. A document filter combined with a decision must match the same document entry, including when searching by title.
+
+Initialize the checkpoint before accepting new audit writes. For an existing installation, review the history before trusting its current head: initialization cannot detect records deleted before the first checkpoint. Do not delete or reinitialize a checkpoint to bypass a failed verification. Preserve it on durable storage independent of Elasticsearch; see [audit features and gaps](audit-trail.md) and [audit design](architecture.md#shared-audit-chain) for configuration and recovery.
 
 ## Import and update
 
@@ -67,7 +73,7 @@ Slack cleanup is manual: restore membership/names and delete test messages. Exac
 - `npm run drive:backfill -- --reset` rebuilds Drive content/state indexes, not Google Drive files.
 - `npm run jira:backfill -- --reset` rebuilds Jira content/state indexes, including removal of stored Atlassian links. Relink personas; Confluence uses those links too.
 - `npm run confluence:backfill -- --reset` rebuilds Confluence content/state indexes. Its Atlassian links live in Jira state.
-- Preserve `brain-audit` and its signing key during rehearsal. Deleting source indexes is not a normal test reset.
+- Preserve `brain-audit`, its signing key and its retained checkpoint during rehearsal. Deleting source indexes is not a normal test reset.
 
 ## Other tools
 
