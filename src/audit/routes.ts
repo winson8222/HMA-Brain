@@ -39,7 +39,7 @@ auditRouter.get("/api/audit", requireAdmin, async (req, res) => {
 auditRouter.get("/api/audit/verify", requireAdmin, async (_req, res) => {
   try {
     const v = await verifyAudit();
-    await recordAudit({
+    if (v.ok) await recordAudit({
       kind: "admin",
       actor: "admin",
       via: "web",

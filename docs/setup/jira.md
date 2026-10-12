@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [local setup](local-development.md) and [Slack sign-in](slack.md). Use a Jira Cloud site with company-managed projects and a plan that allows the permission schemes and issue security used by the demo. Confirm current capabilities and trial expiry in your site's billing settings; do not rely on old trial dates.
+Complete [project quick start](../../README.md#run-an-already-configured-demo) and [Slack sign-in](slack.md). Use a Jira Cloud site with company-managed projects and a plan that allows the permission schemes and issue security used by the demo. Confirm current capabilities and trial expiry in your site's billing settings; do not rely on old trial dates.
 
 ## 2 Create accounts and source access
 

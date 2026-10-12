@@ -11,7 +11,7 @@ import { auditRouter } from "./audit/routes.js";
 import { accessSummary } from "./access.js";
 import { llmConfigured } from "./llm.js";
 import { authorizeUrl, canConnect, completeConnect } from "./oauth.js";
-import { findPerson, getAccess, listPeople } from "./people.js";
+import { findPerson, listPeople } from "./people.js";
 import { asker, HttpError, wrap } from "./http.js";
 import { confluenceConfigured, connectors, driveConfigured, jiraConfigured } from "./connectors/index.js";
 import { ask, search, UnknownSourceError } from "./federated.js";
@@ -60,24 +60,7 @@ if (jiraRoutes) web.use(jiraRoutes.jiraRouter); // Connect Jira on /connect.html
 
 async function describePerson(personId: string) {
   const p = await findPerson(personId);
-  const a = await getAccess(personId);
-  return {
-    id: personId,
-    name: p?.name ?? personId,
-    email: p?.email,
-    workspaces: a.workspaces.map((w) => {
-      const ws = wss.find((x) => x.teamId === w.teamId)!;
-      const items = w.channelIds
-        .map((id) => ws.cached(id))
-        .filter((c) => c)
-        .map((c) => ({ label: "#" + c!.name, private: c!.is_private }));
-      return {
-        workspace: w.teamName,
-        isGuest: w.isGuest,
-        items: w.isGuest ? items : [{ label: "all public channels", private: false }, ...items],
-      };
-    }),
-  };
+  return { id: personId, name: p?.name ?? personId, email: p?.email };
 }
 
 web.get("/api/config", (_req, res) => {
@@ -154,11 +137,12 @@ web.post(
   }),
 );
 
-// Drive files and Jira projects a person can see, for the access chips. Same "who is asking" rules as Search.
+// Source connection flags only. Same "who is asking" rules as Search.
 web.post(
   "/api/access",
   wrap(async (req, res) => {
     const { personId } = asker(req);
+    res.set("Cache-Control", "no-store");
     res.json(await accessSummary(personId));
   }),
 );

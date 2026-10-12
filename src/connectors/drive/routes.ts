@@ -4,14 +4,11 @@ import express from "express";
 import { randomBytes } from "node:crypto";
 import { requireAdmin } from "../../admin.js";
 import { config } from "../../config.js";
-import { es } from "../../es.js";
 import { asker as sharedAsker, HttpError, wrap as sharedWrap } from "../../http.js";
 import { llmConfigured } from "../../llm.js";
 import { getSession } from "../../session.js";
-import { driveKeysFor } from "./acl.js";
 import { newOAuthClient, saveToken, SCOPES } from "./auth.js";
 import { accountEmail, explain, isConnected, loadToken } from "./client.js";
-import { driveConfig } from "./config.js";
 import { demoPeople, findPerson, isRealEmail, type Person } from "./people.js";
 import { driveAsk, driveSearch } from "./query.js";
 import { ensureDriveIndices, getConnector } from "./store.js";
@@ -51,25 +48,15 @@ async function asker(req: express.Request): Promise<{ person: Person; q: string 
   return { person, q: q.trim().slice(0, 500) };
 }
 
-// The file names each person can see, for the chips under the picker (their own access only).
-async function visibleTitles(email: string): Promise<string[]> {
-  const r = await es.search({
-    index: driveConfig.index,
-    size: 0,
-    query: { bool: { filter: [{ terms: { acl_container: driveKeysFor(email) } }] } },
-    aggs: { titles: { terms: { field: "title.keyword", size: 50, order: { _key: "asc" } } } },
-  });
-  return ((r.aggregations?.titles as any)?.buckets ?? []).map((b: any) => String(b.key));
-}
-
 driveRouter.get(
   "/api/drive/people",
   wrap(async (req, res) => {
+    res.set("Cache-Control", "no-store");
     await ensureDriveIndices();
     // With impersonation off, only yourself: the page can't ask as anyone else anyway.
     const me = getSession(req);
     const list = config.allowImpersonation ? await people() : me ? [signedInPerson(me)] : [];
-    res.json(await Promise.all(list.map(async (p) => ({ ...p, files: await visibleTitles(p.email) }))));
+    res.json(list);
   }),
 );
 

@@ -3,13 +3,13 @@
 //   changes, account links and admin actions (--kind search|ask|access|permission|content|account|admin,
 //   comma-separated). Newest first.
 // npm run audit:verify
-//   Re-computes the hash chain. Exits 1 if any record was edited, deleted or reordered.
+//   Checks hashes and retained checkpoint. Exits 1 if integrity or retained trust cannot be verified.
 import { demoPeople, findPerson } from "../connectors/drive/people.js";
 import { getConnector } from "../connectors/drive/store.js";
 import { parseKinds, type Decision } from "./chain.js";
 import { recordAudit } from "./record.js";
 import { formatRecord } from "./format.js";
-import { queryAudit, verifyAudit } from "./store.js";
+import { queryAudit, verifyAudit, initializeAuditCheckpoint, backupAudit, repairAudit } from "./store.js";
 
 const args = process.argv.slice(2);
 const opt = (name: string) => {
@@ -17,15 +17,56 @@ const opt = (name: string) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
-if (args[0] === "verify") {
-  const v = await verifyAudit();
-  await recordAudit({ kind: "admin", actor: "admin", via: "cli", action: "audit_verify", result: v.ok ? `intact: ${v.checked} records` : `BROKEN: ${v.problems.length} problem(s)` });
-  if (v.ok) console.log(`✓ ${v.checked} records, chain intact.${v.head ? ` Head: #${v.head.seq} ${v.head.hash}` : ""}`);
-  else {
-    console.log(`✕ Chain broken (${v.checked} records checked):`);
-    for (const p of v.problems) console.log(`  #${p.seq}: ${p.problem}`);
+if (args[0] === "backup" || args[0] === "repair") {
+  try {
+    const path = opt("file");
+    if (!path || path.startsWith("--")) throw new Error("Supply --file <backup.json>");
+    const apply = args.includes("--apply");
+    const evidence = opt("evidence");
+    if (args[0] === "repair" && apply && (!evidence || evidence.startsWith("--"))) {
+      throw new Error("Repair --apply requires --evidence <new-file.json>; stop all app/poller writers first");
+    }
+    const result = args[0] === "backup" ? await backupAudit(path) : await repairAudit(path, apply ? evidence : undefined);
+    console.log(args[0] === "backup"
+      ? `Verified backup saved: ${result.checked} records. Keep it private; newer audit writes require a new backup.`
+      : apply ? `Restored and verified ${result.checked} records. Original checkpoint retained. Evidence: ${evidence}`
+      : `Backup validated against the current checkpoint: ${result.checked} records. No changes made. Stop writers, then add --apply --evidence <new-file.json> to restore.`);
+    process.exit(0);
+  } catch (e: any) {
+    console.error(`Audit ${args[0]} failed: ${String(e?.message ?? e)}. Keep writers stopped if a repair was interrupted.`);
+    process.exit(1);
   }
-  process.exit(v.ok ? 0 : 1);
+}
+
+if (args[0] === "checkpoint") {
+  if (!args.includes("--trust-current-head")) {
+    console.error("Explicit trust required: audit:log -- checkpoint --trust-current-head. This accepts the current history as the baseline; it cannot detect deletion before initialization.");
+    process.exit(2);
+  }
+  try {
+    const v = await initializeAuditCheckpoint();
+    console.log(`Trusted audit baseline saved: ${v.checked} records, head #${v.head?.seq ?? 0}. Earlier suffix deletion cannot be ruled out by this bootstrap.`);
+    process.exit(0);
+  } catch (e: any) {
+    console.error(`Checkpoint initialization failed: ${String(e?.message ?? e)}`);
+    process.exit(1);
+  }
+}
+
+if (args[0] === "verify") {
+  try {
+    const v = await verifyAudit();
+    if (v.ok) await recordAudit({ kind: "admin", actor: "admin", via: "cli", action: "audit_verify", result: `intact: ${v.checked} records` });
+    if (v.ok) console.log(`✓ ${v.checked} records, chain and checkpoint verified.${v.head ? ` Head: #${v.head.seq} ${v.head.hash}` : ""}`);
+    else {
+      console.log(`✕ Verification failed (${v.checked} records checked):`);
+      for (const p of v.problems) console.log(`  #${p.seq}: ${p.problem}`);
+    }
+    process.exit(v.ok ? 0 : 1);
+  } catch (e: any) {
+    console.error(`Verification failed: ${String(e?.message ?? e)}`);
+    process.exit(1);
+  }
 }
 
 // --user accepts a persona name ("bob"), "admin", or an email.
