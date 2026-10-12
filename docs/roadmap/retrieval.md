@@ -1,10 +1,10 @@
 # Retrieval roadmap
 
-These are proposals, not current demo claims. The connector registry, federated search, Drive embeddings, hybrid retrieval, reranking, multi-query retrieval and four working connectors already exist.
+These are proposals, not current demo claims. The connector registry, federated search, embeddings and hybrid retrieval across four working connectors, reranking and Slack multi-query retrieval already exist. See the [retrieval implementation](../reference/retrieval.md) for current behavior and configuration.
 
 ## Improve answer quality
 
-- Add explicit current date/time context and query date filters for relative-time questions. Avoid presenting historical “next week” sample text as today's schedule.
+- Extend the main Ask path's existing current-date context with query date filters and consistent date/time context across the remaining answer paths. Avoid presenting historical “next week” sample text as today's schedule.
 - Add nearby messages and thread context when a short match needs surrounding discussion.
 - Build a versioned evaluation set from the demo questions, with checks for citations, denied content and answer usefulness.
 - Reduce contradictory fallback phrasing when the model has related evidence but cannot perform the requested action.

@@ -11,7 +11,8 @@ Start with the question you need to answer. Setup instructions describe how to c
 | Run a configured demo | [Quick start](../README.md#run-an-already-configured-demo) |
 | Set up a platform | [Slack](setup/slack.md), [Drive](setup/drive.md), [Jira](setup/jira.md), [Confluence](setup/confluence.md), [Gmail status](setup/gmail.md) |
 | Understand platform permissions, updates and audit timing | [Slack](reference/connectors/slack.md), [Drive](reference/connectors/drive.md), [Jira](reference/connectors/jira.md), [Confluence](reference/connectors/confluence.md), [Gmail proposal](reference/connectors/gmail.md) |
-| Understand shared search and answers | [Architecture](reference/architecture.md), [permission-aware retrieval](reference/permissions-and-sync.md) |
+| Understand shared search and LLM answers | [Retrieval implementation](reference/retrieval.md), [architecture](reference/architecture.md) |
+| Understand permission enforcement | [Permission implementation](reference/permissions-and-sync.md) |
 | Find commands and reset effects | [Command reference](reference/commands.md) |
 | Inspect seeded data | [Slack and Drive](demo/data/slack-and-drive.md), [Jira](demo/data/jira.md), [Confluence](demo/data/confluence.md) |
 | See proposed future work | [Retrieval roadmap](roadmap/retrieval.md) |
@@ -20,7 +21,7 @@ Start with the question you need to answer. Setup instructions describe how to c
 
 - **Setup:** accounts, credentials, configuration, first import and verification. Every platform follows the same section order.
 - **Connector reference:** permission structure, indexing, live checks, update strategy, design decisions, platform audit records and limitations.
-- **Shared reference:** architecture and permission-aware retrieval without repeating platform rules.
+- **Shared reference:** architecture, audit, permission enforcement and retrieval implementation without repeating platform rules.
 - **Demo:** story, judge-facing questions, data reference, tests and restoration.
 - **Roadmap:** proposals only. Gmail is not an implemented capability.
 
