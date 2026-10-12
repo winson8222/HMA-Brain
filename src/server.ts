@@ -109,11 +109,12 @@ web.get("/api/connectors", (_req, res) => {
 });
 
 // Search/Ask over the chosen connectors (body.sources, e.g. ["slack","drive"]; default: all of them).
+// Ask may also carry conversationId + history (multi-turn); both are optional and untrusted.
 function query(req: express.Request) {
   const { personId, mode } = asker(req);
   const q = String(req.body?.q ?? "");
   if (!q) throw new HttpError(400, "q is required");
-  return { personId, mode, q, sources: req.body?.sources };
+  return { personId, mode, q, sources: req.body?.sources, ctx: { conversationId: req.body?.conversationId, history: req.body?.history } };
 }
 const badSources = (e: unknown) => {
   throw e instanceof UnknownSourceError ? new HttpError(400, e.message) : e;
@@ -132,8 +133,8 @@ web.post(
 web.post(
   "/api/ask",
   wrap(async (req, res) => {
-    const { personId, mode, q, sources } = query(req);
-    res.json(await ask(personId, q, mode, sources).catch(badSources));
+    const { personId, mode, q, sources, ctx } = query(req);
+    res.json(await ask(personId, q, mode, sources, ctx).catch(badSources));
   }),
 );
 
