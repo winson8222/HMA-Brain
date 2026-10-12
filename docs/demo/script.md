@@ -45,7 +45,9 @@ Do not promise that every selected source will be cited: retrieval ranking and t
 - A poll or sweep may be needed for the standalone change row; it is not needed to run the live permission check.
 - Clear Person when looking for change rows: those records usually identify `system` as actor.
 - Unknown source time means unknown. Detection time is not proof of the exact moment an administrator changed access.
-- Chain verification proves the stored chain is intact, not that every source event was captured.
+- Show **Verify chain** and explain: “Each record is sealed and linked to the previous one. A separate checkpoint remembers the latest record, so verification can also detect deletion from the end of the log.” No record modification is needed for the judge demonstration.
+- A failed integrity check blocks further audit appends. The checkpoint protects against Elasticsearch tampering while its separate storage remains protected; it does not protect against compromise of the entire app host.
+- Chain verification proves the stored chain agrees with its retained checkpoint, not that every source event was captured.
 
 ## If an answer is confusing
 

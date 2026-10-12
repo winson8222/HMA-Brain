@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [local setup](local-development.md), [Slack sign-in](slack.md) and the [Jira account/crawler setup](jira.md). The demo uses the same Atlassian site, accounts and groups. Choose a Confluence plan that supports space and page viewing restrictions; confirm the current plan and expiry in site administration.
+Complete [project quick start](../../README.md#run-an-already-configured-demo), [Slack sign-in](slack.md) and the [Jira account/crawler setup](jira.md). The demo uses the same Atlassian site, accounts and groups. Choose a Confluence plan that supports space and page viewing restrictions; confirm the current plan and expiry in site administration.
 
 ## 2 Create accounts and source access
 

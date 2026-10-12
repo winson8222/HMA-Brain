@@ -7,7 +7,8 @@ Start with the question you need to answer. Setup instructions describe how to c
 | Understand the demo in two minutes | [Story and personas](demo/story-and-personas.md) |
 | Present to the judges | [Demo script](demo/script.md) |
 | Test and restore the demo | [Audit test plan](demo/audit-test-plan.md) |
-| Install and configure the app | [Local development](setup/local-development.md) |
+| Understand audit mechanisms and remaining gaps | [Audit trail and recovery](reference/audit-trail.md) |
+| Run a configured demo | [Quick start](../README.md#run-an-already-configured-demo) |
 | Set up a platform | [Slack](setup/slack.md), [Drive](setup/drive.md), [Jira](setup/jira.md), [Confluence](setup/confluence.md), [Gmail status](setup/gmail.md) |
 | Understand platform permissions, updates and audit timing | [Slack](reference/connectors/slack.md), [Drive](reference/connectors/drive.md), [Jira](reference/connectors/jira.md), [Confluence](reference/connectors/confluence.md), [Gmail proposal](reference/connectors/gmail.md) |
 | Understand shared search and answers | [Architecture](reference/architecture.md), [permission-aware retrieval](reference/permissions-and-sync.md) |

@@ -56,3 +56,39 @@ describe("audit query filters", () => {
     expect(lastQuery().must[0].multi_match.fields).toEqual(["query", "keywords", "answer", "summary"]);
   });
 });
+
+it("does not pair one document's title with another document's allowed decision", async () => {
+  search.mockResolvedValueOnce({ hits: { hits: [{ _source: {
+    seq: 1, kind: "search", allowed_ids: ["drive:B:0"], denied_ids: ["drive:A:0"],
+    docs: [
+      { doc_id: "drive:A:0", title: "Secret investigation", decision: "denied" },
+      { doc_id: "drive:B:0", title: "Public handbook", decision: "allowed" },
+    ],
+  }, sort: [1] }] } } as any);
+  expect(await queryAudit({ doc: "Secret investigation", decision: "allowed" })).toEqual([]);
+});
+
+
+it("pages past false positives to satisfy the requested number of true same-document matches", async () => {
+  const wrong = { seq: 3, kind: "ask", docs: [
+    { doc_id: "drive:A:0", title: "Secret", decision: "denied" },
+    { doc_id: "drive:B:0", title: "Handbook", decision: "allowed" },
+  ] };
+  const right = { seq: 2, kind: "ask", docs: [
+    { doc_id: "drive:A:0", title: "Secret", decision: "allowed" },
+  ] };
+  search.mockResolvedValueOnce({ hits: { hits: [{ _source: wrong, sort: [3] }] } } as any)
+    .mockResolvedValueOnce({ hits: { hits: [{ _source: right, sort: [2] }] } } as any);
+  expect(await queryAudit({ doc: "secret", decision: "allowed", limit: 1 })).toEqual([right]);
+  expect(search.mock.calls.at(-1)![0].search_after).toEqual([3]);
+});
+
+it.each(["allowed", "denied", "dropped"] as const)("matches the requested %s decision on ID or title for existing flattened records", async decision => {
+  const record = { seq: 1, kind: "ask", docs: [
+    { doc_id: "drive:A:0", title: "Quarterly Review", decision },
+  ] };
+  for (const doc of ["A", "drive:A", "drive:A:0", "quarterly review"]) {
+    search.mockResolvedValueOnce({ hits: { hits: [{ _source: record, sort: [1] }] } } as any);
+    expect(await queryAudit({ doc, decision })).toEqual([record]);
+  }
+});

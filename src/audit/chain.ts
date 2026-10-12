@@ -1,7 +1,7 @@
 // Tamper-evident audit records: a hash chain. Pure functions, unit-tested.
 //
 // Each record stores the previous record's hash, and its own hash covers its contents plus that link.
-// Editing, deleting or reordering any record breaks every hash after it. The hash is an HMAC with a
+// Editing a record or deleting/reordering records inside the chain breaks subsequent links. The hash is an HMAC with a
 // server-side key, so someone who can write to Elasticsearch still can't forge a consistent chain.
 import { createHmac } from "node:crypto";
 
@@ -170,7 +170,7 @@ export function seal(e: AuditEvent, prev: Pick<AuditRecord, "seq" | "hash"> | nu
 }
 
 export type Problem = { seq: number; problem: string };
-export type VerifyResult = { ok: boolean; checked: number; head: { seq: number; hash: string } | null; problems: Problem[] };
+export type VerifyResult = { ok: boolean; checked: number; head: { seq: number; hash: string } | null; problems: Problem[]; checkpoint?: { seq: number; hash: string } | null };
 
 // Records must be sorted by seq. Removing records from the very end can't be seen from the chain
 // alone; compare the head with one noted earlier (see docs/reference/architecture.md, "Shared audit chain").

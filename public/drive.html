@@ -80,13 +80,6 @@
   .who select { border: 0; background: none; font-weight: 700; font-size: 16px; padding: 0; cursor: pointer; max-width: 100%; }
   .who .role { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge-admin { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; background: var(--deny-soft); color: var(--deny); }
-  details.access { margin: 0 16px; border-top: 1px solid var(--border); padding: 10px 0; }
-  details.access summary { cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; }
-  details.access summary::-webkit-details-marker { display: none; }
-  details.access summary::before { content: "▸ "; }
-  details.access[open] summary::before { content: "▾ "; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
   .out { padding: 4px 16px 16px; flex: 1; }
   .idle { color: var(--faint); font-size: 14px; padding: 18px 0; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
   .loading { padding: 12px 0; }
@@ -314,7 +307,6 @@ function renderPane(pane, email) {
   const p = people.find((x) => x.email === email) || people[0];
   if (!p) { pane.innerHTML = `<div class="out"><div class="idle">No demo people configured (persona emails in .env).</div></div>`; return; }
   pane.dataset.email = p.email;
-  const files = p.files || [];
   pane.innerHTML = `
     <div class="who">
       <div class="avatar" style="background:${colorFor(p.email)}">${esc(p.name[0])}</div>
@@ -324,25 +316,35 @@ function renderPane(pane, email) {
       </div>
       ${p.admin ? `<span class="badge-admin" title="The Drive admin owns every demo file, so it can see all of them">Admin</span>` : ""}
     </div>
-    <details class="access">
-      <summary>Can see ${files.length} file${files.length === 1 ? "" : "s"} in Drive</summary>
-      <div class="chips">${files.map((t) => `<span class="chip">${esc(t)}</span>`).join("") || `<span class="chip">none</span>`}</div>
-    </details>
     <div class="out"><div class="idle">Ask a question to see ${esc(p.name)}'s answer.</div></div>
     <div class="trust">${ICON.shield}<span>Only files shared with ${esc(p.name)} · re-checked with Google Drive before showing · every question is logged</span></div>`;
-  pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); if ($("#q").value.trim()) runPane(pane); };
+  pane.querySelector("select").onchange = async (e) => {
+    const email = e.target.value;
+    renderPane(pane, email);
+    refreshPeople();
+    if ($("#q").value.trim()) runPane(pane);
+  };
 }
 
+let peopleRefresh;
+let peopleLoadVersion = 0;
+async function refreshPeople() {
+  if (!peopleRefresh) peopleRefresh = loadPeople().catch(() => {}).finally(() => { peopleRefresh = null; });
+  return peopleRefresh;
+}
+window.addEventListener("focus", () => refreshPeople());
+
 async function loadPeople() {
-  const prev = panes.map((p) => p.dataset.email);
-  people = await api("/api/drive/people");
+  const version = ++peopleLoadVersion;
+  const fresh = await api("/api/drive/people");
+  if (version !== peopleLoadVersion) return;
+  people = fresh;
+  const prev = panes.map((p) => p.dataset.email); // selection may change while the check is pending
   const regular = people.filter((p) => !p.admin);
   const defaults = [regular[0] || people[0], regular[1] || people[1] || people[0]];
   panes.forEach((pane, i) => {
     const keep = prev[i] && people.some((p) => p.email === prev[i]);
-    const out = pane.querySelector(".out")?.innerHTML;
-    renderPane(pane, keep ? prev[i] : defaults[i]?.email);
-    if (keep && out) pane.querySelector(".out").innerHTML = out; // refresh the access list, keep the answer
+    if (!keep) renderPane(pane, defaults[i]?.email);
   });
   $("#factor").innerHTML = `<option value="">Everyone</option>` + people.map((p) => `<option value="${esc(p.email)}">${esc(p.name)}</option>`).join("");
 }
