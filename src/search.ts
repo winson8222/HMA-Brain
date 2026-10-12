@@ -1,5 +1,5 @@
 import type { estypes } from "@elastic/elasticsearch";
-import { aclFilter, aclForChannel, canSee } from "./acl.js";
+import { aclFilter, aclForChannel, canSee, type ChannelInfo } from "./acl.js";
 import { config } from "./config.js";
 import { es, INDEX } from "./es.js";
 import { embedQuery, embedTexts } from "./embeddings.js";
@@ -119,16 +119,32 @@ export async function retrieve(personId: string, q: string, size = 10, opts: { v
 
   // 3. Re-check channel hits against live Slack data (fresh membership + current channel privacy),
   //    in case an event was missed. DMs need no re-check: who is in a DM never changes.
+  //    Channels are fetched in parallel, once per distinct conversation; any fetch error or unknown
+  //    channel withholds that channel's hits (fail closed), which still lands in the audit record.
   const live = await getAccess(personId, { fresh: true });
   let allowed: SearchHit<BrainDoc>[] = [];
   const dropped: LoggedDoc[] = [];
   await withSpan("recheck", { candidates: hits.length }, async () => {
+    const channelKeys = new Set(hits.filter((h) => h._source!.kind === "channel").map((h) => `${h._source!.team_id}:${h._source!.channel_id}`));
+    const fetched = new Map<string, ChannelInfo | null>(
+      await Promise.all(
+        [...channelKeys].map(async (key) => {
+          const [team_id, channel_id] = key.split(":");
+          try {
+            const ws = await workspaceByTeam(team_id);
+            return [key, await ws.getChannel(channel_id, true)] as const;
+          } catch {
+            return [key, null] as const; // fail closed: withheld below
+          }
+        }),
+      ),
+    );
     for (const h of hits) {
       const d = h._source!;
       let ok: boolean;
       if (d.kind === "channel") {
-        const ws = await workspaceByTeam(d.team_id);
-        ok = canSee(aclForChannel(d.team_id, await ws.getChannel(d.channel_id, true)), live.principals);
+        const ch = fetched.get(`${d.team_id}:${d.channel_id}`);
+        ok = !!ch && canSee(aclForChannel(d.team_id, ch), live.principals);
       } else {
         ok = canSee(d.acl_container, live.principals);
       }

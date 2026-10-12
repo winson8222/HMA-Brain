@@ -17,6 +17,7 @@ auditRouter.get("/api/audit", requireAdmin, async (req, res) => {
     const kind: AuditKind[] | undefined = parseKinds(str(req.query.kind));
     const filter: AuditFilter = {
       actor: str(req.query.actor),
+      conversationId: str(req.query.conversationId),
       doc: str(req.query.doc),
       kind,
       decision: decision && DECISIONS.has(decision) ? (decision as Decision) : undefined,

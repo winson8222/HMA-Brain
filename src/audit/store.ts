@@ -23,6 +23,9 @@ const mappings = {
     query: { type: "text" },
     keywords: { type: "text" },
     answer: { type: "text" },
+    // multi-turn ask
+    conversationId: { type: "keyword" },
+    turn: { type: "integer" },
     allowed_ids: { type: "keyword" },
     dropped_ids: { type: "keyword" },
     denied_ids: { type: "keyword" },
@@ -106,6 +109,7 @@ async function appendNow(e: AuditEvent): Promise<AuditRecord> {
 
 export type AuditFilter = {
   actor?: string;
+  conversationId?: string;
   // An item: a doc ID (drive:<file>:<n>), an item ID (drive:<file>, jira:<site>:<issue>), a bare Drive file
   // ID, or words from its title. Matches searches that returned it AND its permission/content changes.
   doc?: string;
@@ -149,6 +153,7 @@ export async function queryAudit(f: AuditFilter): Promise<AuditRecord[]> {
   await ensureAuditIndex();
   const filter: object[] = [];
   if (f.actor) filter.push({ term: { actor: f.actor.trim().toLowerCase() } });
+  if (f.conversationId) filter.push({ term: { conversationId: f.conversationId } });
   if (f.kind?.length) filter.push({ terms: { kind: f.kind } });
   if (f.doc) filter.push({ bool: { should: docClauses(f.doc, f.decision), minimum_should_match: 1 } });
   if (f.decision) filter.push({ bool: { should: DECISION_FIELDS(f.decision).map((field) => ({ exists: { field } })), minimum_should_match: 1 } });

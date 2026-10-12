@@ -304,6 +304,21 @@
     .lsrc, .ltime { display: none; }
     .who .wname { display: none; }
   }
+
+  /* ---- Chat thread (Ask mode): messages append in order, newest last ---- */
+  .chatlog { display: flex; flex-direction: column; gap: 10px; max-height: 62vh; overflow-y: auto; padding: 4px 2px; }
+  .msg { display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .msg .bubble { max-width: 85%; border-radius: 14px; padding: 9px 13px; font-size: 13.5px; line-height: 1.45; }
+  .msg.user .bubble { background: var(--accent, #eef4ee); border: 1px solid var(--border); border-radius: 14px 14px 4px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.bot .bubble { background: var(--panel); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+  .msg.thinking .bubble { color: var(--muted); font-style: italic; }
+  .msg .bubble .answer { margin: 0; }
+  .msg .bubble .kw { margin-top: 8px; }
+  .newchat { margin-left: 8px; }
+  #q { resize: vertical; min-height: 38px; height: 38px; }
+  #q:disabled, #go:disabled { opacity: .55; cursor: wait; }
+  :where(#q, #go, .newchat, .msg a):focus-visible { outline: 2px solid var(--border-strong); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -362,7 +377,7 @@
 
         <div class="askcard">
           <form id="f">
-            <input type="search" id="q" placeholder="Ask a question, e.g. What do we know about the payment outage?" autocomplete="off" />
+            <textarea type="search" id="q" rows="1" placeholder="Ask a question, e.g. What do we know about the payment outage?" autocomplete="off" aria-label="Question"></textarea>
             <div class="modes" role="radiogroup" aria-label="Mode">
               <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
               <label><input type="radio" name="mode" value="search" /> Search</label>
@@ -370,7 +385,7 @@
             <button type="button" class="setbtn" id="setbtn" aria-expanded="false" aria-controls="settings">
               <svg class="ico"><use href="#i-sliders"/></svg><span class="setlbl">Settings</span><span class="setsum" id="setsum"></span><svg class="ico chev"><use href="#i-chev"/></svg>
             </button>
-            <span class="formhint">↵ to search</span>
+            <span class="formhint">↵ to send · ⇧↵ newline</span>
             <button id="go"><svg class="ico" style="width:14px;height:14px"><use href="#i-spark"/></svg><span>Ask</span></button>
           </form>
           <div class="settings" id="settings" hidden>
@@ -601,26 +616,43 @@ async function loadAccess(pane, who) {
 }
 
 // Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
+// Each pane owns one conversation thread: in-memory history + a conversation id. Re-rendering the
+// pane (person switch, sign-in change) starts a new conversation, like the server would want.
 function renderPane(pane, selectedId) {
   const locked = pane.id === "p0" && asWho() === "me";
-  let u;
+  pane.thread = []; // prior turns, oldest first, alternating user/assistant
+  pane.conversationId = crypto.randomUUID();
+  pane.msgN = 0; // message counter, scopes citation element ids per message
   pane.access = pane.accessP = null;
   if (locked) {
     u = me.signedIn ? me : null;
     pane.dataset.user = "";
     pane.innerHTML = u
-      ? `<div class="melabel">You: ${esc(u.name)}</div><div class="results"></div>`
-      : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results"></div>`;
+      ? `<div class="melabel">You: ${esc(u.name)} <button type="button" class="linkbtn newchat">New chat</button></div><div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`
+      : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`;
     if (u) loadAccess(pane, { asMe: true });
+    wireNewChat(pane);
     return;
   }
   u = users.find((x) => x.id === selectedId) || users[0];
   pane.dataset.user = u?.id || "";
   pane.innerHTML = `
     <select aria-label="Person">${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-    <div class="results"></div>`;
+    <button type="button" class="linkbtn newchat" title="Clear this conversation">New chat</button>
+    <div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`;
   if (u) loadAccess(pane, { personId: u.id });
   pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
+  wireNewChat(pane);
+}
+
+function wireNewChat(pane) {
+  pane.querySelector(".newchat")?.addEventListener("click", () => {
+    pane.thread = [];
+    pane.conversationId = crypto.randomUUID();
+    pane.msgN = 0;
+    const log = pane.querySelector(".chatlog");
+    if (log) log.innerHTML = "";
+  });
 }
 
 function renderPanes() {
@@ -670,17 +702,44 @@ function groupedHtml(items, render, open) {
     </details>`).join("");
 }
 
-function renderAnswer(pane, data) {
-  const box = pane.querySelector(".results");
+// ---- Chat rendering: one thread per pane, messages append in order ----
+// Scroll to the newest message; the browser keeps it cheap on a scrolled container.
+const scrollLog = (pane) => { const log = pane.querySelector(".chatlog"); if (log) log.scrollTop = log.scrollHeight; };
+
+function appendUserMsg(pane, text) {
+  const log = pane.querySelector(".chatlog");
+  if (!log) return;
+  log.insertAdjacentHTML("beforeend", `<div class="msg user"><div class="bubble">${esc(text)}</div></div>`);
+  scrollLog(pane);
+}
+
+function appendThinking(pane) {
+  const log = pane.querySelector(".chatlog");
+  if (!log) return null;
+  log.insertAdjacentHTML("beforeend", `<div class="msg bot thinking"><div class="bubble">Thinking…</div></div>`);
+  scrollLog(pane);
+  return log.lastElementChild;
+}
+
+// One assistant message: answer text with [n] citation links scoped to this message (so [1] in
+// message 3 never collides with [1] in message 1), the keywords line, per-platform sources.
+function appendAnswer(pane, data) {
+  const log = pane.querySelector(".chatlog");
+  if (!log) return;
+  const m = ++pane.msgN;
+  const idPrefix = `${pane.id}-m${m}`;
   const byN = new Map(data.sources.map((s) => [s.n, s]));
-  const id = (n) => `${pane.id}-src-${n}`;
+  const id = (n) => `${idPrefix}-src-${n}`;
   // Escape the model's text, then turn [n] into links to the cited message.
-  const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m, n) =>
-    byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m);
-  box.innerHTML = unavailableHtml(data) + `
+  const answer = esc(data.answer).replace(/\[(\d+)\]/g, (m2, n) =>
+    byN.has(+n) ? `<a class="cite" href="#${id(n)}">[${n}]</a>` : m2);
+  log.insertAdjacentHTML("beforeend", `<div class="msg bot"><div class="bubble">
+    ${unavailableHtml(data)}
     <div class="answer">${answer}</div>
     <div class="kw">Searched for: ${esc(data.keywords)}</div>
-    ${data.sources.length ? `<div class="srclbl">Sources · ${data.sources.length}</div>${groupedHtml(data.sources, (s) => resultHtml(s, id(s.n)), false)}` : ""}`;
+    ${data.sources.length ? `<div class="srclbl">Sources · ${data.sources.length}</div>${groupedHtml(data.sources, (s) => resultHtml(s, id(s.n)), false)}` : ""}
+  </div></div>`);
+  scrollLog(pane);
 }
 
 // Citation [n]: open its platform group and scroll to it (without touching the page address).
@@ -696,28 +755,58 @@ document.addEventListener("click", (e) => {
   setTimeout(() => el.classList.remove("hit"), 1600);
 });
 
+let busy = false;
 async function runSearch() {
   const q = $("#q").value.trim();
+  if (busy) return;
   if (!q) return;
   await ready; // panes and sources don't exist until the first load finishes
   const sources = chosenSources();
   if (!sources.length) { panes.forEach((p) => { const b = p.querySelector(".results"); if (b) b.innerHTML = `<div class="empty">Pick at least one source to search.</div>`; }); return; }
   const m = mode();
   const active = panes.filter((p) => !p.classList.contains("hidden"));
-  await Promise.all(active.map(async (p) => {
-    const box = p.querySelector(".results");
-    const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
-    if (who.asMe && !me.signedIn) return;
-    const mine = sources.filter((s) => connectedTo(p, s));
-    loadAccess(p, who); // refresh connection flags independently of search
-    if (!mine.length) { box.innerHTML = `<div class="empty">Not connected to any of the selected sources.</div>`; return; }
-    if (m === "ask") box.innerHTML = `<div class="empty">Thinking…</div>`;
-    try {
-      if (m === "ask") renderAnswer(p, await api("/api/ask", { ...who, q, sources: mine }));
-      else renderResults(p, await api("/api/search", { ...who, q, sources: mine }));
-    } catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
-  }));
+  busy = true;
+  $("#go").disabled = $("#q").disabled = true;
+  try {
+    await Promise.all(active.map(async (p) => {
+      const box = p.querySelector(".results");
+      const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
+      if (who.asMe && !me.signedIn) return;
+      const mine = sources.filter((s) => connectedTo(p, s));
+      loadAccess(p, who); // refresh connection flags independently of search
+      if (!mine.length) { box.innerHTML = `<div class="empty">Not connected to any of the selected sources.</div>`; return; }
+      if (m !== "ask") {
+        // Search is one-shot: keep today's behaviour of replacing the pane's contents.
+        box.innerHTML = `<div class="empty">Searching…</div>`;
+        try { renderResults(p, await api("/api/search", { ...who, q, sources: mine })); }
+        catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+        return;
+      }
+      // Ask is a conversation: append this question, get an answer with fresh retrieval.
+      appendUserMsg(p, q);
+      const thinking = appendThinking(p);
+      try {
+        const data = await api("/api/ask", { ...who, q, sources: mine, conversationId: p.conversationId, history: (p.thread || []).slice(-6) });
+        thinking?.remove();
+        p.thread = p.thread || [];
+        p.thread.push({ role: "user", content: q }, { role: "assistant", content: data.answer });
+        p.conversationId = data.conversationId || p.conversationId;
+        appendAnswer(p, data);
+      } catch (e) {
+        thinking?.remove();
+        appendUserMsg(p, `⚠ Error: ${e.message}`);
+      }
+    }));
+  } finally {
+    busy = false;
+    $("#go").disabled = $("#q").disabled = false;
+    $("#q").focus();
+  }
 }
+// Enter sends, Shift+Enter inserts a newline (the input is a textarea).
+$("#q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#f").requestSubmit(); }
+});
 
 // ---- Try prompts ----
 const EXAMPLES = {
