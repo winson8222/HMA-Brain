@@ -86,6 +86,11 @@
   .avatar .ico { width: 18px; height: 18px; }
 
   .conn + .conn { margin-top: 12px; }
+  .wsrows { margin: 14px 0 0 54px; border-top: 1px solid var(--border); }
+  .wsrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .wsrow:last-child { border-bottom: 0; padding-bottom: 0; }
+  .wsrow .name { font-size: 14px; }
+  @media (max-width: 640px) { .wsrows { margin-left: 0; } }
   .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .plogo { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .plogo .pi { width: 22px; height: 22px; }
@@ -101,6 +106,8 @@
   .btn:hover { background: var(--primary-hover); }
   .btn.secondary { background: var(--panel); color: var(--deny); border: 1px solid var(--border); }
   .btn.secondary:hover { background: var(--deny-bg); border-color: transparent; }
+  .btn.quiet { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  .btn.quiet:hover { background: var(--secondary); }
   .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
   .btn .ico { width: 14px; height: 14px; }
 
@@ -180,10 +187,12 @@
 
 
       <div class="sechead">YOUR ACCOUNTS</div>
-      <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira and Confluence results that follow your Atlassian permissions.</p>
+      <p class="secsub">Link your own accounts to sign in, include your private DMs, and get Jira and Confluence results that follow your Atlassian permissions. Google Drive needs no link: it follows the sharing on each file.</p>
       <div id="list"></div>
 
       <div id="jira"></div>
+
+      <div id="drive"></div>
 
       <div class="sechead">HOW IT WORKS</div>
       <div class="card">
@@ -252,19 +261,25 @@ async function render() {
     : `<span class="avatar off"><svg class="ico"><use href="#i-user"/></svg></span>
        <div><div class="name">Not signed in</div><div class="muted">Connect a workspace below to sign in.</div></div>`;
 
-  $("#list").innerHTML = conns.map((c) => {
+  // One Slack card, with a row per workspace: Slack issues tokens per workspace, so each has its own Connect.
+  const wsRows = conns.map((c) => {
     const mine = me.signedIn && me.connections.find((x) => x.workspace === c.workspace);
     const action = !c.canConnect
       ? `<span class="muted">Not set up for Connect yet. Ask an admin.</span>`
       : mine?.connected
         ? `<button class="btn secondary" data-disconnect="${esc(mine.teamId)}">Disconnect</button>`
         : `<a class="btn" href="/slack/oauth/start?ws=${encodeURIComponent(c.key)}"><svg class="ico"><use href="#i-link"/></svg>Connect</a>`;
-    return `<div class="card conn"><div class="row">
-      ${icon("p-slack")}
+    return `<div class="wsrow">
       <div class="grow"><div class="name">${esc(c.workspace)}<span class="status ${mine?.connected ? "on" : "off"}">${mine?.connected ? "You're connected" : "Not connected"}</span></div>
         <div class="muted">${c.connected.length ? `Linked by ${c.connected.map(esc).join(", ")}` : "Nobody has linked their account yet"}</div></div>
-      ${action}</div></div>`;
-  }).join("");
+      ${action}</div>`;
+  });
+  const slackOn = me.signedIn && me.connections.some((x) => x.connected);
+  $("#list").innerHTML = !conns.length ? "" : `<div class="card conn"><div class="row">
+      ${icon("p-slack")}
+      <div class="grow"><div class="name">Slack<span class="status ${slackOn ? "on" : "off"}">${slackOn ? "You're connected" : "Not connected"}</span></div>
+        <div class="muted">Connect the workspaces you're in. This signs you in and adds your own DMs.</div></div></div>
+      <div class="wsrows">${wsRows.join("")}</div></div>`;
 
   // Connect Atlassian: only shown when the server has the Jira connector. One link to your own Atlassian
   // account serves Jira and Confluence (same site, same account).
@@ -274,11 +289,38 @@ async function render() {
   $("#jira").innerHTML = !jira ? "" : `<div class="card conn" style="margin-top:12px"><div class="row">
       ${icon("p-jira")}${withConfluence ? icon("p-confluence") : ""}
       <div class="grow"><div class="name">Atlassian (${products})<span class="status ${jira.linked ? "on" : "off"}">${jira.linked ? "You're connected" : "Not connected"}</span></div>
-        <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. ${products} results follow your permissions there.` : `One link covers ${withConfluence ? "both" : "it"}: include the ${withConfluence ? "Jira issues and Confluence pages" : "Jira issues"} you can see.`}</div></div>
+        <div class="muted">${jira.linked ? `Linked to ${esc(jira.account || "your Atlassian account")}. ${products} results follow your permissions there.` : `One link covers ${withConfluence ? "both" : "it"}: include the ${withConfluence ? "Jira issues and Confluence pages" : "Jira issues"} you can see.`}</div>
+        <div class="muted">${jira.linkedBy?.length ? `Linked by ${jira.linkedBy.map(esc).join(", ")}` : "Nobody has linked their account yet"}</div></div>
       ${!me.signedIn ? `<span class="muted">Connect Slack first to sign in</span>`
         : !jira.canConnect ? `<span class="muted">Not set up yet. Ask an admin.</span>`
         : jira.linked ? `<button class="btn secondary" id="jira-disconnect">Disconnect</button>`
         : `<a class="btn" href="/connect/jira/start"><svg class="ico"><use href="#i-link"/></svg>Connect Atlassian</a>`}</div></div>`;
+  // Google Drive: nothing to link. The admin connects Drive once; each file's sharing is indexed and
+  // matched to your sign-in email, then re-checked live with Drive at question time.
+  const hasDrive = sources.some((c) => c.name === "drive");
+  $("#drive").innerHTML = !hasDrive ? "" : `<div class="card conn" style="margin-top:12px"><div class="row">
+      ${icon("p-drive")}
+      <div class="grow"><div class="name">Google Drive<span class="status ${me.signedIn ? "on" : "off"}">${me.signedIn ? "Matched by email" : "Not signed in"}</span></div>
+        <div class="muted">${me.signedIn
+          ? `Nothing to link. You get the files shared with ${esc(me.email || "your email")} in Drive, checked live with Drive on every question.`
+          : "Nothing to link. Once you sign in, you get the files shared with your email in Drive."}</div></div>
+      <button class="btn quiet" id="drive-sync" type="button">Sync now</button></div></div>`;
+
+  const ds = $("#drive-sync");
+  if (ds) ds.onclick = async () => {
+    ds.disabled = true;
+    ds.textContent = "Syncing…";
+    try {
+      const r = await api("/api/drive/sync", {});
+      ds.textContent = r.counts ? "Synced" : "Already syncing";
+      $("#notice").innerHTML = ok(r.counts ? "Drive synced. Ask again to see the update." : "Drive is already syncing.");
+    } catch (e) {
+      ds.textContent = "Sync failed";
+      $("#notice").innerHTML = err(esc(e.message));
+    }
+    setTimeout(() => { ds.disabled = false; ds.textContent = "Sync now"; }, 1500);
+  };
+
   const jd = $("#jira-disconnect");
   if (jd) jd.onclick = async () => {
     jd.setAttribute("aria-disabled", "true");

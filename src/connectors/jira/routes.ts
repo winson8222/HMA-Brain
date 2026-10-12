@@ -3,11 +3,25 @@ import express from "express";
 import { HttpError, wrap } from "../../http.js";
 import { getSession } from "../../session.js";
 import { accountForCode, authorizeUrl, linkTarget, oauthConfigured } from "./auth.js";
-import { ensureJiraIndices, deleteLink, getLink, putLink } from "./store.js";
-import { forgetAccess } from "./people.js";
+import { allLinks, ensureJiraIndices, deleteLink, getLink, putLink } from "./store.js";
+import { listPeople } from "../../people.js";
+import { forgetAccess as forgetJiraAccess } from "./people.js";
+import { forgetAccess as forgetConfluenceAccess } from "../confluence/people.js";
 import { recordAudit } from "../../audit/record.js";
 
 export const jiraRouter = express.Router();
+
+// One Atlassian link serves Jira and Confluence, so a link change must drop both cached accesses.
+function forgetAccess(personId: string) {
+  forgetJiraAccess(personId);
+  forgetConfluenceAccess(personId);
+}
+
+// Who has linked an Atlassian account, by name, like Slack's "Linked by" on the Connect page.
+async function linkedBy(): Promise<string[]> {
+  const [links, people] = await Promise.all([allLinks(), listPeople()]);
+  return links.map((l) => people.find((p) => p.id === l.person_id)?.name ?? l.person_id).sort();
+}
 
 function me(req: express.Request): string {
   const p = getSession(req);
@@ -19,10 +33,11 @@ jiraRouter.get(
   "/api/jira/me",
   wrap(async (req, res) => {
     const p = getSession(req);
-    if (!p) return res.json({ canConnect: oauthConfigured(), linked: false });
     await ensureJiraIndices();
+    const linked = await linkedBy();
+    if (!p) return res.json({ canConnect: oauthConfigured(), linked: false, linkedBy: linked });
     const link = await getLink(p);
-    res.json({ canConnect: oauthConfigured(), linked: !!link, account: link?.account_name ?? null, linkedAt: link?.linked_at ?? null });
+    res.json({ canConnect: oauthConfigured(), linked: !!link, account: link?.account_name ?? null, linkedAt: link?.linked_at ?? null, linkedBy: linked });
   }),
 );
 
