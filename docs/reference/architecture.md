@@ -1,6 +1,6 @@
 # Architecture
 
-![Aspire Atlas architecture](architecture.svg)
+![Aspire Atlas architecture](architecture.png)
 
 Aspire Atlas imports source content into Elasticsearch, searches it with the asker's permissions, and gives only permitted evidence to the answer model. Each platform keeps its own data format, access rules and sync process; the shared layer never flattens them.
 
