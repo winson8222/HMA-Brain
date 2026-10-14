@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [project quick start](../../README.md#run-an-already-configured-demo). Use dedicated test accounts and two workspaces: Company A (`main`) for Carol, Alice and Bob; Company A Vendors (`vendors`) for Carol and Dave. Use the same email for Carol in both.
+Complete [project quick start](../../README.md#run-it). Use dedicated test accounts and two workspaces: Company A (`main`) for Carol, Alice and Bob; Company A Vendors (`vendors`) for Carol and Dave. Use the same email for Carol in both.
 
 ## 2 Create accounts and source access
 
