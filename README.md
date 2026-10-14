@@ -30,7 +30,7 @@ Aspire Atlas is a company knowledge assistant that searches Slack, Google Drive,
 
 ## How it works
 
-![Aspire Atlas architecture](docs/reference/architecture.svg)
+![Aspire Atlas architecture](docs/reference/architecture.png)
 
 A query path and a sync path share one Elasticsearch store. Sync workers pull content and access lists from each platform and index every document with who may read it. At question time the server resolves the asker, filters inside the search query, re-checks each candidate live at the source, and only then hands permitted excerpts to the model. Full detail, trust boundaries and design decisions: [docs/reference/architecture.md](docs/reference/architecture.md).
 
