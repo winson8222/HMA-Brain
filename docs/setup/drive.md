@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [project quick start](../../README.md#run-an-already-configured-demo). Use a dedicated Google account that can read all files under the demo folder and inspect their sharing. The supported demo scope is one My Drive folder, normally Company A.
+Complete [project quick start](../../README.md#run-it). Use a dedicated Google account that can read all files under the demo folder and inspect their sharing. The supported demo scope is one My Drive folder, normally Company A.
 
 ## 2 Create accounts and source access
 
