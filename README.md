@@ -1,64 +1,52 @@
-# HMA Brain
+# Aspire Atlas
 
-HMA Brain answers questions across Slack, Google Drive, Jira and Confluence using information the person asking is allowed to read. Answers cite their sources. An admin can inspect a tamper-evident audit trail of searches and detected changes.
+![Aspire Atlas: ask a question, get a cited answer from Slack, Google Drive, Jira and Confluence](screenshots/hero.png)
 
-The current demo implements federated Search and Ask across all four connectors, permission filtering with source-specific access rechecks, optional hybrid retrieval and reranking, and a shared audit trail with tamper detection and manual backup/recovery. Connectors and model features are available when configured. Gmail and automatic audit backups remain proposed work.
+**Ask once. Get the answer your company already has, and only the parts you are allowed to see.**
 
-## Start here
+## The problem
 
-- **Judges:** read the [demo story](docs/demo/story-and-personas.md), then follow the [demo script](docs/demo/script.md).
-- **Run the app:** use the quick start below and the relevant platform setup guide.
-- **Test access and logging:** follow the [audit test plan](docs/demo/audit-test-plan.md), including restoration steps.
-- **Understand the design:** read [architecture](docs/reference/architecture.md), [permission awareness](docs/reference/permissions-and-sync.md) and [retrieval implementation](docs/reference/retrieval.md).
-- **Find a command or document:** use the [command reference](docs/reference/commands.md) or [documentation index](docs/README.md).
+Every company already knows the answer. It is just in six places. The incident was discussed in Slack, the postmortem lives in Drive, the follow-ups are in Jira and the runbook is on Confluence. People spend their day searching four tools, asking the one colleague who remembers, or giving up.
 
-## Run an already configured demo
+Pointing an AI assistant at all of it sounds like the fix, until you remember that each of those tools has its own rules about who may read what. A bot that indexes everything and answers everyone is a leak waiting to happen. One that is locked down too hard answers nothing useful.
+
+## Aspire Atlas
+
+Aspire Atlas is a company knowledge assistant that searches Slack, Google Drive, Jira and Confluence together and answers with citations, using only what the person asking is allowed to read.
+
+![Ask: one question, one cited answer across sources](screenshots/ask.png)
+
+**Your permissions, not the bot's.** Channel membership, file sharing, issue security and page restrictions are enforced in code before anything reaches the model. Every result is re-checked against the source at the moment you ask, so access revoked a minute ago is caught, not served.
+
+**Nothing leaks.** Two people can ask the same question and get different answers. If you cannot see something, the answer does not hint that it exists.
+
+![Same question, different person: restricted content stays invisible](screenshots/negative.png)
+
+**Fresh.** Live events and short polling keep the index within minutes of the source. Edit a runbook and the next answer reflects it.
+
+**Every answer is on the record.** Who asked, what was shown or withheld, and the answer itself go into a signed, hash-linked audit log. An admin can filter it, trace a document's history and verify that nothing has been altered.
+
+![Audit trail: per-document decisions and chain verification](screenshots/audit.png)
+
+## How it works
+
+![Aspire Atlas architecture](docs/reference/architecture.png)
+
+A query path and a sync path share one Elasticsearch store. Sync workers pull content and access lists from each platform and index every document with who may read it. At question time the server resolves the asker, filters inside the search query, re-checks each candidate live at the source, and only then hands permitted excerpts to the model. Full detail, trust boundaries and design decisions: [docs/reference/architecture.md](docs/reference/architecture.md).
+
+## Run it
 
 ```bash
-docker compose up -d
+docker compose up -d        # Elasticsearch 8
 npm install
+npm run audit:log -- checkpoint --trust-current-head   # once, before the first run
 npm run dev
 ```
 
-Before the first run with audit checkpoints enabled, initialize the trusted audit baseline using the [audit command reference](docs/reference/commands.md#run-and-check). Search and Ask refuse new audit writes until it is initialized. Preserve the checkpoint together with the audit history and signing key when restarting or moving the demo.
+Open `http://localhost:3000`. Each source needs credentials in `.env` (see `.env.example`) and a one-time setup: [Slack](docs/setup/slack.md), [Google Drive](docs/setup/drive.md), [Jira](docs/setup/jira.md), [Confluence](docs/setup/confluence.md). The full documentation index is at [docs/README.md](docs/README.md).
 
-Open `http://localhost:3000`. Use **Search** for a result list or **Ask** for a cited answer. **Me** uses your signed-in identity; **Demo** lets the presenter compare test personas when `ALLOW_IMPERSONATION=on`.
+Built with Node.js, TypeScript, Express, Elasticsearch 8 and Tencent Cloud TokenHub. This is a demo build, not a production deployment.
 
-Each persona must connect their own accounts on `/connect.html`. Choosing a persona in Demo mode does not create an Atlassian account link. The main page supports all configured sources; `/drive.html` is an additional Drive-only interface.
+## License
 
-## Platform guides
-
-| Platform | Setup | Permissions, updates and audit design |
-| --- | --- | --- |
-| Slack | [Setup](docs/setup/slack.md) | [Connector](docs/reference/connectors/slack.md) |
-| Google Drive | [Setup](docs/setup/drive.md) | [Connector](docs/reference/connectors/drive.md) |
-| Jira | [Setup](docs/setup/jira.md) | [Connector](docs/reference/connectors/jira.md) |
-| Confluence | [Setup](docs/setup/confluence.md) | [Connector](docs/reference/connectors/confluence.md) |
-| Gmail | [Implementation status](docs/setup/gmail.md) | [Proposed design](docs/reference/connectors/gmail.md) |
-
-## Audit trail
-
-The admin audit trail records who searched or asked, the question, selected sources, document access decisions, and generated answers with citations. It also records supported content and permission changes, account connections and admin actions. Signed, linked records and a checkpoint kept outside Elasticsearch detect edits and missing history; Search and Ask require a successful audit write before returning. Manual verified backups and repair are implemented; automatic backups are not yet available, and some background event logging is best effort.
-
-See the [audit trail implementation and recovery guide](docs/reference/audit-trail.md), [commands to query, verify, back up and repair the log](docs/reference/commands.md#run-and-check), and [audit test plan](docs/demo/audit-test-plan.md).
-
-## Permission awareness
-
-Search and Ask enforce access for the person asking: Slack workspace/channel membership and DM participants, supported Drive sharing, Jira project and issue-security permissions, and Confluence space and page restrictions. Permission filters run inside keyword and vector searches, followed by source-specific current-access checks. Only evidence that passes these checks reaches the reranker or answer model; withheld-item metadata stays in the protected admin audit. Newly granted access can take a sync or identity refresh to appear.
-
-See the [full permission implementation guide](docs/reference/permissions-and-sync.md) for the identity-to-evidence flow, access decisions, and links to each platform's supported rules and limitations.
-
-## Retrieval and LLM answers
-
-Ask uses the LLM to rewrite a question into search keywords, then searches the selected connectors in parallel. All four connectors support keyword search plus optional embedding-based semantic search. The app merges rankings, optionally reranks permitted excerpts with Cohere, and asks the answer model to respond using only those excerpts with numbered citations. Optional LLM query expansion adds alternative semantic searches for Slack. Search returns ranked results without generating an answer; permission decisions are enforced in code.
-
-See the [retrieval implementation guide](docs/reference/retrieval.md) for the complete flow, model configuration, source coverage and fallback behavior, and the [retrieval roadmap](docs/roadmap/retrieval.md) for future work.
-
-## Development checks
-
-```bash
-npm run typecheck
-npm test
-```
-
-This is a demo, not a production deployment. It supports impersonation, stores test credentials locally and uses a shared admin password. Keep credentials out of Git. See [architecture and limits](docs/reference/architecture.md).
+[MIT](LICENSE)

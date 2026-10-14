@@ -22,7 +22,11 @@ Run commands from the repository root. Polls update the local index from source 
 
 Audit query filters include `--doc`, `--user`, `--kind`, `--denied`, `--dropped`, `--since`, `--until`, `--text` and `--limit`. Permission/content actors normally equal `system`; filtering by Bob will hide those system rows. A document filter combined with a decision must match the same document entry, including when searching by title.
 
-Initialize the checkpoint before accepting new audit writes. For an existing installation, review the history before trusting its current head: initialization cannot detect records deleted before the first checkpoint. Do not delete or reinitialize a checkpoint to bypass a failed verification. Preserve it on durable storage independent of Elasticsearch; see [audit features and gaps](audit-trail.md) and [audit design](architecture.md#shared-audit-chain) for configuration and recovery.
+## Audit trail
+
+Initialize the checkpoint before accepting new audit writes. For an existing installation, review the history before trusting its current head: initialization cannot detect records deleted before the first checkpoint. Do not delete or reinitialize a checkpoint to bypass a failed verification. Preserve it on durable storage independent of Elasticsearch.
+
+All server and CLI writers must share the same signing key, audit index and checkpoint path; a filesystem lock serializes them. A crashed process can leave the `<checkpoint-file>.lock` directory behind: stop every writer before removing only that directory. Recovery uses a verified backup taken with `backup --file`; `repair` checks it against the current checkpoint, and `--apply --evidence` first saves the damaged records, then restores the signed backup without changing the checkpoint. An older backup cannot roll trust backwards. Design and limits: [architecture](architecture.md#audit-trail).
 
 ## Import and update
 
@@ -32,7 +36,6 @@ Initialize the checkpoint before accepting new audit writes. For an existing ins
 | Drive | `npm run drive:backfill` | `npm run drive:poll` | `npm run drive:doctor`, `npm run drive:verify` |
 | Jira | `npm run jira:backfill` | `npm run jira:poll` | `npm run jira:doctor` |
 | Confluence | `npm run confluence:backfill` | `npm run confluence:poll`; restriction-only changes: `npm run confluence:poll -- --sweep` | `npm run confluence:doctor` |
-| Gmail | Not implemented | No command | No command |
 
 Drive/Jira/Confluence normal poll commands accept `-- --watch` for a standalone loop. Stop with Ctrl+C. Confluence's normal watcher does not schedule restriction sweeps. Its `--sweep` runs the sweep instead of the normal content poll. Use server sync for automatic poll/reconcile scheduling, or run each required operation manually.
 
@@ -65,7 +68,7 @@ This command changes process settings only. Restart normally afterward to restor
 | `npm run seed:confluence -- --edit-rollout` | Set the signing-key rotation decision |
 | `npm run seed:confluence -- --restore-rollout` | Restore the original rollout; follow with a content poll |
 
-Slack cleanup is manual: restore membership/names and delete test messages. Exact order and expected audit evidence are in [the audit test plan](../demo/audit-test-plan.md).
+Slack cleanup is manual: restore membership/names and delete test messages. Exact order and expected audit evidence are in [the audit test plan](../demo/test-plan.md).
 
 ## Index resets are different
 

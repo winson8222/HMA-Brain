@@ -1,28 +1,20 @@
 # Documentation
 
-Start with the question you need to answer. Setup instructions describe how to connect a platform; connector references explain why its permissions and updates work that way.
-
-| Task | Read |
+| I want to | Read |
 | --- | --- |
-| Understand the demo in two minutes | [Story and personas](demo/story-and-personas.md) |
-| Present to the judges | [Demo script](demo/script.md) |
-| Test and restore the demo | [Audit test plan](demo/audit-test-plan.md) |
-| Understand audit mechanisms and remaining gaps | [Audit trail and recovery](reference/audit-trail.md) |
-| Run a configured demo | [Quick start](../README.md#run-an-already-configured-demo) |
-| Set up a platform | [Slack](setup/slack.md), [Drive](setup/drive.md), [Jira](setup/jira.md), [Confluence](setup/confluence.md), [Gmail status](setup/gmail.md) |
-| Understand platform permissions, updates and audit timing | [Slack](reference/connectors/slack.md), [Drive](reference/connectors/drive.md), [Jira](reference/connectors/jira.md), [Confluence](reference/connectors/confluence.md), [Gmail proposal](reference/connectors/gmail.md) |
-| Understand shared search and LLM answers | [Retrieval implementation](reference/retrieval.md), [architecture](reference/architecture.md) |
-| Understand permission enforcement | [Permission implementation](reference/permissions-and-sync.md) |
-| Find commands and reset effects | [Command reference](reference/commands.md) |
-| Inspect seeded data | [Slack and Drive](demo/data/slack-and-drive.md), [Jira](demo/data/jira.md), [Confluence](demo/data/confluence.md) |
-| See proposed future work | [Retrieval roadmap](roadmap/retrieval.md) |
+| Run the demo for a judge | [Demo script](demo/script.md) |
+| Rehearse the permission, freshness and audit tests, and restore the data afterwards | [Test plan](demo/test-plan.md) |
+| Know what the seed scripts created | [Demo data](demo/data.md) |
+| Set up a platform | [Slack](setup/slack.md), [Google Drive](setup/drive.md), [Jira](setup/jira.md), [Confluence](setup/confluence.md) |
+| Understand the design, trust boundaries and trade-offs | [Architecture](reference/architecture.md) |
+| Understand how each platform's permissions and updates are handled | [Slack](reference/connectors/slack.md), [Drive](reference/connectors/drive.md), [Jira](reference/connectors/jira.md), [Confluence](reference/connectors/confluence.md) |
+| Understand search, ranking and the LLM answer | [Retrieval](reference/retrieval.md) |
+| Find a command or a reset's effect | [Commands](reference/commands.md) |
 
-## Where information belongs
+## Future work
 
-- **Setup:** accounts, credentials, configuration, first import and verification. Every platform follows the same section order.
-- **Connector reference:** permission structure, indexing, live checks, update strategy, design decisions, platform audit records and limitations.
-- **Shared reference:** architecture, audit, permission enforcement and retrieval implementation without repeating platform rules.
-- **Demo:** story, judge-facing questions, data reference, tests and restoration.
-- **Roadmap:** proposals only. Gmail is not an implemented capability.
-
-The seed modules define what the scripts create. Demo data references summarize those modules; they do not prescribe the current state of a manually edited live site. Update the relevant demo guide when changing seed content.
+- Gmail connector with per-person read-only mailbox access (designed, not built).
+- Automatic verified audit backups and independently controlled checkpoint storage.
+- Following references across sources with a bounded search/open loop, under the same per-person access rules.
+- Query date filters, thread-context expansion and an evaluation set built from the demo questions.
+- Drive shared drives and group expansion; Jira team-managed projects and restricted comments.

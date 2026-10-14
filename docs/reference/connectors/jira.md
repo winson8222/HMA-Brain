@@ -1,6 +1,6 @@
 # Jira connector
 
-**Status: implemented for the demo's company-managed projects.** [Setup](../../setup/jira.md) · [Tests](../../demo/audit-test-plan.md#jira)
+**Status: implemented for the demo's company-managed projects.** [Setup](../../setup/jira.md) · [Tests](../../demo/test-plan.md#jira)
 
 ## Permission structure
 
@@ -39,7 +39,7 @@ The crawler then calls Jira's bulk `permissions/check` for the asker's account I
 - Linking/unlinking writes one account record with source `atlassian`; that identity is shared with Confluence.
 - Live checks write dropped decisions in search records, but do not themselves relabel issues or write permission-change records. Those wait for sync.
 
-A user leaving a group may change access without changing any item's group label. There is no dedicated audit of every group-membership change. See the [shared chain](../architecture.md#shared-audit-chain) for integrity and query limits.
+A user leaving a group may change access without changing any item's group label. There is no dedicated audit of every group-membership change. See the [shared chain](../architecture.md#audit-trail) for integrity and query limits.
 
 ## Limitations
 

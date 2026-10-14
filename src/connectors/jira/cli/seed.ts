@@ -307,7 +307,7 @@ async function permissionSchemes(...ctx: [Record<PersonaKey, string>, Record<str
   const existing = (await get<{ permissionSchemes: { id: number; name: string }[] }>("/rest/api/3/permissionscheme")).permissionSchemes;
   for (const [projectKey, s] of Object.entries(PERMISSION_SCHEMES)) {
     const permissions = Object.entries(s.grants).flatMap(([permission, grants]) => grants.map((g) => ({ permission, holder: holder(g, ...ctx) })));
-    const body = { name: s.name, description: "Created by npm run seed:jira (HMA Brain demo).", permissions };
+    const body = { name: s.name, description: "Created by npm run seed:jira (Aspire Atlas demo).", permissions };
     let id = existing.find((x) => x.name === s.name)?.id;
     if (id) await put(`/rest/api/3/permissionscheme/${id}`, body); // replaces every grant: exactly the seed's
     else id = (await post<{ id: number }>("/rest/api/3/permissionscheme", body)).id;
@@ -334,7 +334,7 @@ async function securitySchemes(projectsByKey: Record<string, Project>, ids: Reco
         (
           await post<{ id: string | number }>("/rest/api/3/issuesecurityschemes", {
             name: s.name,
-            description: "Created by npm run seed:jira (HMA Brain demo).",
+            description: "Created by npm run seed:jira (Aspire Atlas demo).",
             levels: s.levels.map((l) => ({ name: l.level, description: l.description, isDefault: false, members: l.members.map(member) })),
           })
         ).id,

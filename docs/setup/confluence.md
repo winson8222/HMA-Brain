@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [project quick start](../../README.md#run-an-already-configured-demo), [Slack sign-in](slack.md) and the [Jira account/crawler setup](jira.md). The demo uses the same Atlassian site, accounts and groups. Choose a Confluence plan that supports space and page viewing restrictions; confirm the current plan and expiry in site administration.
+Complete [project quick start](../../README.md#run-it), [Slack sign-in](slack.md) and the [Jira account/crawler setup](jira.md). The demo uses the same Atlassian site, accounts and groups. Choose a Confluence plan that supports space and page viewing restrictions; confirm the current plan and expiry in site administration.
 
 ## 2 Create accounts and source access
 
@@ -23,7 +23,7 @@ The seed needs Carol's `JIRA_ADMIN_EMAIL` and `JIRA_ADMIN_API_TOKEN` (or its doc
 
 ## 4 Link people
 
-Each persona signs into HMA Brain and connects Atlassian at `/connect.html`. An existing Jira link is sufficient; there is no second Confluence connection. Check the linked name and the person's Confluence product/space access.
+Each persona signs into Aspire Atlas and connects Atlassian at `/connect.html`. An existing Jira link is sufficient; there is no second Confluence connection. Check the linked name and the person's Confluence product/space access.
 
 ## 5 Import data and enable updates
 
@@ -45,7 +45,7 @@ npm run confluence:poll -- --sweep
 
 ## 6 Verify and test
 
-Select only Confluence. Bob should find **Checkout failover drill results** while it is unrestricted and answer **6 minutes 40 seconds**. Bob should not read **Outage follow-up review**, which inherits its parent's restriction. Follow the [audit tests](../demo/audit-test-plan.md#confluence).
+Select only Confluence. Bob should find **Checkout failover drill results** while it is unrestricted and answer **6 minutes 40 seconds**. Bob should not read **Outage follow-up review**, which inherits its parent's restriction. Follow the [audit tests](../demo/test-plan.md#confluence).
 
 ## 7 Troubleshoot and restore
 

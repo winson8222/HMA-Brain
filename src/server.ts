@@ -40,7 +40,7 @@ const slackApps = config.slackSync
       })
   : [];
 
-// ---- Google Drive: API + Connect (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
+// ---- Google Drive: status + Sync now API (when the Google app is configured), sync (when DRIVE_SYNC=on) ----
 // Loaded only when configured, so the server still runs without Google credentials.
 const driveRoutes = driveConfigured ? await import("./connectors/drive/routes.js") : null;
 const drive = driveConfigured && process.env.DRIVE_SYNC === "on" ? await import("./connectors/drive/sync.js") : null;
@@ -55,7 +55,7 @@ const web = express();
 web.use(express.json());
 web.use(express.static("public"));
 web.use(auditRouter); // tamper-evident audit log, admin only (Drive writes to it)
-if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive Search/Ask on /drive.html
+if (driveRoutes) web.use(driveRoutes.driveRouter); // Drive status and Sync now
 if (jiraRoutes) web.use(jiraRoutes.jiraRouter); // Connect Jira on /connect.html
 
 async function describePerson(personId: string) {
@@ -266,6 +266,5 @@ web.listen(config.port, (err?: Error) => {
     (drive ? `; Drive polling every ${process.env.DRIVE_POLL_SECONDS || 60}s` : "") +
     (jira ? `; Jira polling every ${process.env.JIRA_POLL_SECONDS || 60}s` : "") +
     (confluence ? `; Confluence polling every ${process.env.CONFLUENCE_POLL_SECONDS || 60}s` : "");
-  if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
-  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
+  console.log(`Aspire Atlas on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });

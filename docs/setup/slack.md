@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [project quick start](../../README.md#run-an-already-configured-demo). Use dedicated test accounts and two workspaces: Company A (`main`) for Carol, Alice and Bob; Company A Vendors (`vendors`) for Carol and Dave. Use the same email for Carol in both.
+Complete [project quick start](../../README.md#run-it). Use dedicated test accounts and two workspaces: Company A (`main`) for Carol, Alice and Bob; Company A Vendors (`vendors`) for Carol and Dave. Use the same email for Carol in both.
 
 ## 2 Create accounts and source access
 
@@ -22,7 +22,7 @@ The manifest includes write scopes needed to seed demo messages as the personas.
 
 ## 4 Link people
 
-Start `npm run dev`. Each person opens `/connect.html` in their own browser profile and connects their workspace. Carol connects both. This signs them into HMA Brain and authorizes DM ingestion. The callback address must match the Slack app configuration.
+Start `npm run dev`. Each person opens `/connect.html` in their own browser profile and connects their workspace. Carol connects both. This signs them into Aspire Atlas and authorizes DM ingestion. The callback address must match the Slack app configuration.
 
 Selecting someone in Demo mode does not create their connection. Disconnect revokes the stored user token and cleans up DMs that no other connected participant supplies.
 
@@ -41,7 +41,7 @@ npm run verify
 
 ## 6 Verify and test
 
-Search `outage` as Alice and Bob, with Slack alone selected. Alice should see payments-incident evidence; Bob should not in the baseline. Post a disposable channel message and verify it arrives with live sync enabled. Follow the [Slack audit tests](../demo/audit-test-plan.md#slack) for changes and restoration.
+Search `outage` as Alice and Bob, with Slack alone selected. Alice should see payments-incident evidence; Bob should not in the baseline. Post a disposable channel message and verify it arrives with live sync enabled. Follow the [Slack audit tests](../demo/test-plan.md#slack) for changes and restoration.
 
 ## 7 Troubleshoot and restore
 

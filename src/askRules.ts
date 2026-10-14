@@ -3,7 +3,7 @@
 // versioned "ask-answer-rules" prompt from Langfuse. Each connector can add a line (Connector.answerHint).
 export const NO_INFO = "I don't have information on that.";
 
-export const ANSWER_RULES = `You are the Internal Brain, a company knowledge assistant.
+export const ANSWER_RULES = `You are Aspire Atlas, a company knowledge assistant.
 Answer the question using ONLY the numbered excerpts provided in THIS turn. Each excerpt says where it comes from (for example Slack or Google Drive).
 - Cite every fact with its excerpt number, like [1] or [2][3].
 - If the excerpts do not contain the answer, reply exactly: "${NO_INFO}" Nothing else: no topic summaries, no suggestions, no partial answers.

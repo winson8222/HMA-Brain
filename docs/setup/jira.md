@@ -2,7 +2,7 @@
 
 ## 1 Prerequisites
 
-Complete [project quick start](../../README.md#run-an-already-configured-demo) and [Slack sign-in](slack.md). Use a Jira Cloud site with company-managed projects and a plan that allows the permission schemes and issue security used by the demo. Confirm current capabilities and trial expiry in your site's billing settings; do not rely on old trial dates.
+Complete [project quick start](../../README.md#run-it) and [Slack sign-in](slack.md). Use a Jira Cloud site with company-managed projects and a plan that allows the permission schemes and issue security used by the demo. Confirm current capabilities and trial expiry in your site's billing settings; do not rely on old trial dates.
 
 ## 2 Create accounts and source access
 
@@ -44,7 +44,7 @@ If Jira search has not caught up with newly seeded issues, wait and repeat backf
 
 ## 6 Verify and test
 
-Select only Jira. Bob should find VEND-5 when he is in its Approvers field and linked. Alice should find PAY-240; she should not find leadership-only PAY-243. Carol can read both. Use the [Jira data matrix](../demo/data/jira.md) and [audit tests](../demo/audit-test-plan.md#jira).
+Select only Jira. Bob should find VEND-5 when he is in its Approvers field and linked. Alice should find PAY-240; she should not find leadership-only PAY-243. Carol can read both. Use the [Jira demo data](../demo/data.md#jira) and [audit tests](../demo/test-plan.md#jira).
 
 ## 7 Troubleshoot and restore
 

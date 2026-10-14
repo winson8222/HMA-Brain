@@ -36,7 +36,7 @@ const code = await new Promise<string>((resolve, reject) => {
 
 const { tokens } = await oauth.getToken(code);
 if (!tokens.refresh_token) {
-  console.error("Google didn't return a refresh token. Remove HMA Brain at https://myaccount.google.com/permissions and run this again.");
+  console.error("Google didn't return a refresh token. Remove the app at https://myaccount.google.com/permissions and run this again.");
   process.exit(1);
 }
 saveToken(tokens);
