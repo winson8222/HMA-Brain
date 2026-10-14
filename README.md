@@ -4,6 +4,18 @@ Aspire Atlas answers questions across Slack, Google Drive, Jira and Confluence u
 
 The current demo implements federated Search and Ask across all four connectors, permission filtering with source-specific access rechecks, optional hybrid retrieval and reranking, and a shared audit trail with tamper detection and manual backup/recovery. Connectors and model features are available when configured. Automatic audit backups remain future work.
 
+## Screenshots
+
+| Ask with citations | Same question, no access |
+| --- | --- |
+| ![Ask tab with a cited answer](docs/screenshots/ask.png) | ![Negative case: nothing revealed](docs/screenshots/negative.png) |
+
+| Audit trail | Connections |
+| --- | --- |
+| ![Audit tab with per-document decisions and chain verification](docs/screenshots/audit.png) | ![Connections page](docs/screenshots/connections.png) |
+
+See [docs/screenshots](docs/screenshots/README.md) for what each image should show.
+
 ## Start here
 
 - **Judges:** read the [demo story](docs/demo/story-and-personas.md), then follow the [demo script](docs/demo/script.md).
@@ -67,5 +79,9 @@ See the [retrieval implementation guide](docs/reference/retrieval.md) for the co
 npm run typecheck
 npm test
 ```
+
+## License
+
+[MIT](LICENSE).
 
 This is a demo, not a production deployment. It supports impersonation, stores test credentials locally and uses a shared admin password. Keep credentials out of Git. See [architecture and limits](docs/reference/architecture.md).
