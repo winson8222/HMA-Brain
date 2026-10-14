@@ -6,7 +6,7 @@ Complete [project quick start](../../README.md#run-an-already-configured-demo). 
 
 ## 2 Create accounts and source access
 
-Use Carol's configured Drive account as the crawler. The seed shares files with the persona emails. Those emails must match the identities used in HMA Brain. See [demo data](../demo/data/slack-and-drive.md) for the intended folder access.
+Use Carol's configured Drive account as the crawler. The seed shares files with the persona emails. Those emails must match the identities used in Aspire Atlas. See [demo data](../demo/data/slack-and-drive.md) for the intended folder access.
 
 Bob or Dave must not be the owning crawler account in these tests: an owner can still read every file after a reader share is removed. To switch, reconnect using Carol or a dedicated crawler, seed that account's demo folder, set its folder ID if needed, and rebuild the Drive index for the new scope.
 

@@ -9,7 +9,7 @@ export const KEYWORD_RULES =
   "Rewrite the user's question as 3-8 search keywords for a keyword search over company documents " +
   "(Google Docs, Sheets, PDFs). Include likely synonyms. Output only the keywords separated by spaces.";
 
-export const ANSWER_RULES = `You are the Internal Brain, a company knowledge assistant.
+export const ANSWER_RULES = `You are Aspire Atlas, a company knowledge assistant.
 Answer the question using ONLY the numbered document excerpts provided.
 - Cite every fact with its excerpt number, like [1] or [2][3].
 - If the excerpts do not contain the answer, reply exactly: "${NO_INFO}" You may add one sentence on what related information the excerpts do contain.

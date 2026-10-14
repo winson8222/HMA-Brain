@@ -23,7 +23,7 @@ The seed needs Carol's `JIRA_ADMIN_EMAIL` and `JIRA_ADMIN_API_TOKEN` (or its doc
 
 ## 4 Link people
 
-Each persona signs into HMA Brain and connects Atlassian at `/connect.html`. An existing Jira link is sufficient; there is no second Confluence connection. Check the linked name and the person's Confluence product/space access.
+Each persona signs into Aspire Atlas and connects Atlassian at `/connect.html`. An existing Jira link is sufficient; there is no second Confluence connection. Check the linked name and the person's Confluence product/space access.
 
 ## 5 Import data and enable updates
 

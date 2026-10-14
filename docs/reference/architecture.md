@@ -1,6 +1,8 @@
 # Architecture
 
-HMA Brain imports source content into Elasticsearch, searches it with the asker's permissions, and gives only permitted evidence to the answer model. Each platform owns its data format, access rules and sync process.
+![Aspire Atlas architecture and trust boundaries](architecture.svg)
+
+Aspire Atlas imports source content into Elasticsearch, searches it with the asker's permissions, and gives only permitted evidence to the answer model. Each platform owns its data format, access rules and sync process.
 
 ## Request flow
 

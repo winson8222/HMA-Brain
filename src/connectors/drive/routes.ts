@@ -149,7 +149,7 @@ driveRouter.get("/connect/google/callback", async (req, res) => {
   try {
     const { tokens } = await newOAuthClient(redirectUri()).getToken(String(req.query.code ?? ""));
     if (!tokens.refresh_token) {
-      return page(res, 400, "Google didn't return a refresh token. Remove HMA Brain at https://myaccount.google.com/permissions, then connect again.");
+      return page(res, 400, "Google didn't return a refresh token. Remove the app at https://myaccount.google.com/permissions, then connect again.");
     }
     saveToken(tokens);
     loadToken();

@@ -121,7 +121,7 @@ Expect Dave's share restored, a corresponding permission restoration record once
 
 ### Live permission removal through Approvers
 
-1. Confirm **Bob's own Atlassian account is linked** in HMA Brain. As Carol in Jira, open **VEND-5** and confirm **Approvers includes Bob**. If you just restored him, run `npm run jira:poll` before the baseline query.
+1. Confirm **Bob's own Atlassian account is linked** in Aspire Atlas. As Carol in Jira, open **VEND-5** and confirm **Approvers includes Bob**. If you just restored him, run `npm run jira:poll` before the baseline query.
 2. As Bob, select Jira and **Search** for `payments status dashboard`. Expect **VEND-5: Approve Acme read-only access to the payments status dashboard**.
 3. To exercise Ask, use **What is VEND-5 about, and who needs to approve it?** Expect Acme's read-only dashboard request and Bob as approver. Avoid using the imperative issue title as an Ask prompt: “Approve…” can be interpreted as a request to perform an action.
 4. As Carol, edit VEND-5's **Approvers** field, remove Bob, and save. The field may be under **More fields**. Change the field on the issue; the existing demo permission scheme already grants access through that field.

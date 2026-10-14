@@ -22,7 +22,7 @@ The manifest includes write scopes needed to seed demo messages as the personas.
 
 ## 4 Link people
 
-Start `npm run dev`. Each person opens `/connect.html` in their own browser profile and connects their workspace. Carol connects both. This signs them into HMA Brain and authorizes DM ingestion. The callback address must match the Slack app configuration.
+Start `npm run dev`. Each person opens `/connect.html` in their own browser profile and connects their workspace. Carol connects both. This signs them into Aspire Atlas and authorizes DM ingestion. The callback address must match the Slack app configuration.
 
 Selecting someone in Demo mode does not create their connection. Disconnect revokes the stored user token and cleans up DMs that no other connected participant supplies.
 

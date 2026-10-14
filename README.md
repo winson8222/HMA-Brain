@@ -1,6 +1,6 @@
-# HMA Brain
+# Aspire Atlas
 
-HMA Brain answers questions across Slack, Google Drive, Jira and Confluence using information the person asking is allowed to read. Answers cite their sources. An admin can inspect a tamper-evident audit trail of searches and detected changes.
+Aspire Atlas answers questions across Slack, Google Drive, Jira and Confluence using information the person asking is allowed to read. Answers cite their sources. An admin can inspect a tamper-evident audit trail of searches and detected changes.
 
 The current demo implements federated Search and Ask across all four connectors, permission filtering with source-specific access rechecks, optional hybrid retrieval and reranking, and a shared audit trail with tamper detection and manual backup/recovery. Connectors and model features are available when configured. Gmail and automatic audit backups remain proposed work.
 

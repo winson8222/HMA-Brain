@@ -267,5 +267,5 @@ web.listen(config.port, (err?: Error) => {
     (jira ? `; Jira polling every ${process.env.JIRA_POLL_SECONDS || 60}s` : "") +
     (confluence ? `; Confluence polling every ${process.env.CONFLUENCE_POLL_SECONDS || 60}s` : "");
   if (driveRoutes) console.log(`Drive Search/Ask: ${config.publicUrl}/drive.html`);
-  console.log(`HMA Brain on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
+  console.log(`Aspire Atlas on ${config.publicUrl} (${sync}; workspaces: ${wss.map((w) => w.teamName).join(", ")}${driveSync})`);
 });
