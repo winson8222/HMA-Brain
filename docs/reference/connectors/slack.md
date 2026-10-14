@@ -1,6 +1,6 @@
 # Slack connector
 
-**Status: implemented.** [Setup](../../setup/slack.md) · [Tests](../../demo/audit-test-plan.md#slack)
+**Status: implemented.** [Setup](../../setup/slack.md) · [Tests](../../demo/test-plan.md#slack)
 
 ## Permission structure
 
@@ -39,7 +39,7 @@ Only one server per Slack app should use `SLACK_SYNC=on`: Socket Mode can distri
 - Slack Connect and Disconnect write account records. Connecting and backfilling DMs can write a content summary.
 - DM change titles are anonymized as a DM or group DM. Source message bodies are not copied into change records.
 
-Search/Ask decisions are logged separately in the [shared chain](../architecture.md#shared-audit-chain). A processed membership event may turn a subsequent search into withheld rather than dropped; both should prevent private content being returned.
+Search/Ask decisions are logged separately in the [shared chain](../architecture.md#audit-trail). A processed membership event may turn a subsequent search into withheld rather than dropped; both should prevent private content being returned.
 
 ## Limitations
 

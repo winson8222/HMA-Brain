@@ -41,7 +41,7 @@ npm run verify
 
 ## 6 Verify and test
 
-Search `outage` as Alice and Bob, with Slack alone selected. Alice should see payments-incident evidence; Bob should not in the baseline. Post a disposable channel message and verify it arrives with live sync enabled. Follow the [Slack audit tests](../demo/audit-test-plan.md#slack) for changes and restoration.
+Search `outage` as Alice and Bob, with Slack alone selected. Alice should see payments-incident evidence; Bob should not in the baseline. Post a disposable channel message and verify it arrives with live sync enabled. Follow the [Slack audit tests](../demo/test-plan.md#slack) for changes and restoration.
 
 ## 7 Troubleshoot and restore
 

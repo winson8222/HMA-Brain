@@ -1,6 +1,6 @@
 # Google Drive connector
 
-**Status: implemented.** [Setup](../../setup/drive.md) · [Tests](../../demo/audit-test-plan.md#google-drive)
+**Status: implemented.** [Setup](../../setup/drive.md) · [Tests](../../demo/test-plan.md#google-drive)
 
 ## Permission structure
 
@@ -32,9 +32,9 @@ Before returning a candidate, the connector fetches its current metadata using t
 - Content change time uses file modification time. A content hash avoids treating a sharing-only modified-time bump as a content edit.
 - Poll-detected sharing changes and removals use the available change-feed time. Several changes can be collapsed into the latest entry per file, so it is not a complete history of each sharing operation.
 - Live-recheck/reconcile sharing changes have unknown source change time. The live-recheck permission record is asynchronous and can appear after the search finishes.
-- Drive connection through the web UI writes an account record. Sync now writes an admin record. There is no implemented per-person Drive link/unlink flow.
+- Connecting the crawler writes an account record. Sync now writes an admin record. There is no per-person Drive link/unlink flow.
 
-The [shared chain](../architecture.md#shared-audit-chain) also contains each search's allowed, withheld and dropped decisions. A later poll need not duplicate a permission change already recorded by live recheck.
+The [shared chain](../architecture.md#audit-trail) also contains each search's allowed, withheld and dropped decisions. A later poll need not duplicate a permission change already recorded by live recheck.
 
 ## Limitations
 
