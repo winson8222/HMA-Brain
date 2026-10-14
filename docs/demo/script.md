@@ -1,6 +1,6 @@
 # Demo script
 
-**Opening:** “HMA Brain finds information across four tools, checks what the person asking can read, and shows the sources behind its answer. We can also inspect what was returned and when access changes were detected.”
+**Opening:** “Aspire Atlas finds information across four tools, checks what the person asking can read, and shows the sources behind its answer. We can also inspect what was returned and when access changes were detected.”
 
 ## Before presenting
 
@@ -12,31 +12,54 @@
 
 ## Suggested running order
 
-| Step | Person and sources | Ask or action | What to show |
-| --- | --- | --- | --- |
-| 1 | Alice; Slack, Drive and Jira | What was the root cause of the payment outage, and what follow-up work was created? | Cited incident evidence and follow-up issues from the permitted sources retrieved |
-| 2 | Alice, then Bob; Slack only | Search `outage` | Alice gets payments-incident evidence; Bob's baseline results exclude that private channel |
-| 3 | Bob; Jira only | What is VEND-5 about, and who needs to approve it? | Acme's dashboard request; Bob needs to approve it |
-| 4 | Dave; Drive only | Which merchants were affected by the outage and how much was refunded? | The shared postmortem supplies merchant details; remove the share, ask again without polling, and show the item is gone |
-| 5 | Bob; Confluence only | How long did the last failover drill take? | 6 minutes 40 seconds; restrict the page, ask again without a sweep, and show the page is gone |
-| 6 | Admin | Open Audit log, filter by the tested document, then Verify chain | Earlier shown decisions, later withheld/dropped decisions and detected permission changes |
+| Step | Who asks | Sources selected | Question or action | Expected |
+| --- | --- | --- | --- | --- |
+| 1a | Alice | Slack, Drive, Jira | What was the root cause of the payment outage, and what follow-up work was created? | Root cause: connection exhaustion after `tx_schema_v2`. Follow-up issues PAY-240, PAY-241 and PAY-245. Citations from payments-incident, the postmortem and Jira |
+| 1b | Bob | Slack, Drive, Jira | Same question as 1a | No root cause. Bob is outside payments-incident, the Postmortems folder and the incident-team issues, so at most he gets public channel updates. Nothing hints that the restricted items exist |
+| 2 | Bob | Jira | What is VEND-5 about, and who needs to approve it? | Acme wants read-only access to the payments status dashboard; Bob is the approver |
+| 3 | Dave | Drive | Which merchants were affected by the outage and how much was refunded? | M-1043: SGD 18,400; M-2210: SGD 11,900; M-0877: SGD 6,300, from the shared postmortem |
+| 3b | Dave | Drive | Remove Dave's share on the postmortem, then ask the same question **without polling** | No merchant details; the postmortem is gone |
+| 4 | Bob | Confluence | How long did the last failover drill take? | 6 minutes 40 seconds |
+| 4b | Bob | Confluence | Restrict the drill page, then ask the same question **without a sweep** | No answer; the page is gone |
+| 5 | Admin | Audit tab | Filter by the document tested in step 3 or 4, then click **Verify chain** | The earlier "shown" decision, the later "withheld" or "dropped" decision, the detected permission change, and a passing chain check |
 
-Use [the audit test plan](audit-test-plan.md) for the exact mutation and restore commands. For a short presentation, choose either step 4 or 5; use the other during questions.
+Use [the audit test plan](audit-test-plan.md) for the exact mutation and restore commands. For a short presentation, choose either step 3 or 4; use the other during questions.
 
 Do not promise that every selected source will be cited: retrieval ranking and the evidence needed by the question determine citations. Open the source cards to show what was actually used.
 
 ## Optional demonstrations
 
-| Person and source | Question or action | Expected evidence |
+Each one proves a single point. Select only the named source. Exact commands and restore steps are in the [audit test plan](audit-test-plan.md).
+
+### Freshness: an edit shows up after a poll
+
+| Who and source | Ask | Before the edit | Make the change | After the change |
+| --- | --- | --- | --- | --- |
+| Bob; Drive | How do I fail over the payment database? | pay-db-2, pool of 200 | `npm run seed:drive -- --edit-runbook`, then `npm run drive:poll` | pay-db-3, pool of 400 |
+| Bob; Confluence | How often are signing keys rotated? | Undecided (rollout plan page) | `npm run seed:confluence -- --edit-rollout`, then `npm run confluence:poll` | Every 24 hours, with a 1-hour overlap |
+
+### Negative case: same question, different person
+
+Ask the question as the first person, then as the second. The second person must get no answer and no hint that the item exists.
+
+| Source | Ask | Gets the answer | Gets nothing |
+| --- | --- | --- | --- |
+| Confluence | What did the outage follow-up review decide? | Alice (restricted review page) | Bob |
+| Jira | What is PAY-243 about? | Carol (leadership-only issue) | Dave |
+| Jira | What is SEC-2 about? | Carol (vulnerability issue) | Bob |
+
+### Live revocation: access changes without re-indexing
+
+| Who and source | Search | Change access | Expect | Restore |
+| --- | --- | --- | --- | --- |
+| Bob; Jira | `payments status dashboard` | As Carol, remove Bob from VEND-5's **Approvers** field | VEND-5 disappears immediately, **without polling** | Add Bob back, then `npm run jira:poll` |
+| Bob; Slack | `outage` | Add Bob to private channel **payments-incident**, search, then remove him and search again | Channel results appear while he is a member and disappear once he leaves | Leave Bob outside the channel (the seeded default) |
+
+### Audit of content changes
+
+| Who and source | Action | Expect |
 | --- | --- | --- |
-| Bob; Drive | How do I fail over the payment database? | Before reset edit: pay-db-2/pool 200; after the runbook edit and poll: pay-db-3/pool 400 |
-| Bob; Confluence | How often are signing keys rotated? | Before edit: undecided in the rollout plan; after edit and poll: every 24 hours with 1-hour overlap |
-| Alice, then Bob; Confluence | What did the outage follow-up review decide? | Alice gets the restricted review; Bob does not |
-| Carol, then Dave; Jira | What is PAY-243 about? | Carol gets the leadership-only issue; Dave does not |
-| Carol, then Bob; Jira | What is SEC-2 about? | Carol gets the vulnerability issue; Bob does not |
-| Bob; Jira | Remove Bob from VEND-5 Approvers, then Search `payments status dashboard` | VEND-5 disappears before polling; restore Approvers and poll to bring it back |
-| Bob; Slack | Add/remove Bob from payments-incident and repeat Search `outage` | Membership controls access to that private channel |
-| Test person; Slack | Post, edit and delete a temporary message | Three content-change audit records and corresponding search changes |
+| Any test person; Slack | Post a temporary message, edit it, then delete it | Three content-change records in Audit; Search shows the message, then the edit, then nothing |
 
 ## Explain the audit clearly
 
