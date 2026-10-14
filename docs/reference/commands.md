@@ -32,7 +32,6 @@ Initialize the checkpoint before accepting new audit writes. For an existing ins
 | Drive | `npm run drive:backfill` | `npm run drive:poll` | `npm run drive:doctor`, `npm run drive:verify` |
 | Jira | `npm run jira:backfill` | `npm run jira:poll` | `npm run jira:doctor` |
 | Confluence | `npm run confluence:backfill` | `npm run confluence:poll`; restriction-only changes: `npm run confluence:poll -- --sweep` | `npm run confluence:doctor` |
-| Gmail | Not implemented | No command | No command |
 
 Drive/Jira/Confluence normal poll commands accept `-- --watch` for a standalone loop. Stop with Ctrl+C. Confluence's normal watcher does not schedule restriction sweeps. Its `--sweep` runs the sweep instead of the normal content poll. Use server sync for automatic poll/reconcile scheduling, or run each required operation manually.
 

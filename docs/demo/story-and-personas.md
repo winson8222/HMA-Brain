@@ -26,8 +26,6 @@ The story spans four implemented platforms:
 | Jira | Follow-up issues, vendor requests and issue-specific access |
 | Confluence | Rollout plan, drill results, review pages and vendor guidance |
 
-Gmail is a proposed connector and is not demonstrated.
-
 ## What judges should see
 
 1. A cited answer can combine permitted evidence from several sources.

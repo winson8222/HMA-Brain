@@ -36,12 +36,11 @@ Identity mappings, permission structures, update schedules, events, timestamps a
 - [Google Drive](connectors/drive.md)
 - [Jira](connectors/jira.md)
 - [Confluence](connectors/confluence.md)
-- [Gmail proposal](connectors/gmail.md), not implemented
 
 See [architecture](architecture.md) for storage and the shared audit chain, and [audit tests](../demo/audit-test-plan.md) for demonstrations.
 
 ## User-facing metadata
 
-User pages do not enumerate channels, files, projects or spaces before a query. The main page, Connections page and legacy Drive page have no access previews. `/api/access` returns only source connection flags; `/api/me`, `/api/users` and `/api/drive/people` return identity/connection details without content inventories. Search/Ask independently check permissions before returning results, citations and answers.
+User pages do not enumerate channels, files, projects or spaces before a query. The main page and Connections page have no access previews. `/api/access` returns only source connection flags; `/api/me` and `/api/users` return identity/connection details without content inventories. Search/Ask independently check permissions before returning results, citations and answers.
 
 The admin audit panel retains its protected document metadata and access decisions, including withheld items. Removing previews does not change search permissions or make demo impersonation safe for unrestricted public use.

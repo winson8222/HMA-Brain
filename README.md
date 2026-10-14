@@ -2,7 +2,7 @@
 
 Aspire Atlas answers questions across Slack, Google Drive, Jira and Confluence using information the person asking is allowed to read. Answers cite their sources. An admin can inspect a tamper-evident audit trail of searches and detected changes.
 
-The current demo implements federated Search and Ask across all four connectors, permission filtering with source-specific access rechecks, optional hybrid retrieval and reranking, and a shared audit trail with tamper detection and manual backup/recovery. Connectors and model features are available when configured. Gmail and automatic audit backups remain proposed work.
+The current demo implements federated Search and Ask across all four connectors, permission filtering with source-specific access rechecks, optional hybrid retrieval and reranking, and a shared audit trail with tamper detection and manual backup/recovery. Connectors and model features are available when configured. Automatic audit backups remain future work.
 
 ## Start here
 
@@ -34,7 +34,6 @@ Each persona must connect their own accounts on `/connect.html`. Choosing a pers
 | Google Drive | [Setup](docs/setup/drive.md) | [Connector](docs/reference/connectors/drive.md) |
 | Jira | [Setup](docs/setup/jira.md) | [Connector](docs/reference/connectors/jira.md) |
 | Confluence | [Setup](docs/setup/confluence.md) | [Connector](docs/reference/connectors/confluence.md) |
-| Gmail | [Implementation status](docs/setup/gmail.md) | [Proposed design](docs/reference/connectors/gmail.md) |
 
 ## Audit trail
 
@@ -52,7 +51,15 @@ See the [full permission implementation guide](docs/reference/permissions-and-sy
 
 Ask uses the LLM to rewrite a question into search keywords, then searches the selected connectors in parallel. All four connectors support keyword search plus optional embedding-based semantic search. The app merges rankings, optionally reranks permitted excerpts with Cohere, and asks the answer model to respond using only those excerpts with numbered citations. Optional LLM query expansion adds alternative semantic searches for Slack. Search returns ranked results without generating an answer; permission decisions are enforced in code.
 
-See the [retrieval implementation guide](docs/reference/retrieval.md) for the complete flow, model configuration, source coverage and fallback behavior, and the [retrieval roadmap](docs/roadmap/retrieval.md) for future work.
+See the [retrieval implementation guide](docs/reference/retrieval.md) for the complete flow, model configuration, source coverage and fallback behavior.
+
+## Future work
+
+- Gmail connector with per-person read-only mailbox access (designed, not built).
+- Automatic verified audit backups and independently controlled checkpoint storage.
+- Following references across sources with a bounded search/open loop, under the same per-person access rules.
+- Query date filters, thread-context expansion and an evaluation set built from the demo questions.
+- Drive shared drives and group expansion; Jira team-managed projects and restricted comments.
 
 ## Development checks
 

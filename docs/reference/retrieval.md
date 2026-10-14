@@ -55,4 +55,4 @@ Search can run without a chat model when multi-query expansion is disabled. Ask 
 | [Hybrid helpers](../../src/hybrid.ts), [embeddings](../../src/embeddings.ts), [multi-query](../../src/multiQuery.ts), [reranking](../../src/rerank.ts) | Retrieval configuration, vectors, rank fusion and model-assisted ranking |
 | [Chat client](../../src/llm.ts), [answer rules](../../src/askRules.ts), [prompts](../../src/prompts.ts) | Chat calls with timeouts/retries and answer instructions, optionally supplied through Langfuse |
 
-The current implementation retrieves a bounded set of indexed excerpts. Following references through an iterative search/open loop, expanding nearby thread context and adding query date filters remain [roadmap work](../roadmap/retrieval.md).
+The current implementation retrieves a bounded set of indexed excerpts. Following references through an iterative search/open loop, expanding nearby thread context and adding query date filters remain future work (see the README).

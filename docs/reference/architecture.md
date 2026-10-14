@@ -68,4 +68,4 @@ Sync/account/admin writes are best effort: failures log `AUDIT WRITE FAILED` and
 - The Drive Sync now route currently has no admin check; its audit actor can be the signed-in person or anonymous.
 - Index labels can lag behind grants. Live checks remove stale permissions; newly granted results can require a poll or identity-cache refresh to become candidates.
 
-Run the [audit test plan](../demo/audit-test-plan.md) to check behavior. The [roadmap](../roadmap/retrieval.md) lists future work.
+Run the [audit test plan](../demo/audit-test-plan.md) to check behavior.
