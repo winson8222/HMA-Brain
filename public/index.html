@@ -89,38 +89,26 @@
   .askcard { margin-top: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 3px 12px rgba(22,24,23,.03); transition: border-color .15s, box-shadow .15s; }
   .askcard:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(76,149,103,.12); }
   form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 12px; }
-  input[type=search] { flex: 1 1 100%; min-width: 0; width: 100%; padding: 6px 4px; font: 15px/1.5 var(--font); border: 0; outline: none; background: transparent; color: var(--text); }
-  input[type=search]::placeholder { color: var(--muted); }
-  .modes { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--secondary); border: 1px solid var(--border); }
-  .modes label { position: relative; display: flex; align-items: center; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--muted); }
-  .modes input { position: absolute; opacity: 0; pointer-events: none; }
-  .modes label:has(input:checked) { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(22,24,23,.08); }
-  .modes label:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
-  label.cmp { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
+  input[type=search], #q { flex: 1 1 100%; min-width: 0; width: 100%; padding: 6px 4px; font: 15px/1.5 var(--font); border: 0; outline: none; background: transparent; color: var(--text); }
+  input[type=search]::placeholder, #q::placeholder { color: var(--muted); }
   input[type=checkbox] { accent-color: var(--primary); width: 15px; height: 15px; margin: 0; }
-  .formhint { margin-left: auto; font-size: 10px; color: var(--muted); }
+  #go { margin-left: auto; }
   button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font: 500 13px var(--font); border: 0; border-radius: 8px; background: var(--primary); color: var(--primary-text); cursor: pointer; transition: background .15s; }
   button:hover { background: var(--primary-hover); }
   button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   button.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
   button.ghost:hover { background: var(--secondary); }
 
-  .setbtn { padding: 7px 10px; gap: 7px; background: var(--panel); color: var(--secondary-text); border: 1px solid var(--border); font-size: 12px; min-width: 0; }
-  .setbtn:hover, .setbtn[aria-expanded="true"] { background: var(--secondary); color: var(--text); }
-  .setbtn .ico { width: 14px; height: 14px; }
-  .setbtn .setsum { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .setbtn .setsum:not(:empty)::before { content: "· "; }
-  .setbtn .chev { transition: transform .15s; }
-  .setbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
-  .settings { border-top: 1px solid var(--border); background: #fbfcfb; border-radius: 0 0 14px 14px; }
-  .setrow, .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; font-size: 11px; color: var(--muted); }
-  .setrow + .sources { border-top: 1px dashed var(--border); }
-  .lbl2 { width: 76px; flex-shrink: 0; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); }
-  .sources label { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--secondary-text); font-size: 12px; cursor: pointer; }
+  /* Source toggles: one icon per source; coloured = included in answers, grey = left out. */
+  .sources { display: inline-flex; align-items: center; gap: 6px; }
+  .sources label { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); cursor: pointer; transition: background .15s, border-color .15s; }
+  .sources label:hover { background: var(--secondary); }
+  .sources input { position: absolute; opacity: 0; pointer-events: none; }
+  .sources .pi { width: 18px; height: 18px; filter: grayscale(1); opacity: .35; transition: filter .15s, opacity .15s; }
+  .sources label:has(input:checked:not(:disabled)) { border-color: var(--border-strong); background: var(--mint-soft); }
+  .sources label:has(input:checked:not(:disabled)) .pi { filter: none; opacity: 1; }
+  .sources label:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
   .sources label.na { opacity: .45; cursor: not-allowed; }
-  .sources label:has(input:checked:not(:disabled)) { border-color: var(--border-strong); background: var(--mint-soft); color: var(--text); }
-  .sources .pi { width: 14px; height: 14px; }
-  .sources .linkbtn { margin-left: auto; font-size: 11px; }
 
   .tries { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
   .tries > span { font-size: 11px; font-weight: 500; color: var(--muted); margin-right: 2px; }
@@ -131,12 +119,10 @@
   /* ---- Result panes ---- */
   main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 28px 0 32px; }
   .pane { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; min-width: 0; }
-  .pane::before { content: "VIEWING AS"; display: block; margin-bottom: 8px; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; color: var(--muted); }
   .pane.hidden { display: none; }
   select { width: 100%; padding: 10px 36px 10px 12px; font: 500 13px var(--font); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; appearance: none;
     background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236d736e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; }
   select:focus { border-color: var(--ring); outline: none; }
-  .melabel { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--mint-soft); font-weight: 600; font-size: 13px; }
   .chip { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; background: var(--mint-soft); color: var(--accent-text); border: 1px solid var(--border); }
   .chip.priv, .badge.priv { background: var(--priv-bg); color: var(--priv); border-color: transparent; }
   .result { border-top: 1px solid var(--border); padding: 14px 0; }
@@ -154,7 +140,6 @@
   .answer { border-top: 1px solid var(--border); padding: 16px 0 8px; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
   .answer a.cite { display: inline-block; margin: 0 1px; padding: 0 5px; border-radius: 5px; border: 1px solid var(--border); background: var(--mint-soft); color: var(--accent-text); text-decoration: none; font-weight: 600; font-size: 10px; line-height: 16px; vertical-align: 1px; }
   .answer a.cite:hover { background: var(--accent); border-color: var(--border-strong); }
-  .kw { font-size: 11px; color: var(--muted); padding-bottom: 8px; }
   .srclbl { font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
   .result.hit { background: var(--mint-soft); margin: 0 -10px; padding: 14px 10px; border-radius: 10px; transition: background .3s; }
   .srcgroup { border: 1px solid var(--border); border-radius: 10px; margin-top: 8px; padding: 0 12px; }
@@ -296,9 +281,6 @@
     .pagehead h1 { font-size: 27px; }
     .mark { display: none; }
     main { grid-template-columns: 1fr; }
-    .formhint { display: none; }
-    .setbtn .setsum { display: none; }
-    .lbl2 { width: 100%; }
     form button { margin-left: auto; }
     .card { padding: 16px; }
     .lsrc, .ltime { display: none; }
@@ -314,11 +296,32 @@
   .msg.bot .bubble { background: var(--panel); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
   .msg.thinking .bubble { color: var(--muted); font-style: italic; }
   .msg .bubble .answer { margin: 0; }
-  .msg .bubble .kw { margin-top: 8px; }
-  .newchat { margin-left: 8px; }
-  #q { resize: vertical; min-height: 38px; height: 38px; }
+  /* ---- Chat page: after the first question the hero goes, the thread fills the page and the
+     question box docks at the bottom. New chat returns to the landing. ---- */
+  .wrap { flex: 1; display: flex; flex-direction: column; }
+  #view-ask { flex: 1; display: flex; flex-direction: column; }
+  #view-ask:not(.chatting) main { display: none; }
+  /* Signed out: the question box and prompts give way to a Connect prompt. */
+  #view-ask.signedout .askcard, #view-ask.signedout .tries { display: none; }
+  .signincard { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 3px 12px rgba(22,24,23,.03); }
+  .signincard b { font-size: 15px; }
+  .signincard p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .signincard .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font: 500 13px var(--font); border-radius: 8px; background: var(--primary); color: var(--primary-text); text-decoration: none; }
+  .signincard .btn:hover { background: var(--primary-hover); }
+  /* padding-bottom gives the docked box room for its bottom gap (sticky can't leave its container). */
+  #view-ask.chatting { width: 100%; max-width: 820px; margin: 0 auto; padding-bottom: 20px; }
+  .content:has(#view-ask.chatting:not([hidden])) footer { display: none; }
+  #view-ask.chatting .hero, #view-ask.chatting .tries { display: none; }
+  #view-ask.chatting main { order: 1; flex: 1; display: block; margin: 8px 0 20px; }
+  #view-ask.chatting .pane { background: none; border: 0; padding: 0; }
+  #view-ask.chatting .chatlog { max-height: none; overflow: visible; gap: 18px; padding: 0; }
+  #view-ask.chatting .msg { scroll-margin-top: 90px; }
+  #view-ask.chatting .askcard { order: 2; position: sticky; bottom: 20px; z-index: 4; margin-top: 0; display: flex; flex-direction: column; box-shadow: 0 -16px 24px 4px var(--bg), 0 3px 12px rgba(22,24,23,.06); }
+  #view-ask.chatting .askcard::after { content: ""; position: absolute; left: -2px; right: -2px; top: calc(100% + 1px); height: 20px; background: var(--bg); }
+  /* The question box is the card itself: no inner border, grows with the text (see autosize in the script). */
+  #q { display: block; resize: none; overflow-y: auto; max-height: 40vh; }
   #q:disabled, #go:disabled { opacity: .55; cursor: wait; }
-  :where(#q, #go, .newchat, .msg a):focus-visible { outline: 2px solid var(--border-strong); outline-offset: 2px; }
+  :where(#go, .msg a):focus-visible { outline: 2px solid var(--border-strong); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -330,7 +333,7 @@
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
-  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
@@ -347,6 +350,7 @@
     <div class="navlbl">WORKSPACE</div>
     <nav>
       <a href="#ask" data-view="ask" class="active" title="Ask Aspire Atlas"><svg><use href="#i-spark"/></svg><span class="nt">Ask Aspire Atlas</span><span class="tag">AI</span></a>
+      <a href="#ask" id="newchat" title="New chat"><svg><use href="#i-plus"/></svg><span class="nt">New chat</span></a>
       <a href="/connect.html" title="Connections"><svg><use href="#i-link"/></svg><span class="nt">Connections</span></a>
       <a href="#audit" data-view="audit" title="Audit log"><svg><use href="#i-shield"/></svg><span class="nt">Audit log</span><span class="tag">Admin</span></a>
     </nav>
@@ -375,37 +379,22 @@
           <div class="mark"><svg class="ico"><use href="#i-compass"/></svg></div>
         </header>
 
+        <div class="signincard" id="signin" hidden>
+          <div><b>Connect your Slack to start asking</b><p>Aspire Atlas answers as you, from what you can see, so it needs to know who you are first.</p></div>
+          <a class="btn" href="/connect.html"><svg class="ico" style="width:14px;height:14px"><use href="#i-link"/></svg>Connect your Slack</a>
+        </div>
         <div class="askcard">
           <form id="f">
             <textarea type="search" id="q" rows="1" placeholder="Ask a question, e.g. What do we know about the payment outage?" autocomplete="off" aria-label="Question"></textarea>
-            <div class="modes" role="radiogroup" aria-label="Mode">
-              <label><input type="radio" name="mode" value="ask" checked /> Ask</label>
-              <label><input type="radio" name="mode" value="search" /> Search</label>
-            </div>
-            <button type="button" class="setbtn" id="setbtn" aria-expanded="false" aria-controls="settings">
-              <svg class="ico"><use href="#i-sliders"/></svg><span class="setlbl">Settings</span><span class="setsum" id="setsum"></span><svg class="ico chev"><use href="#i-chev"/></svg>
-            </button>
-            <span class="formhint">↵ to send · ⇧↵ newline</span>
+            <div class="sources" id="sources" role="group" aria-label="Sources to include"></div>
             <button id="go"><svg class="ico" style="width:14px;height:14px"><use href="#i-spark"/></svg><span>Ask</span></button>
           </form>
-          <div class="settings" id="settings" hidden>
-            <div class="setrow">
-              <span class="lbl2">ASKING AS</span>
-              <div class="modes" role="radiogroup" aria-label="Who is asking" id="asWho">
-                <label title="Act as anyone (demo)"><input type="radio" name="as" value="demo" checked /> Demo</label>
-                <label title="Ask as the person signed in on this browser"><input type="radio" name="as" value="me" /> Me</label>
-              </div>
-              <label class="cmp"><input type="checkbox" id="compare" checked /> Compare two people</label>
-            </div>
-            <div class="sources" id="sources" aria-label="Sources to search"></div>
-          </div>
         </div>
 
         <div class="tries" id="tries"></div>
 
         <main>
           <div class="pane" id="p0"></div>
-          <div class="pane" id="p1"></div>
         </main>
       </div>
 
@@ -498,28 +487,6 @@
     try { localStorage.setItem("sidebarCollapsed", c ? "1" : "0"); } catch {}
   };
 })();
-// Ask settings (who's asking, compare, sources): collapsed by default, remembered per browser.
-(() => {
-  const btn = document.getElementById("setbtn"), panel = document.getElementById("settings");
-  const set = (open) => { panel.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
-  try { set(localStorage.getItem("askSettingsOpen") === "1"); } catch {}
-  btn.onclick = () => {
-    const open = panel.hidden;
-    set(open);
-    try { localStorage.setItem("askSettingsOpen", open ? "1" : "0"); } catch {}
-  };
-})();
-// One-line summary on the Settings button, e.g. "Demo · 2 people · All sources".
-function updateSettingsSummary() {
-  const q = (s) => document.querySelector(s);
-  const parts = [];
-  if (q("#asWho").style.display !== "none") parts.push(q('input[name="as"]:checked').value === "me" ? "Me" : "Demo");
-  if (q("#compare").parentElement.style.display !== "none") parts.push(q("#compare").checked ? "2 people" : "1 person");
-  const boxes = [...document.querySelectorAll("#sources input:not(:disabled)")], on = boxes.filter((b) => b.checked);
-  if (boxes.length) parts.push(on.length === boxes.length ? "All sources" : on.length ? on.map((b) => b.parentElement.textContent.trim()).join(", ") : "No sources");
-  q("#setsum").textContent = parts.join(" · ");
-}
-["change", "click"].forEach((t) => document.getElementById("settings").addEventListener(t, () => setTimeout(updateSettingsSummary)));
 </script>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -552,10 +519,6 @@ const savePicked = (picked = tickedSources()) => { try { localStorage.setItem("s
 const tickedSources = () => [...document.querySelectorAll('#sources input:checked')].map((i) => i.value);
 // The sources to search: ticked and usable.
 const chosenSources = () => [...document.querySelectorAll('#sources input:checked:not(:disabled)')].map((i) => i.value);
-function syncAllBtn() {
-  const b = $("#allsrc");
-  if (b) b.textContent = chosenSources().length === $("#sources").querySelectorAll("input:not(:disabled)").length ? "Clear all" : "Select all";
-}
 // Only offer a source when someone in view is connected to it (a Slack account, a Drive email, a linked
 // Atlassian account for Jira and Confluence). Unknown while their access loads: offered.
 const connectedTo = (pane, source) => pane.access?.connected?.[source] !== false;
@@ -566,28 +529,20 @@ function updateSourceAvailability() {
     const label = i.closest("label");
     i.disabled = !ok;
     label.classList.toggle("na", !ok);
-    label.title = ok ? "" : `${inView.length > 1 ? "Neither person is" : "Not"} connected to ${label.textContent.trim()}. Connect it on the Connections page.`;
+    label.title = ok ? `${i.ariaLabel}: ${i.checked ? "included, click to leave out" : "left out, click to include"}`
+      : `Not connected to ${i.ariaLabel}. Connect it on the Connections page.`;
   });
-  syncAllBtn();
-  updateSettingsSummary();
 }
 function renderSources() {
   const names = connectorList.map((c) => c.label);
   $("#srcnames").textContent = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
   const off = loadOff();
-  $("#sources").innerHTML = `<span class="lbl2">SEARCH IN</span>` + connectorList.map((c) => `
-    <label><input type="checkbox" value="${esc(c.name)}" ${off.includes(c.name) ? "" : "checked"} />${pIcon(c.name)}${esc(c.label)}</label>`).join("")
-    + (connectorList.length > 1 ? `<button type="button" class="linkbtn" id="allsrc"></button>` : "");
-  $("#sources").querySelectorAll("input").forEach((i) => i.onchange = () => { savePicked(); syncAllBtn(); runSearch(); });
-  $("#allsrc")?.addEventListener("click", () => {
-    const usable = [...$("#sources").querySelectorAll("input:not(:disabled)")];
-    const all = chosenSources().length !== usable.length;
-    usable.forEach((i) => (i.checked = all));
-    savePicked(); syncAllBtn(); runSearch();
-  });
+  $("#sources").innerHTML = connectorList.map((c) => `
+    <label><input type="checkbox" value="${esc(c.name)}" aria-label="${esc(c.label)}" ${off.includes(c.name) ? "" : "checked"} />${pIcon(c.name)}</label>`).join("");
+  $("#sources").querySelectorAll("input").forEach((i) => i.onchange = () => { savePicked(); updateSourceAvailability(); });
   updateSourceAvailability();
 }
-const panes = [$("#p0"), $("#p1")];
+const panes = [$("#p0")];
 
 async function api(path, body, admin) {
   const headers = body ? { "Content-Type": "application/json" } : {};
@@ -601,8 +556,6 @@ async function api(path, body, admin) {
   return r.json();
 }
 
-const mode = () => document.querySelector('input[name="mode"]:checked').value;
-const asWho = () => (cfg.allowImpersonation ? document.querySelector('input[name="as"]:checked').value : "me");
 
 // Connection flags control source availability without listing any source content.
 async function loadAccess(pane, who) {
@@ -615,52 +568,46 @@ async function loadAccess(pane, who) {
   updateSourceAvailability();
 }
 
-// Pane 0 is "Me" in Me mode; otherwise both panes pick a person (demo).
-// Each pane owns one conversation thread: in-memory history + a conversation id. Re-rendering the
-// pane (person switch, sign-in change) starts a new conversation, like the server would want.
-function renderPane(pane, selectedId) {
-  const locked = pane.id === "p0" && asWho() === "me";
+// The one pane is always "Me": the person signed in on this browser.
+// It owns one conversation thread: in-memory history + a conversation id. Re-rendering the
+// pane (sign-in change) starts a new conversation, like the server would want.
+function renderPane(pane) {
   pane.thread = []; // prior turns, oldest first, alternating user/assistant
   pane.conversationId = crypto.randomUUID();
   pane.msgN = 0; // message counter, scopes citation element ids per message
   pane.access = pane.accessP = null;
-  if (locked) {
-    u = me.signedIn ? me : null;
-    pane.dataset.user = "";
-    pane.innerHTML = u
-      ? `<div class="melabel">You: ${esc(u.name)} <button type="button" class="linkbtn newchat">New chat</button></div><div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`
-      : `<div class="melabel">Not signed in</div><div class="empty" style="margin-top:12px"><a href="/connect.html">Connect your Slack</a> to ask as yourself.</div><div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`;
-    if (u) loadAccess(pane, { asMe: true });
-    wireNewChat(pane);
-    return;
-  }
-  u = users.find((x) => x.id === selectedId) || users[0];
-  pane.dataset.user = u?.id || "";
-  pane.innerHTML = `
-    <select aria-label="Person">${users.map((x) => `<option value="${esc(x.id)}" ${x.id === u?.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-    <button type="button" class="linkbtn newchat" title="Clear this conversation">New chat</button>
-    <div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`;
-  if (u) loadAccess(pane, { personId: u.id });
-  pane.querySelector("select").onchange = (e) => { renderPane(pane, e.target.value); runSearch(); };
-  wireNewChat(pane);
+  pane.innerHTML = `<div class="results chatlog" aria-live="polite" aria-label="Conversation"></div>`;
+  if (me.signedIn) loadAccess(pane, { asMe: true });
+  // Signed out: no question box at all, only the Connect prompt.
+  $("#view-ask").classList.toggle("signedout", !me.signedIn);
+  $("#signin").hidden = me.signedIn;
+  $("#q").disabled = $("#go").disabled = !me.signedIn;
+  setChatting(false);
 }
 
-function wireNewChat(pane) {
-  pane.querySelector(".newchat")?.addEventListener("click", () => {
+// Landing (hero + question box) until the first question, then the chat page.
+function setChatting(on) {
+  $("#view-ask").classList.toggle("chatting", on);
+  if (!on) window.scrollTo(0, 0);
+}
+
+// Sidebar "New chat": clears every pane's conversation and returns to the landing.
+$("#newchat").addEventListener("click", () => {
+  panes.forEach((pane) => {
     pane.thread = [];
     pane.conversationId = crypto.randomUUID();
     pane.msgN = 0;
     const log = pane.querySelector(".chatlog");
     if (log) log.innerHTML = "";
   });
-}
+  setChatting(false);
+  $("#q").value = "";
+  autosize();
+  $("#q").focus();
+});
 
 function renderPanes() {
-  panes.forEach((p, i) => renderPane(p, p.dataset.user || users[Math.min(i, users.length - 1)]?.id));
-  // The compare pane needs impersonation; with it off, only "Me" exists.
-  const canCompare = cfg.allowImpersonation && users.length > 0;
-  $("#compare").parentElement.style.display = canCompare ? "" : "none";
-  panes[1].classList.toggle("hidden", !canCompare || !$("#compare").checked);
+  panes.forEach((p) => renderPane(p));
   updateSourceAvailability();
 }
 
@@ -681,12 +628,6 @@ const resultHtml = (r, n) => `
 const unavailableHtml = (data) => data.unavailable?.length
   ? `<div class="note">Couldn't search ${esc(data.unavailable.join(", "))} right now, so results from it are missing.</div>` : "";
 
-function renderResults(pane, data) {
-  const box = pane.querySelector(".results");
-  if (!data.results.length) { box.innerHTML = unavailableHtml(data) + `<div class="empty">${esc(data.message)}</div>`; return; }
-  box.innerHTML = unavailableHtml(data) + groupedHtml(data.results, (r) => resultHtml(r), true);
-}
-
 // Results grouped by platform (Slack, Google Drive, Jira…) in collapsible sections.
 function groupedHtml(items, render, open) {
   const groups = new Map();
@@ -703,12 +644,13 @@ function groupedHtml(items, render, open) {
 }
 
 // ---- Chat rendering: one thread per pane, messages append in order ----
-// Scroll to the newest message; the browser keeps it cheap on a scrolled container.
-const scrollLog = (pane) => { const log = pane.querySelector(".chatlog"); if (log) log.scrollTop = log.scrollHeight; };
+// The chat page scrolls the window: follow the newest message.
+const scrollLog = () => window.scrollTo({ top: document.documentElement.scrollHeight });
 
 function appendUserMsg(pane, text) {
   const log = pane.querySelector(".chatlog");
   if (!log) return;
+  setChatting(true);
   log.insertAdjacentHTML("beforeend", `<div class="msg user"><div class="bubble">${esc(text)}</div></div>`);
   scrollLog(pane);
 }
@@ -722,7 +664,7 @@ function appendThinking(pane) {
 }
 
 // One assistant message: answer text with [n] citation links scoped to this message (so [1] in
-// message 3 never collides with [1] in message 1), the keywords line, per-platform sources.
+// message 3 never collides with [1] in message 1), then per-platform sources.
 function appendAnswer(pane, data) {
   const log = pane.querySelector(".chatlog");
   if (!log) return;
@@ -736,10 +678,9 @@ function appendAnswer(pane, data) {
   log.insertAdjacentHTML("beforeend", `<div class="msg bot"><div class="bubble">
     ${unavailableHtml(data)}
     <div class="answer">${answer}</div>
-    <div class="kw">Searched for: ${esc(data.keywords)}</div>
     ${data.sources.length ? `<div class="srclbl">Sources · ${data.sources.length}</div>${groupedHtml(data.sources, (s) => resultHtml(s, id(s.n)), false)}` : ""}
   </div></div>`);
-  scrollLog(pane);
+  log.lastElementChild.scrollIntoView({ block: "start" }); // start of the answer, not the bottom of its sources
 }
 
 // Citation [n]: open its platform group and scroll to it (without touching the page address).
@@ -763,27 +704,21 @@ async function runSearch() {
   await ready; // panes and sources don't exist until the first load finishes
   const sources = chosenSources();
   if (!sources.length) { panes.forEach((p) => { const b = p.querySelector(".results"); if (b) b.innerHTML = `<div class="empty">Pick at least one source to search.</div>`; }); return; }
-  const m = mode();
   const active = panes.filter((p) => !p.classList.contains("hidden"));
   busy = true;
   $("#go").disabled = $("#q").disabled = true;
   try {
     await Promise.all(active.map(async (p) => {
       const box = p.querySelector(".results");
-      const who = p.id === "p0" && asWho() === "me" ? { asMe: true } : { personId: p.dataset.user };
-      if (who.asMe && !me.signedIn) return;
+      const who = { asMe: true };
+      if (!me.signedIn) return;
       const mine = sources.filter((s) => connectedTo(p, s));
       loadAccess(p, who); // refresh connection flags independently of search
       if (!mine.length) { box.innerHTML = `<div class="empty">Not connected to any of the selected sources.</div>`; return; }
-      if (m !== "ask") {
-        // Search is one-shot: keep today's behaviour of replacing the pane's contents.
-        box.innerHTML = `<div class="empty">Searching…</div>`;
-        try { renderResults(p, await api("/api/search", { ...who, q, sources: mine })); }
-        catch (e) { box.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
-        return;
-      }
       // Ask is a conversation: append this question, get an answer with fresh retrieval.
       appendUserMsg(p, q);
+      $("#q").value = ""; // like a chat: the box empties once the question is in the thread
+      autosize();
       const thinking = appendThinking(p);
       try {
         const data = await api("/api/ask", { ...who, q, sources: mine, conversationId: p.conversationId, history: (p.thread || []).slice(-6) });
@@ -807,19 +742,16 @@ async function runSearch() {
 $("#q").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#f").requestSubmit(); }
 });
+// Grow the question box with its text (up to the CSS max-height), so it never needs its own scroll box.
+function autosize() { const q = $("#q"); q.style.height = "auto"; q.style.height = q.scrollHeight + "px"; }
+$("#q").addEventListener("input", autosize);
 
 // ---- Try prompts ----
-const EXAMPLES = {
-  ask: ["What do we know about the payment outage?", "Why were there too many open database connections?"],
-  search: ["outage", "migration"],
-};
+const EXAMPLES = ["What do we know about the payment outage?", "Why were there too many open database connections?"];
 function renderTries() {
-  const m = mode();
-  $("#tries").innerHTML = `<span>Try:</span>` + EXAMPLES[m].map((e) =>
-    `<button type="button">${m === "ask" ? `<svg class="ico"><use href="#i-spark"/></svg>` : ""}${esc(e)}</button>`).join("");
-  $("#tries").querySelectorAll("button").forEach((b) => (b.onclick = () => { $("#q").value = b.textContent; runSearch(); }));
-  $("#q").placeholder = m === "ask" ? "Ask a question, e.g. What do we know about the payment outage?" : "Search everything, e.g. outage, breach, migration, rollback";
-  $("#go span").textContent = m === "ask" ? "Ask" : "Search";
+  $("#tries").innerHTML = `<span>Try:</span>` + EXAMPLES.map((e) =>
+    `<button type="button"><svg class="ico"><use href="#i-spark"/></svg>${esc(e)}</button>`).join("");
+  $("#tries").querySelectorAll("button").forEach((b) => (b.onclick = () => { $("#q").value = b.textContent; autosize(); runSearch(); }));
 }
 
 // ---- Audit log (admin only): the tamper-evident records from /api/audit ----
@@ -1127,17 +1059,13 @@ async function showView() {
 }
 window.addEventListener("hashchange", showView);
 
-document.querySelectorAll('input[name="mode"]').forEach((r) => r.onchange = renderTries);
-document.querySelectorAll('input[name="as"]').forEach((r) => r.onchange = () => { renderPanes(); runSearch(); });
 $("#f").onsubmit = (e) => { e.preventDefault(); runSearch(); };
-$("#compare").onchange = (e) => { panes[1].classList.toggle("hidden", !e.target.checked); updateSourceAvailability(); runSearch(); };
 // Refresh account connections after returning from a source's connection flow.
 window.addEventListener("focus", async () => {
+  const wasSignedIn = me.signedIn;
   await Promise.all([loadUsers(), loadMe()]);
-  panes.forEach((p) => {
-    const who = p.id === "p0" && asWho() === "me" ? (me.signedIn ? { asMe: true } : null) : (p.dataset.user ? { personId: p.dataset.user } : null);
-    if (who) loadAccess(p, who);
-  });
+  if (me.signedIn !== wasSignedIn) renderPanes(); // signed in (or out) in another tab: swap prompt / question box
+  else if (me.signedIn) panes.forEach((p) => loadAccess(p, { asMe: true }));
 });
 
 renderTries();
@@ -1146,11 +1074,8 @@ showView();
 const ready = (async () => {
   [cfg, connectorList] = await Promise.all([api("/api/config"), api("/api/connectors")]);
   renderSources();
-  if (!cfg.allowImpersonation) $("#asWho").style.display = "none";
   await Promise.all([loadUsers(), loadMe(), loadDriveHealth()]);
-  if (!cfg.allowImpersonation || (me.signedIn && !users.length)) document.querySelector('input[name="as"][value="me"]').checked = true;
   renderPanes();
-  updateSettingsSummary();
 })();
 ready.then(loadStatus).then(showView);
 setInterval(loadStatus, 3000);
