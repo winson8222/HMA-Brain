@@ -266,7 +266,7 @@ Use a test account and note its initial connections.
 | --- | --- | --- |
 | Disconnect and reconnect Slack through Connections | Account disconnect and connect, actor is the person; reconnect can also produce a DM backfill summary | Reconnect as the same Slack person and confirm access. Disconnect removes eligible indexed DMs until reconnection reimports them |
 | Disconnect and reconnect Atlassian through Connections | Account disconnect and connect with source `atlassian`; this single link serves Jira and Confluence | Reconnect using the same person's Atlassian account; allow Confluence's identity cache to refresh or restart, then confirm both sources work |
-| Reconnect Google Drive through the admin controls on `/drive.html` | Account connect for Drive | Reconnect the same configured admin account and confirm Drive works; this is a shared connection, not a per-person link |
+| Reconnect Google Drive with `npm run drive:connect` | Account connect for Drive | Reconnect the same configured admin account and confirm Drive works; this is a shared connection, not a per-person link |
 
 Use **Kind = Account links** to inspect the records. Browser **Sign out** is not the Slack Disconnect action. No poll is required to create the account records.
 
@@ -274,9 +274,8 @@ Use **Kind = Account links** to inspect the records. Browser **Sign out** is not
 
 1. Open the main Audit tab and Apply a filter. Clear filters and reload; expect an admin **audit log viewed** record. The request logs itself after querying, so that action appears on a later reload.
 2. Click **Verify chain**. Expect chain intact. Reload and find the admin verify record.
-3. On `/drive.html`, press **Sync now**. Expect an admin sync-now record. It may identify the signed-in person or anonymous rather than `admin`.
+3. On the Connections page, press **Sync now** under Google Drive. Expect an admin sync-now record. It may identify the signed-in person or anonymous rather than `admin`.
 4. Run `npm run audit:log -- --kind admin` and `npm run audit:verify`. Confirm CLI admin actions are also recorded. Successful verification checks the chain and retained checkpoint before attempting its own best-effort audit action, so the head normally advances afterward. Failed verification writes nothing.
-5. If testing the `/drive.html` audit view, expect only access records there. Use the main page for permission, content, account and admin records.
 
 ### How the audit trail detects tampering
 

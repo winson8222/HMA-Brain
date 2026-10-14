@@ -15,13 +15,13 @@ Bob or Dave must not be the owning crawler account in these tests: an owner can 
 1. In Google Cloud, enable the Drive API for the app's project.
 2. Configure the OAuth consent screen. In testing mode, add the accounts that will authorize the app as test users.
 3. Configure the app's Drive scopes, `drive.readonly` and `drive.file`; the latter supports the demo seed's file creation and editing.
-4. Create a web OAuth client. Register `http://localhost:8765/oauth2callback` for CLI connection and `<PUBLIC_URL>/connect/google/callback` for the web connection.
+4. Create a web OAuth client and register `http://localhost:8765/oauth2callback` as its redirect URI (used by `npm run drive:connect`).
 5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
 6. Set `DRIVE_ROOT_FOLDER_NAME=Company A`, or an explicit `DRIVE_ROOT_FOLDER_ID`. Choose `DRIVE_SYNC=on` for server polling, `off` for controlled manual tests.
 
 ## 4 Link people
 
-Connect the crawler, either with `npm run drive:connect` or through the admin controls on `/drive.html`. Authorize the same Google account that owns/reads the demo folder. Its token is saved to `.secrets/google-token.json` by default.
+Connect the crawler with `npm run drive:connect`. Authorize the same Google account that owns/reads the demo folder. Its token is saved to `.secrets/google-token.json` by default.
 
 There is no separate per-person Drive connection in this demo. Asker access is derived from email and fresh file sharing; see [Drive design](../reference/connectors/drive.md).
 

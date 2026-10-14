@@ -24,7 +24,7 @@ Before the first run with audit checkpoints enabled, initialize the trusted audi
 
 Open `http://localhost:3000`. Use **Search** for a result list or **Ask** for a cited answer. **Me** uses your signed-in identity; **Demo** lets the presenter compare test personas when `ALLOW_IMPERSONATION=on`.
 
-Each persona must connect their own accounts on `/connect.html`. Choosing a persona in Demo mode does not create an Atlassian account link. The main page supports all configured sources; `/drive.html` is an additional Drive-only interface.
+Each persona must connect their own accounts on `/connect.html`. Choosing a persona in Demo mode does not create an Atlassian account link. The main page supports all configured sources.
 
 ## Platform guides
 

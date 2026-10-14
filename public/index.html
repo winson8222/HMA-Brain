@@ -537,7 +537,7 @@ const CATALOG = [
 const iconOf = (name) => CATALOG.find((c) => c.name === name)?.icon;
 const pIcon = (name) => iconOf(name) ? `<svg class="pi"><use href="#${iconOf(name)}"/></svg>` : "";
 
-// Browser-session storage for the admin password (cleared when the tab closes). Shared with /drive.html.
+// Browser-session storage for the admin password (cleared when the tab closes).
 const store = {
   get: (k) => { try { return sessionStorage.getItem(k) || ""; } catch { return ""; } },
   set: (k, v) => { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch {} },
@@ -1022,7 +1022,7 @@ function devNotes() {
   if (!connectorList.some((c) => c.name === "drive")) notes.push("Google Drive isn't set up: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart.");
   if (!connectorList.some((c) => c.name === "jira")) notes.push("Jira isn't set up: set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN in .env and restart.");
   if (driveHealth) {
-    notes.push(...(driveHealth.warnings || []).map((w) => w.replace("at the bottom of this page", "on the Drive page (/drive.html)")));
+    notes.push(...(driveHealth.warnings || []));
     if (driveHealth.lastError) notes.push(`Last Drive sync error: ${driveHealth.lastError}`);
   }
   if (s.jira?.authError) notes.push("Jira rejected the service account's API token. Check JIRA_EMAIL / JIRA_API_TOKEN.");
@@ -1053,7 +1053,7 @@ function sourceState(name) {
     return {
       state: on ? "on" : "warn", text: on ? "Active" : d.connected ? "Needs reconnecting" : "Not connected yet",
       facts: [["Account", d.account || "–"], ["Folder", d.rootFolder || "–"], ["Files indexed", d.files ?? 0], ["Sync", d.polling ? `Every ${d.pollSeconds}s` : "Off"], ["Last sync", ago(d.lastPollAt || d.lastBackfillAt)]],
-      hint: on ? `Manage Drive on the <a href="/drive.html">Drive page</a>.` : `Connect Google Drive on the <a href="/drive.html">Drive page</a>.`,
+      hint: on ? `Sync now is on the <a href="/connect.html">Connections page</a>.` : `An admin connects Google Drive with <code>npm run drive:connect</code>.`,
     };
   }
   if (name === "jira") {

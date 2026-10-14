@@ -92,8 +92,8 @@ else {
     bad(`LLM ${process.env.LLM_MODEL} failed: ${String(e?.message ?? e).slice(0, 140)}`, "Put a working LLM_API_KEY in .env (TokenHub: console.tencentcloud.com/tokenhub → API Key; activate the model first). Ask needs it; Search doesn't.");
   }
 }
-if ((process.env.ADMIN_TOKEN ?? "").length >= 16) ok("ADMIN_TOKEN set (audit log and Connect on /drive.html)");
-else bad("ADMIN_TOKEN not set", "Set ADMIN_TOKEN (16+ random characters) in .env to use the admin panel on /drive.html.");
+if ((process.env.ADMIN_TOKEN ?? "").length >= 16) ok("ADMIN_TOKEN set (audit log on the main page)");
+else bad("ADMIN_TOKEN not set", "Set ADMIN_TOKEN (16+ random characters) in .env to open the Audit tab on the main page.");
 try {
   const v = await verifyAudit();
   if (v.ok) ok(`audit chain intact (${v.checked} records)`);

@@ -28,7 +28,7 @@ The [retrieval reference](permissions-and-sync.md) explains the access checks. P
 | `src/audit/` | Shared audit types, chain, storage, query API and CLI |
 | `src/tracing.ts`, `src/judge.ts` | Optional tracing and answer evaluation |
 
-The main UI is `public/index.html`. Account linking is `public/connect.html`; `public/drive.html` retains a separate Drive view.
+The main UI is `public/index.html`. Account linking and Drive **Sync now** are on `public/connect.html`.
 
 ## Shared audit chain
 
