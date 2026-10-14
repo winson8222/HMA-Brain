@@ -49,6 +49,10 @@ export type AccessEvent = {
   keywords?: string;
   answer?: string;
   docs: AuditDoc[];
+  // Multi-turn Ask: which conversation and which turn in it (absent on older records and on
+  // one-shot searches). The client supplies the ID; the server validates its shape.
+  conversationId?: string;
+  turn?: number;
 };
 
 // One indexed item (a Drive file, Jira issue, Confluence page, Slack message or channel), not a chunk.
