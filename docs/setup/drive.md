@@ -6,7 +6,7 @@ Complete [project quick start](../../README.md#run-it). Use a dedicated Google a
 
 ## 2 Create accounts and source access
 
-Use Carol's configured Drive account as the crawler. The seed shares files with the persona emails. Those emails must match the identities used in Aspire Atlas. See [demo data](../demo/data/slack-and-drive.md) for the intended folder access.
+Use Carol's configured Drive account as the crawler. The seed shares files with the persona emails. Those emails must match the identities used in Aspire Atlas. See [demo data](../demo/data.md#slack-and-drive) for the intended folder access.
 
 Bob or Dave must not be the owning crawler account in these tests: an owner can still read every file after a reader share is removed. To switch, reconnect using Carol or a dedicated crawler, seed that account's demo folder, set its folder ID if needed, and rebuild the Drive index for the new scope.
 
@@ -37,7 +37,7 @@ For the full Slack/Drive story, use `seed:story` after both platforms and person
 
 ## 6 Verify and test
 
-Select Drive on the main page. As Bob, ask **How do I fail over the payment database?** After reset, expect pay-db-2 and pool 200. As Dave, search for the Payment outage postmortem before revoking his share. Use `npm run drive:verify` to compare source/index state and the [Drive audit tests](../demo/audit-test-plan.md#google-drive) for the full sequence.
+Select Drive on the main page. As Bob, ask **How do I fail over the payment database?** After reset, expect pay-db-2 and pool 200. As Dave, search for the Payment outage postmortem before revoking his share. Use `npm run drive:verify` to compare source/index state and the [Drive audit tests](../demo/test-plan.md#google-drive) for the full sequence.
 
 ## 7 Troubleshoot and restore
 

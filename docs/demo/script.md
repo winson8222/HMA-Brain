@@ -2,10 +2,23 @@
 
 **Opening:** “Aspire Atlas finds information across four tools, checks what the person asking can read, and shows the sources behind its answer. We can also inspect what was returned and when access changes were detected.”
 
+## Story and personas
+
+Company A runs a payments platform; Acme is its external payments vendor. The payment database ran out of connections during a migration, causing a 95-minute checkout outage. Alice handled it. Acme took 47 minutes to respond to a page, against a 15-minute commitment. Carol shared the postmortem with Dave so Acme could review the timeline, and removes that share during the permission test.
+
+| Person | Role | What they can see |
+| --- | --- | --- |
+| Alice | Payments engineer on the incident team | Incident details and her team's follow-up work |
+| Bob | Engineer outside the incident team | Ordinary engineering material, plus specific issues granted to him such as VEND-5 through Approvers |
+| Carol | Security lead and demo administrator | Security material and the admin audit log |
+| Dave | External contractor at Acme | Vendor material, plus the Drive postmortem shared with him until that share is removed |
+
+The crawler is a service account, not a fifth persona. Access follows source permissions, not a persona's narrative role: Dave can read whatever the shared postmortem contains even though he is external. Seeded content is historical sample text; "next week" in a page is not today's calendar. The seed modules define the baseline ([demo data](data.md)); a live site may have later edits, so check a status before promising it.
+
 ## Before presenting
 
 - Confirm the four connectors are configured and the test people have connected their own accounts. Demo mode does not create links.
-- Restore the selected scenarios using the [audit test plan](audit-test-plan.md#final-restoration-checklist).
+- Restore the selected scenarios using the [test plan](test-plan.md#final-restoration-checklist).
 - Run `npm run audit:verify` and check source availability.
 - Select only the named source for permission/freshness tests. Use multiple sources for the first example.
 - Keep an admin browser available for source changes and the Audit tab. Unlock Audit with `ADMIN_TOKEN`.
@@ -23,13 +36,13 @@
 | 4b | Bob | Confluence | Restrict the drill page, then ask the same question **without a sweep** | No answer; the page is gone |
 | 5 | Admin | Audit tab | Filter by the document tested in step 3 or 4, then click **Verify chain** | The earlier "shown" decision, the later "withheld" or "dropped" decision, the detected permission change, and a passing chain check |
 
-Use [the audit test plan](audit-test-plan.md) for the exact mutation and restore commands. For a short presentation, choose either step 3 or 4; use the other during questions.
+Use [the test plan](test-plan.md) for the exact mutation and restore commands. For a short presentation, choose either step 3 or 4; use the other during questions.
 
 Do not promise that every selected source will be cited: retrieval ranking and the evidence needed by the question determine citations. Open the source cards to show what was actually used.
 
 ## Optional demonstrations
 
-Each one proves a single point. Select only the named source. Exact commands and restore steps are in the [audit test plan](audit-test-plan.md).
+Each one proves a single point. Select only the named source. Exact commands and restore steps are in the [test plan](test-plan.md).
 
 ### Freshness: an edit shows up after a poll
 

@@ -45,7 +45,7 @@ npm run confluence:poll -- --sweep
 
 ## 6 Verify and test
 
-Select only Confluence. Bob should find **Checkout failover drill results** while it is unrestricted and answer **6 minutes 40 seconds**. Bob should not read **Outage follow-up review**, which inherits its parent's restriction. Follow the [audit tests](../demo/audit-test-plan.md#confluence).
+Select only Confluence. Bob should find **Checkout failover drill results** while it is unrestricted and answer **6 minutes 40 seconds**. Bob should not read **Outage follow-up review**, which inherits its parent's restriction. Follow the [audit tests](../demo/test-plan.md#confluence).
 
 ## 7 Troubleshoot and restore
 

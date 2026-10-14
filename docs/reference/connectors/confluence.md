@@ -1,6 +1,6 @@
 # Confluence connector
 
-**Status: implemented.** [Setup](../../setup/confluence.md) · [Tests](../../demo/audit-test-plan.md#confluence)
+**Status: implemented.** [Setup](../../setup/confluence.md) · [Tests](../../demo/test-plan.md#confluence)
 
 ## Permission structure
 
@@ -39,7 +39,7 @@ The split keeps frequent content polls cheaper than checking every page's restri
 - Live rechecks log a search's dropped decision but do not write a standalone permission-change record or relabel the page.
 - Account linking/unlinking is recorded once as `atlassian`, shared with Jira.
 
-The [shared chain](../architecture.md#shared-audit-chain) covers search, account and admin events. A sweep interval is a scheduling target, not a bound on how long changes were hidden during outages.
+The [shared chain](../architecture.md#audit-trail) covers search, account and admin events. A sweep interval is a scheduling target, not a bound on how long changes were hidden during outages.
 
 ## Limitations
 

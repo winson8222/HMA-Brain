@@ -1,8 +1,8 @@
-# Audit trail manual test plan
+# Test plan
 
 Test Google Drive, Jira, Slack and Confluence permission changes, content changes, account connections and admin actions. Each scenario includes the query, expected audit evidence, sync command and restoration steps.
 
-**Access enforcement and permission-change logging are separate.** A search checks live access before returning results and records its own shown, withheld or dropped decisions. Connector-specific checks and limits are described in the [connector references](../README.md). The separate permission-change record can arrive later through polling, a sweep or a Slack event. Test the next search **before polling** to exercise live protection.
+**Access enforcement and permission-change logging are separate.** A search checks live access before returning results and records its own shown, withheld or dropped decisions. Connector-specific checks and limits are in the [connector references](../README.md). The separate permission-change record can arrive later through polling, a sweep or a Slack event. Test the next search **before polling** to exercise live protection.
 
 ## Setup
 
@@ -29,46 +29,7 @@ npm run jira:doctor
 npm run confluence:doctor
 ```
 
-These are setup diagnostics, not substitutes for the tests below.
-
-## Polling and audit commands
-
-| Platform or task | Run now | Normal automatic behavior when enabled |
-| --- | --- | --- |
-| Drive changes and permissions | `npm run drive:poll` | Poll every 60 seconds by default; a live search can also detect sharing changes and relabel the file |
-| Jira issue changes and permissions | `npm run jira:poll` | Poll every 60 seconds by default; rereads project permission configuration and updated issues |
-| Confluence content and space permissions | `npm run confluence:poll` | Poll every 60 seconds by default |
-| Confluence page restriction changes without edits | `npm run confluence:poll -- --sweep` | Reconcile every 10 minutes by default |
-| Slack messages and channel membership | No poll command | Events, usually within seconds, with `SLACK_SYNC=on` |
-| Slack channel privacy changes | Wait for server reconciliation | Every 5 minutes while Slack sync is enabled |
-| Verify the audit chain | `npm run audit:verify` | Also available as **Verify chain** in the Audit tab |
-
-Automatic intervals depend on `.env` and service availability; they are not guaranteed delivery deadlines. `DRIVE_SYNC`, `JIRA_SYNC` and `CONFLUENCE_SYNC` must be `on` for their automatic jobs. A reconcile interval of `0` disables that reconcile job.
-
-Standalone watchers are available when you are not using the server's automatic polling:
-
-```bash
-npm run drive:poll -- --watch
-npm run jira:poll -- --watch
-npm run confluence:poll -- --watch
-```
-
-Run only the watcher you need, in a separate terminal; stop it with Ctrl+C. The Confluence normal watcher does not schedule sweeps. Its one-off `--sweep` runs the sweep instead of a content poll. If you need both, run the normal poll and the sweep separately.
-
-For why page restrictions use a separate sweep, see [Confluence update decisions](../reference/connectors/confluence.md#updates-and-design-decisions). Normal polling has not been extended to check every page restriction.
-
-Useful audit queries:
-
-```bash
-npm run audit:log -- --kind permission
-npm run audit:log -- --kind content
-npm run audit:log -- --kind account,admin
-npm run audit:log -- --user bob --kind access
-npm run audit:log -- --doc postmortem
-npm run audit:verify
-```
-
-Permission and content records normally have actor `system`. Clear a Person filter such as Bob or Dave when looking for those records. The Person filter identifies who acted, not who lost access.
+These are setup diagnostics, not substitutes for the tests below. Poll, sweep and audit query commands are in the [command reference](../reference/commands.md).
 
 ## Google Drive
 
@@ -184,13 +145,6 @@ Do not delete a seeded issue to reset it: Jira does not reuse the issue key. `np
 
 **Restore:** deletion in step 4 removes the test content. Leave the audit history intact.
 
-### Channel rename and privacy checks
-
-Use a disposable channel for these checks. Note its original name and privacy.
-
-- **Rename:** rename the channel, wait for reconciliation, and look for a content-change record. The reviewed PR has a known gap: the rename event refreshes the cache before reconciliation compares names, so a record can be missing. Restore the original name afterward.
-- **Privacy:** change a disposable public channel to private and wait for the server's next channel reconcile, normally within 5 minutes. Expect a permission-change record with before/after labels. Confirm a nonmember cannot retrieve its messages. Record the actual result if platform rules prevent changing privacy back; use a disposable channel so restoration does not depend on reversing that transition. Archive it after testing.
-
 ## Confluence
 
 ### Live page restriction change
@@ -277,22 +231,6 @@ Use **Kind = Account links** to inspect the records. Browser **Sign out** is not
 3. On the Connections page, press **Sync now** under Google Drive. Expect an admin sync-now record. It may identify the signed-in person or anonymous rather than `admin`.
 4. Run `npm run audit:log -- --kind admin` and `npm run audit:verify`. Confirm CLI admin actions are also recorded. Successful verification checks the chain and retained checkpoint before attempting its own best-effort audit action, so the head normally advances afterward. Failed verification writes nothing.
 
-### How the audit trail detects tampering
-
-Each record is sealed with an HMAC and linked to the previous record's hash. Verification detects edits, reordering and missing records within the chain. A durable checkpoint outside Elasticsearch remembers the latest committed sequence number and hash, so deletion of the newest records or the whole stored log is also detected while the checkpoint remains protected. For example, a checkpoint remembering record #100 exposes a log truncated to #90 even though those first 90 records still form a valid chain.
-
-If integrity checks fail, verification reports the problem and further audit appends are blocked; it does not replace the checkpoint or silently accept the shortened history. The checkpoint advances with successful appends after its one-time initialization. This protects against tampering in Elasticsearch, not coordinated compromise of the app host and checkpoint, and does not prove every source event was captured.
-
-For the judge walkthrough, show an existing query's document decisions and answer, then click **Verify chain** and explain the retained checkpoint. The demonstration does not require changing or deleting audit records. See [audit architecture](../reference/architecture.md#shared-audit-chain) for implementation details and [audit commands](../reference/commands.md#run-and-check) for initialization.
-
-## Filters and review regressions
-
-1. Generate a Search and an Ask, then verify actor, source, query, mode, decisions and citations in their audit rows.
-2. Try Person, Document, Kind and From/To dates independently, then together. Use **Reset** to clear the filters; this does not clear history.
-3. Leave Person empty when investigating system permission/content changes. Use the document filter to see those changes alongside people's searches.
-4. Exercise the document/decision regression: find a search with document A withheld and document B shown. Filter Document to A's title and Decision to **Something was shown**. The record must be excluded. Switch to **Withheld** and confirm it appears; filtering B with **Something was shown** must also include it. Repeat using an item ID. Title/ID and decision must belong to the same document entry.
-5. Verify the chain again after restoring all test data. Retained older records must still verify with the original audit key after explicit checkpoint initialization.
-
 ## Final restoration checklist
 
 Run only the resets for scenarios you exercised:
@@ -323,13 +261,3 @@ npm run audit:verify
 - Keep the audit index, `.secrets/audit-key` and `.secrets/audit-checkpoint.json` (or their configured paths). Restoration should add reversal records, not erase test history.
 
 Record the run's date, tester, pass/fail per scenario and relevant audit sequence numbers. A passing chain check proves the stored chain is intact; it does not prove that every expected event was captured, so check both.
-
-## Related documentation
-
-- [Judge demo script](script.md)
-- [Shared architecture and audit chain](../reference/architecture.md)
-- [Slack connector](../reference/connectors/slack.md)
-- [Drive connector](../reference/connectors/drive.md)
-- [Jira connector](../reference/connectors/jira.md)
-- [Confluence connector](../reference/connectors/confluence.md)
-- [Command reference](../reference/commands.md)

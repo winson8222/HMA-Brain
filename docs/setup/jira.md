@@ -44,7 +44,7 @@ If Jira search has not caught up with newly seeded issues, wait and repeat backf
 
 ## 6 Verify and test
 
-Select only Jira. Bob should find VEND-5 when he is in its Approvers field and linked. Alice should find PAY-240; she should not find leadership-only PAY-243. Carol can read both. Use the [Jira data matrix](../demo/data/jira.md) and [audit tests](../demo/audit-test-plan.md#jira).
+Select only Jira. Bob should find VEND-5 when he is in its Approvers field and linked. Alice should find PAY-240; she should not find leadership-only PAY-243. Carol can read both. Use the [Jira demo data](../demo/data.md#jira) and [audit tests](../demo/test-plan.md#jira).
 
 ## 7 Troubleshoot and restore
 
