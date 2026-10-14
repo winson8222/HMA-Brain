@@ -18,31 +18,32 @@ The crawler is a service account, not a fifth persona. Access follows source per
 ## Before presenting
 
 - Confirm the four connectors are configured and the test people have connected their own accounts. Demo mode does not create links.
-- Restore the selected scenarios using the [test plan](test-plan.md#final-restoration-checklist).
+- Restore the baseline using the [test plan](test-plan.md#final-restoration-checklist).
 - Run `npm run audit:verify` and check source availability.
 - Select only the named source for permission/freshness tests. Use multiple sources for the first example.
 - Keep an admin browser available for source changes and the Audit tab. Unlock Audit with `ADMIN_TOKEN`.
 
-## Suggested running order
+## Running order
+
+This follows the video script. Baseline before starting: Bob is **not** in payments-incident, Dave still has his share on the postmortem, Slack sync is on and the bot is in payments-incident.
 
 | Step | Who asks | Sources selected | Question or action | Expected |
 | --- | --- | --- | --- | --- |
-| 1a | Alice | Slack, Drive, Jira | What was the root cause of the payment outage, and what follow-up work was created? | Root cause: connection exhaustion after `tx_schema_v2`. Follow-up issues PAY-240, PAY-241 and PAY-245. Citations from payments-incident, the postmortem and Jira |
-| 1b | Bob | Slack, Drive, Jira | Same question as 1a | No root cause. Bob is outside payments-incident, the Postmortems folder and the incident-team issues, so at most he gets public channel updates. Nothing hints that the restricted items exist |
-| 2 | Bob | Jira | What is VEND-5 about, and who needs to approve it? | Acme wants read-only access to the payments status dashboard; Bob is the approver |
-| 3 | Dave | Drive | Which merchants were affected by the outage and how much was refunded? | M-1043: SGD 18,400; M-2210: SGD 11,900; M-0877: SGD 6,300, from the shared postmortem |
-| 3b | Dave | Drive | Remove Dave's share on the postmortem, then ask the same question **without polling** | No merchant details; the postmortem is gone |
-| 4 | Bob | Confluence | How long did the last failover drill take? | 6 minutes 40 seconds |
-| 4b | Bob | Confluence | Restrict the drill page, then ask the same question **without a sweep** | No answer; the page is gone |
-| 5 | Admin | Audit tab | Filter by the document tested in step 3 or 4, then click **Verify chain** | The earlier "shown" decision, the later "withheld" or "dropped" decision, the detected permission change, and a passing chain check |
+| 1 | Alice | Slack, Drive, Jira | What was the root cause of the payment outage, and what follow-up work was created? | Root cause: connection exhaustion after `tx_schema_v2`. Follow-up issues PAY-240, PAY-241 and PAY-245. Citations from payments-incident, the postmortem and Jira |
+| 2 | Bob | Slack, Drive, Jira | Same question as step 1 (use **Compare two people** to show both at once) | "I don't have information on that." Bob is outside payments-incident, the Postmortems folder and the incident-team issues. Nothing hints that the restricted items exist |
+| 2b | Bob | Slack, Drive, Jira | As Alice or Carol in Slack, add Bob to **payments-incident**. Bob asks the same question again | Root cause with citations from the incident channel, without polling. The membership event arrives within seconds; wait for it before asking |
+| 3 | Bob | Jira | What is VEND-5 about, and who needs to approve it? | Acme wants read-only access to the payments status dashboard; Bob is the approver |
+| 4 | Dave | Drive | Which merchants were affected by the outage and how much was refunded? | M-1043: SGD 18,400; M-2210: SGD 11,900; M-0877: SGD 6,300, from the shared postmortem |
+| 4b | Dave | Drive | `npm run seed:drive -- --close-vendor-access`, then ask the same question **without polling** | No merchant details and no sign the postmortem exists. The audit records **Dropped by live re-check** |
+| 5 | Carol (Admin) | Audit tab | Filter **Document = postmortem**, then click **Verify chain** | Dave's earlier "shown" decision, the later "dropped" decision, the detected permission change, and a passing chain check |
 
-Use [the test plan](test-plan.md) for the exact mutation and restore commands. For a short presentation, choose either step 3 or 4; use the other during questions.
+Restore afterwards: remove Bob from payments-incident, then `npm run seed:drive -- --reset` and `npm run drive:poll`. Exact commands and expected audit records are in the [test plan](test-plan.md).
 
 Do not promise that every selected source will be cited: retrieval ranking and the evidence needed by the question determine citations. Open the source cards to show what was actually used.
 
 ## Optional demonstrations
 
-Each one proves a single point. Select only the named source. Exact commands and restore steps are in the [test plan](test-plan.md).
+Not in the video. Each one proves a single point; select only the named source. Exact commands and restore steps are in the [test plan](test-plan.md).
 
 ### Freshness: an edit shows up after a poll
 
@@ -66,7 +67,6 @@ Ask the question as the first person, then as the second. The second person must
 | Who and source | Search | Change access | Expect | Restore |
 | --- | --- | --- | --- | --- |
 | Bob; Jira | `payments status dashboard` | As Carol, remove Bob from VEND-5's **Approvers** field | VEND-5 disappears immediately, **without polling** | Add Bob back, then `npm run jira:poll` |
-| Bob; Slack | `outage` | Add Bob to private channel **payments-incident**, search, then remove him and search again | Channel results appear while he is a member and disappear once he leaves | Leave Bob outside the channel (the seeded default) |
 
 ### Audit of content changes
 
