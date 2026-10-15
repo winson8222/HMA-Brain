@@ -1,8 +1,12 @@
 # Aspire Atlas
 
-![Aspire Atlas: ask a question, get a cited answer from Slack, Google Drive, Jira and Confluence](screenshots/hero.png)
-
 **Ask once. Get the answer your company already has, and only the parts you are allowed to see.**
+
+Aspire Atlas is a company knowledge assistant. It searches Slack, Google Drive, Jira and Confluence together and answers in plain language with citations back to the source. Every answer is built only from what the person asking is allowed to read, checked live against each platform, and recorded in a tamper-evident audit log.
+
+Built for the Tencent Cloud AI CAN DO IT Hackathon Singapore 2026, FinTech track.
+
+![Aspire Atlas: ask a question, get a cited answer from Slack, Google Drive, Jira and Confluence](screenshots/hero.png)
 
 ## The problem
 
@@ -10,11 +14,9 @@ Every company already knows the answer. It is just in six places. The incident w
 
 Pointing an AI assistant at all of it sounds like the fix, until you remember that each of those tools has its own rules about who may read what. A bot that indexes everything and answers everyone is a leak waiting to happen. One that is locked down too hard answers nothing useful.
 
-## Aspire Atlas
+## What it does
 
-Aspire Atlas is a company knowledge assistant that searches Slack, Google Drive, Jira and Confluence together and answers with citations, using only what the person asking is allowed to read.
-
-![Ask: one question, one cited answer across sources](screenshots/ask.png)
+You ask one question. Atlas searches every connected source as you, assembles the permitted excerpts, and answers with numbered citations you can open in Slack, Drive, Jira or Confluence.
 
 **Your permissions, not the bot's.** Channel membership, file sharing, issue security and page restrictions are enforced in code before anything reaches the model. Every result is re-checked against the source at the moment you ask, so access revoked a minute ago is caught, not served.
 
