@@ -1,7 +1,5 @@
 # Aspire Atlas
 
-**Ask once. Get the answer your company already has, and only the parts you are allowed to see.**
-
 Aspire Atlas is a company knowledge assistant. It searches Slack, Google Drive, Jira and Confluence together and answers in plain language with citations back to the source. Every answer is built only from what the person asking is allowed to read, checked live against each platform, and recorded in a tamper-evident audit log.
 
 Built for the Tencent Cloud AI CAN DO IT Hackathon Singapore 2026, FinTech track.
